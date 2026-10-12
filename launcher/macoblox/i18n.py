@@ -6,6 +6,17 @@ LANGUAGES = {"en": "English", "ru": "Русский"}
 _language = "en"
 
 RU = {
+    "Check for CiderDarling updates": "Проверить обновления CiderDarling",
+    "Check for CiderDarling updates automatically": "Автоматически проверять обновления CiderDarling",
+    "Checks in the background. Install an available update in a separate terminal.":
+        "Проверка в фоне. Установка доступного обновления в отдельном терминале.",
+    "A CiderDarling update is available in Settings → CiderDarling.":
+        "Обновление CiderDarling доступно в разделе «Настройки → CiderDarling».",
+    "Could not check CiderDarling updates: {error}": "Не удалось проверить обновления CiderDarling: {error}",
+    "No CiderDarling update is available.": "Обновлений CiderDarling нет.",
+    "Installed {installed}, update {pinned} is available. Opens a separate terminal for installation.":
+        "Установлена {installed}, доступно обновление {pinned}. Установка в отдельном терминале.",
+    "{installed}; update {pinned} available": "{installed}; доступно обновление {pinned}",
     "Install CiderDarling": "Установить CiderDarling",
     "Install in terminal": "Установить в терминале",
     "Opens a separate terminal for the build and sudo prompts.": "Откроет отдельный терминал для сборки и запросов sudo.",

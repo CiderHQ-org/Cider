@@ -1,6 +1,17 @@
 # Changelog
 
-## Unreleased
+## 0.23 — 2026-10-12
+
+- Discover complete CiderDarling CI releases in the background and offer
+  **Update CiderDarling** automatically. Checks run at startup and hourly,
+  can be disabled in Settings, and preserve a cached release through outages.
+  Updates install the exact advertised revision in a separate terminal;
+  newer/custom runtimes are not downgraded.
+- Build and publish Arch, Ubuntu/Debian and Fedora packages in CI. Releases
+  publish only after every package succeeds, with a verified immutable source
+  archive and automatically refreshed stable AUR recipe.
+- Let native package users select their runtime in the launcher without
+  requiring the regular Darling package alongside a CiderDarling installation.
 
 - Fix joining a game freezing in older Darling's `__exp10`/`__exp10f`:
   use a compiler-safe power call in the shim, including when a copied math

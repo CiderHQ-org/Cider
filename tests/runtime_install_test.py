@@ -129,7 +129,7 @@ class RuntimeInstallationTests(unittest.TestCase):
                 self.wait_for(lambda: (job.directory / "result").exists())
                 self.assertEqual(job.poll(), status)
                 self.assertEqual(self.arguments.read_text().splitlines(),
-                                 ["--install-runtime", "--darling", "ciderdarling"])
+                                 ["--install-runtime", "--darling", "ciderdarling", "--pinned-runtime"])
                 self.assertIsNone(process.poll(), "Terminal must remain open for the build output")
                 job.close()
                 os.write(master, b"\n")

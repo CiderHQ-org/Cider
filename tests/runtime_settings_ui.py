@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "launcher"))
 # Do not run startup update checks, author avatars or other unrelated workers.
 threading.Thread.start = lambda self: None
 from macoblox import app, core, runtime, runtime_install
+from runtime_update_fixture import release_fixture
 from gi.repository import Adw, Gio
 
 selection_file = base / "runtime.json"
@@ -41,10 +42,10 @@ metadata.write_text(json.dumps({"schema_version": 1, "name": "CiderDarling", "ar
 original_discovery = runtime.installed_runtimes
 
 
-def discovery(current):
+def discovery(current, pinned=None):
     return original_discovery(current, selection_file=selection_file,
                               regular_clients=[entry["executable"] for entry in choices.values()],
-                              cider_directory=base / "versions")
+                              cider_directory=base / "versions", pinned=pinned)
 
 
 application = Adw.Application(application_id="org.ciderhq.Cider.RuntimeTest",
@@ -62,7 +63,8 @@ def fixture(active="ciderdarling"):
     context.enter_context(patch.object(core, "DARLING_SYSROOT", Path(current["sysroot"])))
     context.enter_context(patch.object(core, "load_settings", return_value=dict(core.DEFAULT_SETTINGS,
                                                                              setup_complete=True,
-                                                                             auto_check_roblox_updates=False)))
+                                                                             auto_check_roblox_updates=False,
+                                                                             auto_check_ciderdarling_updates=False)))
     context.enter_context(patch.object(core, "save_settings"))
     context.enter_context(patch.object(core, "roblox_pids", return_value=[]))
     context.enter_context(patch.object(core, "restart_darling", side_effect=AssertionError("Must not stop a runtime")))
@@ -221,6 +223,35 @@ with patch.object(app.os, "execve") as execute, patch.object(app.sys, "argv", ["
     assert command == sys.executable
     assert arguments == [sys.executable, str(core.PROJECT / "launcher/ciderhq-launcher")]
     assert environment["MACOBLOX_PAGE"] == "settings" and "roblox:old-link" not in arguments
+
+# A published descendant is offered without changing an active Regular
+# Darling selection, and its exact release is passed to the terminal job.
+client = Path(choices['ciderdarling']['executable'])
+client.write_text('#!/bin/sh\nexit 0\n'); client.chmod(0o755)
+metadata.write_text(json.dumps({'schema_version': 1, 'name': 'CiderDarling',
+                               'architecture': 'x86_64', 'source_revision': 'b' * 40}))
+runtime.save_selection(choices['regular'], selection_file, current=choices['ciderdarling'])
+context, window = fixture('regular')
+with context, patch.object(app, '_launch_runtime_terminal', return_value=True):
+    page = window.settings_page
+    before = selection_file.read_bytes()
+    release = release_fixture()
+    window._runtime_update_checked(release, None, False)
+    assert page.ciderdarling_update_needed() and page.cider_update_button.get_visible()
+    assert page.runtime_install_button.get_label() == 'Update in terminal'
+    assert selection_file.read_bytes() == before and window.busy is None
+    page.cider_update_button.emit('clicked')
+    job = window.runtime_install_job
+    assert job.target_revision == release['source_revision']
+    assert '--runtime-release' in job.command and selection_file.read_bytes() == before
+    (job.directory / 'result').write_text('1\n')
+    window._watch_runtime_install(job)
+    assert window.busy is None and selection_file.read_bytes() == before
+    assert page.cider_update_button.get_sensitive()
+    metadata.write_text(json.dumps({'schema_version': 1, 'name': 'CiderDarling',
+                                   'architecture': 'x86_64', 'source_revision': 'f' * 40}))
+    page.refresh_runtime_choices()
+    assert not page.ciderdarling_update_needed(), 'A custom/newer runtime must not be downgraded'
 
 temporary.cleanup()
 print("PASS: GTK switches and terminal installation; custom prefixes persist; busy/game, missing runtimes, failed saves/installs and Flatpak are protected; restart does not replay a URI")

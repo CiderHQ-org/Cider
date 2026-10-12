@@ -63,7 +63,7 @@ elif [[ $# == 2 ]]; then
   cp -- "$2" "$archive"
 else
   curl --fail --location --retry 3 \
-    "https://github.com/CiderHQ-org/Cider/archive/refs/tags/v$version.tar.gz" --output "$archive"
+    "https://github.com/CiderHQ-org/Cider/releases/download/v$version/ciderhq-$version-source.tar.gz" --output "$archive"
 fi
 printf '%s  %s\n' "$checksum" "$archive" | sha256sum --check --status
 tar -xzf "$archive" -C "$staging"
@@ -76,7 +76,7 @@ install -m755 "$packaging_dir/install-payload.sh" "$staging/rpm/SOURCES/ciderhq-
 install -m644 "$packaging_dir/rpm/ciderhq.spec" "$staging/rpm/SPECS/ciderhq.spec"
 sed "s/@RELEASE_SHA256@/$checksum/g" "$packaging_dir/aur/ciderhq/PKGBUILD.in" > "$staging/aur/ciderhq/PKGBUILD"
 cp -- "$archive" "$staging/aur/ciderhq/ciderhq-$version.tar.gz"
-if command -v makepkg >/dev/null; then
+if command -v makepkg >/dev/null && (( EUID != 0 )); then
   (cd "$staging/aur/ciderhq" && makepkg --printsrcinfo > .SRCINFO)
 fi
 mv --no-clobber -T -- "$staging" "$output"

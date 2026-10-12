@@ -106,11 +106,19 @@ Installing this way keeps the current runtime selection and launcher files.
 Custom prefixes are remembered for both choices. Flatpak keeps this selector
 read-only because its runtime is bundled.
 
-Cider prefers the CiderDarling revision pinned in its installer
-(`CIDER_DARLING_REVISION` in `install.sh`, the one place it is set). When an
-older revision is installed, the same section offers **Update CiderDarling**;
-the new version is saved for CiderDarling with its prefix unchanged, and the
-active runtime switches to it only if CiderDarling was already active. An
+Cider 0.23 checks for CiderDarling updates automatically at startup and hourly.
+When a complete CI binary release is ready, **Settings → CiderDarling** offers
+**Update in terminal**. The refresh button checks immediately, and automatic
+checks can be disabled in that page. Downloads verify the published checksums;
+the update keeps the prefix and sign-in, and applies after restarting Cider.
+Each runtime release appears through this update feed without a separate
+Cider release or manual announcement.
+
+Cider uses the complete published runtime release, with the revision pinned
+in its installer (`CIDER_DARLING_REVISION` in `install.sh`) as the fallback
+when no update feed is available. The new version is saved for CiderDarling
+with its prefix unchanged, and the active runtime switches to it only if
+CiderDarling was already active. An
 installation interrupted during `sudo` is detected and removed after asking
 (`--replace-incomplete-runtime` skips the question). Build trees are deleted
 after a successful build; the build log stays in `~/.cache/ciderhq/installer/`.

@@ -126,6 +126,7 @@ DEFAULT_SETTINGS = {
     "discord_rpc_icon": False,
     "discord_rpc_time": True,
     "auto_check_roblox_updates": True,
+    "auto_check_ciderdarling_updates": True,
     "mod_death_sound": "default",
     "mod_custom_death_sound": "",
     "mod_old_character_sounds": False,

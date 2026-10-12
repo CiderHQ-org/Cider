@@ -1,0 +1,109 @@
+name: Cider release packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Source branch or commit to release
+        type: string
+        default: main
+      publish:
+        description: Publish after all distro packages build successfully
+        type: boolean
+        default: true
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cider-packages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.source.outputs.version }}
+      revision: ${{ steps.source.outputs.revision }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+      - id: source
+        name: Prepare the immutable source archive
+        run: |
+          version=$(python3 -c 'import json; print(json.load(open("packaging/release.json"))["version"])')
+          [[ $version =~ ^[0-9]+\.[0-9]+([A-Za-z0-9.]*)$ ]]
+          if [[ $GITHUB_REF == refs/tags/* ]]; then [[ $GITHUB_REF == refs/tags/v$version ]]; fi
+          mkdir dist
+          git archive --format=tar --prefix="Cider-$version/" HEAD | gzip -n > "dist/ciderhq-$version-source.tar.gz"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cider-source
+          path: dist/
+          if-no-files-found: error
+
+  build:
+    name: Package (${{ matrix.flavor }})
+    needs: source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - flavor: arch
+            image: archlinux:base-devel
+          - flavor: ubuntu24.04
+            image: ubuntu:24.04
+          - flavor: fedora
+            image: fedora:latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.source.outputs.revision }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: cider-source
+          path: out
+      - name: Stage a verified build sysroot
+        run: python3 packaging/fetch-build-runtime.py --output "$RUNNER_TEMP/runtime"
+      - name: Build in the target distro
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+          IMAGE: ${{ matrix.image }}
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE:/src:ro" -v "$GITHUB_WORKSPACE/out:/out" \
+            -v "$RUNNER_TEMP/runtime/sysroot:/runtime:ro" "$IMAGE" \
+            bash /src/packaging/ci/build-package.sh "$FLAVOR"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cider-${{ matrix.flavor }}
+          path: out/
+          if-no-files-found: error
+
+  publish:
+    needs: [source, build]
+    if: github.event_name == 'push' || inputs.publish
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish the tested packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.source.outputs.version }}
+          REVISION: ${{ needs.source.outputs.revision }}
+        run: python3 packaging/ci/publish-packages.py dist "$VERSION" "$REVISION"

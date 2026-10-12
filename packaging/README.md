@@ -1,6 +1,6 @@
 # Native distro packages
 
-These are package recipes for the Cider **0.22Patch1** release. Each package
+These are package recipes for the Cider **0.23** release. Each package
 builds the shim and native Wayland helper during packaging, installs desktop
 and link handlers, and downloads Roblox on first setup. Personal settings and
 sign-in are stored in the user's directories. The website and user logs are
@@ -13,10 +13,11 @@ excluded. Package updates use the distro's package manager.
 | Fedora | [RPM spec](rpm/ciderhq.spec) | Nobara and compatible Fedora derivatives |
 | openSUSE | [RPM spec](rpm/ciderhq.spec) | Tumbleweed; Leap releases supplying the required UI versions |
 
-The Debian and RPM recipes have **not been built in their target distros**.
-The stable AUR recipe has the official release archive checksum. These files
-prepare packages for maintainers; they do not publish to AUR, Debian,
-Fedora, openSUSE or a release.
+The release workflow builds Arch, Ubuntu 24.04 and Fedora packages in their
+own distro containers, then publishes the packages together after every build
+succeeds. It also attaches the immutable source archive and checksums and pins
+the stable AUR recipe on main. The recipes do not submit packages to distro
+repositories or the AUR.
 The `noreply@aubree.wtf` maintainer address is a placeholder: set the real
 packaging contact before submitting to a distro.
 
@@ -24,13 +25,11 @@ packaging contact before submitting to a distro.
 
 - x86_64 Linux with glibc. This macOS client and shim do not provide ARM or
   Alpine/musl packages.
-- A **full Darling** package, including GUI frameworks and stubs, installed
-  in the build environment and on the user's system. A CLI-only installation
-  does not suffice. Darling is a separate dependency; these recipes do not
-  bundle or rebuild it. On Debian, the upstream `darling` metapackage pulls
-  the GUI components. RPM maintainers need a repository supplying a full
-  `darling` RPM; a source installation alone does not satisfy package-manager
-  dependency checks.
+- A **full Darling sysroot**, including GUI frameworks and stubs, in the
+  build environment. CI stages a verified sysroot; local builds can set
+  `DARLING_SYSROOT=/path/to/libexec/darling`. At runtime users choose regular
+  Darling or CiderDarling in the launcher. Cider's package does not force an
+  additional regular Darling installation alongside CiderDarling.
 - GTK 4.14+, libadwaita 1.5+, WebKitGTK API 6.0, Python/PyGObject/Cairo,
   SDL2 and Wayland. Debian 12 and Ubuntu 22.04's original UI libraries are
   below these requirements.
@@ -44,7 +43,8 @@ and the appropriate Vulkan driver.
 
 ## Prepare sources
 
-The official Cider 0.22Patch1 archive is pinned in `release.json`. For release builds,
+The release workflow attaches `ciderhq-0.23-source.tar.gz` and pins its checksum
+in `release.json` after publication. For release builds,
 use the source preparation command below. To package local source edits:
 
 ```bash
@@ -61,12 +61,12 @@ From the Cider checkout:
 ./packaging/prepare-source.sh "$PWD/work/native-packages"
 ```
 
-This downloads the checksum-verified 0.22Patch1 release and places the Debian
+This downloads the checksum-verified 0.23 release and places the Debian
 overlay and RPM inputs in a new output directory. It requires `curl`, `tar`
 and `sha256sum`. To use an already downloaded release archive:
 
 ```bash
-./packaging/prepare-source.sh "$PWD/work/native-packages" /path/to/v0.22Patch1.tar.gz
+./packaging/prepare-source.sh "$PWD/work/native-packages" /path/to/v0.23.tar.gz
 ```
 
 The output directory must not already exist. Arch builds use their own AUR
@@ -76,22 +76,22 @@ for a retry.
 
 ## Debian / Ubuntu / Mint
 
-Install the full Darling Debian packages in the build environment first.
+Stage a full Darling sysroot in the build environment first.
 Then install the packaging tools and native development dependencies:
 
 ```bash
 sudo apt install build-essential debhelper dh-python python3 clang lld \
   pkg-config libsdl2-dev libwayland-dev
-cd work/native-packages/Cider-0.22Patch1
+cd work/native-packages/Cider-0.23
 dpkg-buildpackage -b -us -uc
 ```
 
-Build dependencies are checked by `dpkg-buildpackage`. Binary packages appear
+Build dependencies are checked by `dpkg-buildpackage`; `DARLING_SYSROOT` supplies the macOS libraries. Binary packages appear
 one directory above the source directory. Install using `apt`, which resolves
 dependencies from the configured repositories:
 
 ```bash
-sudo apt install ../ciderhq_0.22Patch1-1_amd64.deb
+sudo apt install ../ciderhq_0.23-1_amd64.deb
 ```
 
 The recipe uses debhelper for Python bytecode and desktop/icon/MIME cache

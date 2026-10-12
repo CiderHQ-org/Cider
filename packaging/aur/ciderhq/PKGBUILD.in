@@ -1,18 +1,20 @@
 # Maintainer: aubree.wtf <https://aubree.wtf/>
 pkgname=ciderhq
-pkgver=0.22Patch1
+pkgver=0.23
 pkgrel=1
 pkgdesc='Run the macOS Roblox client on Linux through Darling'
 arch=('x86_64')
 url='https://ciderhq.org'
 _repo='https://github.com/CiderHQ-org/Cider'
 license=('MIT' 'OFL-1.1')
-depends=('darling' 'unzip' 'python' 'python-gobject' 'python-cairo'
+depends=('unzip' 'python' 'python-gobject' 'python-cairo'
          'gtk4>=4.14' 'libadwaita>=1.5' 'webkitgtk-6.0' 'sdl2' 'wayland'
          'libpulse' 'libglvnd' 'libx11' 'libxext' 'libxfixes' 'libxi' 'libxcursor' 'gcc-libs')
 depends+=('hicolor-icon-theme' 'shared-mime-info' 'desktop-file-utils')
 makedepends=('clang' 'lld' 'pkgconf')
-optdepends=('mangohud: performance overlay'
+optdepends=('darling: regular Darling runtime'
+            'ciderdarling-bin: CiderHQ Darling runtime (also available from the launcher)'
+            'mangohud: performance overlay'
             'mesa: Mesa EGL and Zink for the Vulkan renderer'
             'vulkan-icd-loader: Vulkan renderer loader'
             'vulkan-driver: hardware Vulkan driver for the Vulkan renderer'
@@ -20,7 +22,7 @@ optdepends=('mangohud: performance overlay'
 provides=('macoblox')
 conflicts=('ciderhq-git' 'macoblox' 'macoblox-git')
 replaces=('macoblox')
-source=("$pkgname-$pkgver.tar.gz::$_repo/archive/refs/tags/v$pkgver.tar.gz")
+source=("$pkgname-$pkgver.tar.gz::$_repo/releases/download/v$pkgver/ciderhq-$pkgver-source.tar.gz")
 sha256sums=('@RELEASE_SHA256@')
 
 build() {

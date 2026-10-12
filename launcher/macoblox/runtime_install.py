@@ -1,4 +1,5 @@
 """Monitor an interactive runtime installer independently of its terminal client."""
+import json
 import os
 from pathlib import Path
 import re
@@ -7,6 +8,7 @@ import tempfile
 import time
 
 from .runtime import VARIANTS
+from . import runtime_updates
 
 
 # All paths and the variant are positional arguments, never inserted into code.
@@ -16,7 +18,7 @@ from .runtime import VARIANTS
 TERMINAL_SCRIPT = r'''set -u
 [[ -d "$3" ]] || exit 125
 printf '%s\n' "$$" > "$3/started.tmp" && mv -- "$3/started.tmp" "$3/started" || exit 125
-if CIDER_RUNTIME_LOG_RECORD="$3/build-log" bash "$1" --install-runtime --darling "$2"; then
+if CIDER_RUNTIME_LOG_RECORD="$3/build-log" bash "$1" --install-runtime --darling "$2" --pinned-runtime "${@:4}"; then
     cider_install_status=0
 else
     cider_install_status=$?
@@ -33,22 +35,39 @@ class Installation:
     def __init__(self, installer, variant, directory):
         self.directory = Path(directory)
         self.created = time.monotonic()
+        self.target_revision = None
         self.command = ["bash", "-c", TERMINAL_SCRIPT, "cider-runtime-install",
                         str(installer), variant, str(self.directory)]
 
     @classmethod
-    def create(cls, project, variant, cache):
+    def create(cls, project, variant, cache, release=None):
         if os.environ.get("FLATPAK_ID"):
             raise RuntimeError("Flatpak uses its bundled Darling runtime.")
         if variant not in VARIANTS:
             raise ValueError("Unknown Darling runtime")
+        if release is not None:
+            if variant != 'ciderdarling':
+                raise ValueError('Release metadata only applies to CiderDarling')
+            runtime_updates.validate(release)
+            if not runtime_updates.supported(release):
+                raise ValueError('This runtime update requires a newer Cider')
         installer = Path(project).resolve() / "install.sh"
         if not installer.is_file():
             raise FileNotFoundError("Cider's installer is missing. Update or reinstall Cider first.")
         folder = Path(cache) / "installer"
         folder.mkdir(parents=True, exist_ok=True)
         directory = tempfile.mkdtemp(prefix="runtime-", dir=folder)
-        return cls(installer, variant, directory)
+        job = cls(installer, variant, directory)
+        if release is not None:
+            try:
+                path = job.directory / 'release.json'
+                path.write_text(json.dumps(release))
+                job.command.extend(['--runtime-release', str(path)])
+                job.target_revision = release['source_revision']
+            except OSError:
+                job.close()
+                raise
+        return job
 
     def poll(self):
         """None while running, otherwise its exit code; detect closed terminals."""

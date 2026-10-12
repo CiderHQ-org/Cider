@@ -1,14 +1,13 @@
 Name:           ciderhq
-Version:        0.22Patch1
+Version:        0.23
 Release:        1%{?dist}
 Summary:        Run the macOS Roblox client on Linux through Darling
 License:        MIT AND OFL-1.1
 URL:            https://ciderhq.org
-Source0:        https://github.com/CiderHQ-org/Cider/archive/refs/tags/v%{version}.tar.gz#/ciderhq-%{version}.tar.gz
+Source0:        https://github.com/CiderHQ-org/Cider/releases/download/v%{version}/ciderhq-%{version}-source.tar.gz#/ciderhq-%{version}.tar.gz
 Source1:        ciderhq-install-payload.sh
 ExclusiveArch:  x86_64
 
-BuildRequires:  darling
 BuildRequires:  clang
 BuildRequires:  lld
 BuildRequires:  gcc-c++
@@ -18,7 +17,6 @@ BuildRequires:  pkgconfig(wayland-client)
 BuildRequires:  pkgconfig(wayland-egl)
 BuildRequires:  pkgconfig(wayland-cursor)
 
-Requires:       darling
 Provides:       macoblox = %{version}-%{release}
 Obsoletes:      macoblox < %{version}
 Requires:       python3
@@ -51,7 +49,7 @@ Requires:       webkitgtk6.0
 Requires:       pulseaudio-utils
 Recommends:     pipewire-utils
 %endif
-Suggests:       mangohud
+Suggests:       darling, mangohud
 
 # Keep private Mach-O frameworks out of ELF dependency generation and strip
 # only the Linux helper. Compile the private Python modules explicitly;
@@ -89,6 +87,10 @@ python3 -m compileall -q -d "%{_datadir}/ciderhq/launcher" "%{buildroot}%{_datad
 %{_datadir}/mime/packages/org.ciderhq.Cider.xml
 
 %changelog
+* Mon Oct 12 2026 Cider maintainers <noreply@aubree.wtf> - 0.23-1
+- Add automatic runtime update discovery and the game-join math repair.
+- Package the current launcher and diagnostics; let users choose their runtime.
+
 * Mon Oct 12 2026 Cider maintainers <noreply@aubree.wtf> - 0.22Patch1-1
 - Add the supplied CiderHQ logo and release installer/runtime updates.
 - Refresh launcher, desktop, website and native package branding.

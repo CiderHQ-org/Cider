@@ -7,6 +7,7 @@ import tempfile
 import unittest
 
 from macoblox import runtime
+from runtime_update_fixture import release_fixture
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,7 +21,7 @@ class InstallerRuntimeTests(unittest.TestCase):
         self.functions = self.base / "installer-functions.sh"
         source = (ROOT / "install.sh").read_text()
         self.assertTrue(source.endswith('main "$@"; exit\n'))
-        self.functions.write_text(source.removesuffix('main "$@"; exit\n'))
+        self.functions.write_text(source.removesuffix('main "$@"; exit\n') + '\nCIDER_DARLING_PINNED=1\n')
         self.environment = dict(os.environ, HOME=str(self.base),
                                 XDG_CONFIG_HOME=str(self.base / "config"),
                                 XDG_CACHE_HOME=str(self.base / "cache"),
@@ -28,6 +29,33 @@ class InstallerRuntimeTests(unittest.TestCase):
                                 NO_COLOR="1", TERM="dumb", FIXTURE=str(self.base))
         for key in ("DPREFIX", "DARLING_SYSROOT", "DARLING_BUILD_JOBS"):
             self.environment.pop(key, None)
+
+    def test_release_snapshot_selects_the_exact_ci_archive_checksums(self):
+        release = release_fixture()
+        file = self.base / 'release.json'
+        file.write_text(json.dumps(release))
+        output = self.checked('''
+CIDER_DARLING_RELEASE_FILE="$FIXTURE/release.json"
+resolve_ciderdarling_release
+printf '%s|%s|%s|%s' "$CIDER_DARLING_REVISION" "$CIDER_DARLING_INSTALL" "$CIDER_DARLING_PREBUILT_ARCH" "$CIDER_DARLING_PREBUILT_ARCH_MANIFEST"
+''')
+        self.assertTrue(output.endswith(f'{"a" * 40}|/opt/ciderdarling/{"a" * 40}|{"c" * 64}|{"d" * 64}'))
+
+    def test_invalid_release_is_rejected_even_with_python_optimization(self):
+        file = self.base / 'release.json'
+        for change in ('path', 'missing-build', 'minimum'):
+            data = release_fixture()
+            if change == 'path':
+                data['builds']['arch']['archive'] = '../bad.tar.xz'
+            elif change == 'missing-build':
+                del data['builds']['arch']
+            else:
+                data['minimum_cider'] = '999.0'
+            file.write_text(json.dumps(data))
+            result = self.shell('CIDER_DARLING_RELEASE_FILE="$FIXTURE/release.json"\nresolve_ciderdarling_release',
+                                PYTHONOPTIMIZE='1')
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('Invalid or incompatible', result.stderr)
 
     def shell(self, body, **environment):
         # A new session has no controlling terminal: prompts that read

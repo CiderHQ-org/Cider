@@ -22,6 +22,7 @@ for key in ("WAYLAND_DISPLAY", "BASH_ENV", "ENV"):
 (base / "config/xdg-terminals.list").write_text("org.kde.konsole.desktop\n")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "launcher"))
 from macoblox import app, runtime_install
+from runtime_update_fixture import release_fixture
 from gi.repository import Gtk
 
 Gtk.init()
@@ -35,7 +36,8 @@ installer.write_text('#!/bin/bash\n[[ -t 0 && -t 1 ]] || exit 41\n'
                      'printf "%s\\n" "$@" > ' + shlex.quote(str(arguments)) + '\nexit 0\n')
 try:
     for gio_fallback in (False, True):
-        job = runtime_install.Installation.create(project, "ciderdarling", base / "cache")
+        release = release_fixture() if gio_fallback else None
+        job = runtime_install.Installation.create(project, "ciderdarling", base / "cache", release=release)
         try:
             if gio_fallback:
                 with patch.object(app.shutil, "which", return_value=None):
@@ -51,7 +53,11 @@ try:
                 if time.monotonic() > deadline:
                     raise AssertionError("Terminal did not finish the fake installer")
                 time.sleep(.05)
-            assert arguments.read_text().splitlines() == ["--install-runtime", "--darling", "ciderdarling"]
+            expected = ["--install-runtime", "--darling", "ciderdarling", "--pinned-runtime"]
+            if release:
+                expected += ["--runtime-release", str(job.directory / "release.json")]
+                assert job.target_revision == release['source_revision']
+            assert arguments.read_text().splitlines() == expected
             print(f"PASS: real terminal {'GIO fallback' if gio_fallback else 'desktop default'} supplies a TTY and preserves special-character paths")
         finally:
             started = job.directory / "started"

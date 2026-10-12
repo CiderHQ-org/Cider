@@ -29,8 +29,8 @@ PREFIX=${DPREFIX:-$HOME/.darling}
 DARLING_TAG=v0.1.20260608
 DARLING_DEBS_SHA256=27469ef3932da2e91dd7fb34b70e3628a3e54b7af9fb5480051f44af35eca1fd
 CIDER_DARLING_REPO=https://github.com/CiderHQ-org/CiderDarling.git
-# The launcher reads the next two lines from this file (runtime.pinned_ciderdarling)
-# to prefer this build and offer "Update CiderDarling": keep them literal.
+# Offline/source fallback. The launcher reads these literal assignments;
+# complete CI releases are discovered through the stable update feed below.
 CIDER_DARLING_REVISION=a8dae5f8e6daf6ec0245f94a9ba97c0d0cc4aeb7
 CIDER_DARLING_MANIFEST=009cf8db2cfc409ceaafb602dac3ee0744e987396eb544e1361bc86910e03e44
 CIDER_DARLING_INSTALL=/opt/ciderdarling/$CIDER_DARLING_REVISION
@@ -40,6 +40,12 @@ CIDER_DARLING_INSTALL=/opt/ciderdarling/$CIDER_DARLING_REVISION
 CIDER_DARLING_PREBUILT_ARCH=''
 CIDER_DARLING_PREBUILT_UBUNTU2404=''
 CIDER_DARLING_RELEASES=https://github.com/CiderHQ-org/CiderDarling/releases/download
+CIDER_DARLING_UPDATE_URL=$CIDER_DARLING_RELEASES/runtime-updates/stable.json
+CIDER_DARLING_RELEASE_FILE=''
+CIDER_DARLING_PINNED=''
+CIDER_DARLING_RELEASE_RESOLVED=''
+CIDER_DARLING_PREBUILT_ARCH_MANIFEST=''
+CIDER_DARLING_PREBUILT_UBUNTU2404_MANIFEST=''
 CIDER_DARLING_FROM_SOURCE=${CIDER_DARLING_FROM_SOURCE:-}
 DARLING_RUNTIME=''
 DARLING_CHOICE_EXPLICIT=''
@@ -826,6 +832,79 @@ try_darling_debs() {
   command -v darling >/dev/null
 }
 
+resolve_ciderdarling_release() {
+  [[ -z $CIDER_DARLING_RELEASE_RESOLVED ]] || return 0
+  CIDER_DARLING_RELEASE_RESOLVED=1
+  local file=$CIDER_DARLING_RELEASE_FILE downloaded='' pins=''
+  local -a values=()
+  if [[ -z $file ]]; then
+    [[ -z $CIDER_DARLING_PINNED ]] || return 0
+    mkdir -p -- "$CACHE_HOME/ciderhq/installer"
+    downloaded=$(umask 077; mktemp "$CACHE_HOME/ciderhq/installer/.release-XXXXXX")
+    if command -v curl >/dev/null && curl -fsSL --connect-timeout 4 --max-time 12 \
+      "$CIDER_DARLING_UPDATE_URL" -o "$downloaded"; then
+      file=$downloaded
+    else
+      rm -f -- "$downloaded"
+      file=$CACHE_HOME/ciderhq/runtime-release.json
+      [[ -f $file ]] || { say "Runtime update service unavailable; using Cider's bundled runtime pin."; return 0; }
+    fi
+  fi
+  if ! pins=$(python3 - "$file" <<'PY'
+import json, os, re, sys
+def require(condition):
+    if not condition:
+        raise ValueError("invalid release field")
+try:
+    if os.path.getsize(sys.argv[1]) > 65536:
+        raise ValueError('file too large')
+    data = json.load(open(sys.argv[1]))
+    revision, series = data['source_revision'], data['patch_manifest_sha256']
+    require(data['schema_version'] == 1 and data['name'] == 'CiderDarling')
+    require(data['architecture'] == 'x86_64' and data['channel'] == 'stable')
+    require(re.fullmatch('[0-9a-f]{40}', revision) and re.fullmatch('[0-9a-f]{64}', series))
+    require(data['release_url'] == f'https://github.com/CiderHQ-org/CiderDarling/releases/tag/bin-{revision[:12]}')
+    require(type(data['source_date']) is int and data['source_date'] > 0)
+    minimum = data['minimum_cider']
+    require(re.fullmatch(r'[0-9]+(?:\.[0-9]+)*', minimum))
+    require(tuple(map(int, minimum.split('.'))) <= (0, 23))
+    require(isinstance(data['supersedes'], list) and len(data['supersedes']) <= 128)
+    require(all(re.fullmatch('[0-9a-f]{40}', value) for value in data['supersedes']))
+    output = [revision, series]
+    for flavor in ('arch', 'ubuntu24.04'):
+        build = data['builds'][flavor]
+        stem = f'ciderdarling-{revision}-x86_64-{flavor}'
+        require(build['archive'] == stem + '.tar.xz' and build['manifest'] == stem + '.json')
+        require(type(build['archive_bytes']) is int and 0 < build['archive_bytes'] < 20 * 1024**3)
+        for field in ('min_glibc', 'min_glibcxx', 'min_cxxabi', 'min_libgcc'):
+            require(re.fullmatch(r'[0-9]+(?:\.[0-9]+)*', build[field]))
+        require(isinstance(build['native_libraries'], list) and len(build['native_libraries']) <= 256)
+        require(all(re.fullmatch(r'lib[A-Za-z0-9_+.-]+\.so(?:\.[0-9]+)*', value) for value in build['native_libraries']))
+        for field in ('archive_sha256', 'manifest_sha256'):
+            require(re.fullmatch('[0-9a-f]{64}', build[field]))
+            output.append(build[field])
+    print('\n'.join(output))
+except (OSError, ValueError, KeyError, TypeError, AssertionError):
+    sys.exit(1)
+PY
+  ); then
+    [[ -z $downloaded ]] || rm -f -- "$downloaded"
+    [[ -z $CIDER_DARLING_RELEASE_FILE ]] || die "Invalid or incompatible CiderDarling release metadata."
+    say "No compatible runtime update metadata; using Cider's bundled runtime pin."
+    return 0
+  fi
+  mapfile -t values <<< "$pins"
+  CIDER_DARLING_REVISION=${values[0]}
+  CIDER_DARLING_MANIFEST=${values[1]}
+  CIDER_DARLING_PREBUILT_ARCH=${values[2]}
+  CIDER_DARLING_PREBUILT_ARCH_MANIFEST=${values[3]}
+  CIDER_DARLING_PREBUILT_UBUNTU2404=${values[4]}
+  CIDER_DARLING_PREBUILT_UBUNTU2404_MANIFEST=${values[5]}
+  CIDER_DARLING_INSTALL=/opt/ciderdarling/$CIDER_DARLING_REVISION
+  [[ -z $downloaded ]] || rm -f -- "$downloaded"
+  say "Using published CiderDarling ${CIDER_DARLING_REVISION:0:12}."
+}
+
 # Prebuilt CiderDarling. Darling's bridges to host libraries name the build
 # host's exact library versions, so an archive suits one distribution family:
 # arch, or ubuntu24.04 (Debian family with glibc 2.39 or newer). Prints the
@@ -914,13 +993,18 @@ ciderdarling_client_is_setuid_root() {
 # Install the pinned revision's prebuilt archive into CIDER_DARLING_INSTALL.
 # Returns 1 (to build from source instead) when there is none for this host.
 try_ciderdarling_prebuilt() {
-  local manager=$1 flavor digest name url work missing staging unpacked
+  local manager=$1 flavor digest manifest_digest name url work missing staging unpacked
   if [[ -n $CIDER_DARLING_FROM_SOURCE ]]; then
     say "Building CiderDarling from source as requested."
     return 1
   fi
   flavor=$(ciderdarling_prebuilt_flavor)
   digest=$(ciderdarling_prebuilt_sha256 "$flavor")
+  case $flavor in
+    arch) manifest_digest=$CIDER_DARLING_PREBUILT_ARCH_MANIFEST ;;
+    ubuntu24.04) manifest_digest=$CIDER_DARLING_PREBUILT_UBUNTU2404_MANIFEST ;;
+    *) manifest_digest='' ;;
+  esac
   if [[ -z $flavor || -z $digest ]]; then
     say "No prebuilt CiderDarling ${CIDER_DARLING_REVISION:0:12} for $(distribution_name); building from source."
     return 1
@@ -939,6 +1023,10 @@ try_ciderdarling_prebuilt() {
   if ! printf '%s  %s\n' "$digest" "$work/$name.tar.xz" | sha256sum -c --quiet -; then
     rm -rf -- "$work"
     die "The prebuilt CiderDarling download does not match its pinned checksum. Setup stopped."
+  fi
+  if [[ -n $manifest_digest ]] && ! printf '%s  %s\n' "$manifest_digest" "$work/$name.json" | sha256sum -c --quiet -; then
+    rm -rf -- "$work"
+    die "The CiderDarling manifest does not match the published checksum. Setup stopped."
   fi
   if ! ciderdarling_manifest_matches "$work/$name.json" "$name.tar.xz" "$digest"; then
     rm -rf -- "$work"
@@ -1004,6 +1092,7 @@ remove_incomplete_ciderdarling() {
 ensure_darling() {
   local manager
   if [[ $DARLING_RUNTIME == ciderdarling ]]; then
+    resolve_ciderdarling_release
     if ! ciderdarling_matches; then
       if [[ -e $CIDER_DARLING_INSTALL || -L $CIDER_DARLING_INSTALL ]]; then
         remove_incomplete_ciderdarling
@@ -1401,7 +1490,7 @@ Cider installer
   install.sh --darling regular
                            choose regular Darling (default on first install)
   install.sh --darling ciderdarling
-                           choose CiderHQ's pinned Darling runtime
+                           choose CiderHQ's published Darling runtime
                            source builds still ask for terminal confirmation
   install.sh --install-runtime --darling ciderdarling
                            install only the runtime, keeping the current selection
@@ -1409,6 +1498,10 @@ Cider installer
   install.sh --darling ciderdarling --from-source
                            compile CiderDarling instead of downloading its
                            prebuilt build
+  install.sh --pinned-runtime
+                           use the bundled runtime pin without an online check
+  install.sh --runtime-release FILE --darling ciderdarling --install-runtime
+                           install the exact published release described by FILE
   install.sh --replace-incomplete-runtime
                            remove an interrupted CiderDarling installation without
                            asking, then build it again
@@ -1437,6 +1530,11 @@ main() {
       -y | --yes) assume_yes=1 ;;
       --replace-incomplete-runtime) REPLACE_INCOMPLETE_RUNTIME=1 ;;
       --from-source) CIDER_DARLING_FROM_SOURCE=1 ;;
+      --pinned-runtime) CIDER_DARLING_PINNED=1 ;;
+      --runtime-release)
+        (($# >= 2)) || die "--runtime-release needs a release metadata file."
+        CIDER_DARLING_RELEASE_FILE=$2
+        shift ;;
       --darling)
         (($# >= 2)) || die "--darling needs regular or ciderdarling."
         DARLING_RUNTIME=$2
@@ -1454,6 +1552,8 @@ main() {
     die "--darling needs regular or ciderdarling."
   fi
   load_darling_selection
+  [[ -z $CIDER_DARLING_RELEASE_FILE || $DARLING_RUNTIME == ciderdarling ]] ||
+    die "--runtime-release requires --darling ciderdarling."
   # Package managers may ask questions; with curl | bash stdin is this script.
   if [[ ! -t 0 ]] && (: </dev/tty) 2>/dev/null; then exec </dev/tty; fi
   [[ $EUID -ne 0 ]] || die "Run this as your user, not root. sudo is used when needed."

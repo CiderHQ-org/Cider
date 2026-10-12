@@ -97,6 +97,33 @@ rewriting for both `exp10.c` and `sincos.c`. This shim repair also covers a
 copied math library in the prefix. Updating Cider rebuilds the source shim
 on the next launch; native packages need a package containing the new shim.
 
+## Automatic runtime releases in Cider 0.23
+
+Successful CiderDarling binary CI runs publish an immutable update manifest on
+their `bin-<revision>` release and promote it to
+`https://github.com/CiderHQ-org/CiderDarling/releases/download/runtime-updates/stable.json`.
+Both distribution archives must be complete. An older build finishing late
+cannot replace a newer channel, and builds preceding the exp10 repair are not
+promoted. The publisher uses CiderDarling's own workflow token.
+
+The launcher checks at startup and hourly on a worker thread. Settings →
+CiderDarling has a manual check and an automatic-check toggle. A valid feed is
+cached atomically; outages preserve the last good release. Only descendants
+of the installed revision are offered, avoiding downgrades of custom/newer
+builds. Flatpak keeps its bundled runtime and does not check host updates.
+
+Clicking **Update in terminal** copies the accepted feed into the private
+installer job directory and passes it as `--runtime-release FILE`. The terminal
+installs that exact revision even if a newer feed is published during the
+download. Archive and manifest SHA-256 checks precede installation. Existing
+version directories and both guest prefixes are preserved; updating an active
+CiderDarling records the new version, then **Apply and restart Cider** reloads
+the client and sysroot together.
+
+The standalone installer checks the same channel for CiderDarling, using its
+bundled pin when the service is unavailable. `--pinned-runtime` disables that
+check, while an explicit `--runtime-release FILE` installs its exact revision.
+
 ## Validation on October 12, 2026
 
 Installer decision tests cover both menu and CLI choices, saved selections,

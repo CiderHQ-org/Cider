@@ -246,11 +246,17 @@ def resolve_runtime(environment=None, selection_file=None):
         sysroot = next((path for path in roots if path.is_dir()), roots[0])
         result = {"runtime": "regular", "executable": executable,
                   "sysroot": str(sysroot), "prefix": str(Path.home() / ".darling")}
+        if not flatpak and executable == 'darling':
+            available = installed_runtimes(environment=env, selection_file=selection_file, pinned=None)
+            if 'ciderdarling' in available:
+                result = dict(available['ciderdarling'])
     if env.get("DPREFIX"):
         result["prefix"] = str(Path(env["DPREFIX"]).absolute())
     result["metadata"] = metadata(result["sysroot"])
     if selected is None and not flatpak and result["metadata"]:
         result["runtime"] = "ciderdarling"
+        if not env.get('DPREFIX'):
+            result['prefix'] = str(Path.home() / '.ciderdarling')
     return result
 
 

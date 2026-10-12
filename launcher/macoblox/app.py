@@ -17,7 +17,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 from pathlib import Path  # noqa: E402
 
-from . import __version__, author, core, discord, dns, i18n, mods, runtime, runtime_install, studio, uri as uri_handoff  # noqa: E402
+from . import __version__, author, core, discord, dns, i18n, mods, runtime, runtime_install, runtime_updates, studio, uri as uri_handoff  # noqa: E402
 from .i18n import _  # noqa: E402
 from .setup import SetupWizard  # noqa: E402
 
@@ -1216,10 +1216,10 @@ class SettingsPage(Adw.Bin):
         self._runtime_codes = runtime.VARIANTS
         self._runtime_labels = {"regular": _("DarlingHQ's Darling"),
                                 "ciderdarling": _("CiderHQ's CiderDarling")}
-        self._runtime_choices = runtime.installed_runtimes(core.DARLING_RUNTIME)
         bundled = bool(os.environ.get("FLATPAK_ID"))
-        # The CiderDarling build Cider's installer installs (and updates to).
-        self._cider_pin = None if bundled else runtime.pinned_ciderdarling()
+        release = window.cider_release
+        self._cider_pin = None if bundled else (runtime_updates.pin(release) if release else runtime.pinned_ciderdarling())
+        self._runtime_choices = self._installed_runtime_choices()
         darling_group = Adw.PreferencesGroup(
             title="Darling", description=_("Each runtime keeps its own Roblox sign-in."))
         self.runtime_group = darling_group
@@ -1238,7 +1238,8 @@ class SettingsPage(Adw.Bin):
         self.runtime_apply_button.connect("clicked", lambda *_args: self.apply_runtime())
         self.runtime_refresh_button = Gtk.Button(icon_name="view-refresh-symbolic", valign=Gtk.Align.CENTER,
                                                  tooltip_text=_("Refresh installed runtimes"), visible=not bundled)
-        self.runtime_refresh_button.connect("clicked", lambda *_args: self.refresh_runtime_choices())
+        self.runtime_refresh_button.connect("clicked", lambda *_args: (
+            self.refresh_runtime_choices(), window.check_ciderdarling_updates(force=True)))
         self.runtime_active_row.add_suffix(self.runtime_refresh_button)
         self.runtime_active_row.add_suffix(self.runtime_apply_button)
         darling_group.add(self.runtime_active_row)
@@ -1588,10 +1589,22 @@ class SettingsPage(Adw.Bin):
         return (installed if isinstance(installed, str) else None,
                 (self._cider_pin or {}).get("revision"))
 
+    def _installed_runtime_choices(self):
+        choices = runtime.installed_runtimes(core.DARLING_RUNTIME, pinned=None)
+        release, choice = self.window.cider_release, choices.get('ciderdarling')
+        if release and choice:
+            metadata = runtime.metadata(choice['sysroot'])
+            if (metadata.get('source_revision') == release['source_revision']
+                    or runtime_updates.newer(release, metadata)):
+                return runtime.installed_runtimes(core.DARLING_RUNTIME, pinned=release['source_revision'])
+        return choices
+
     def ciderdarling_update_needed(self):
-        """An installed CiderDarling that is not the build Cider's installer pins."""
-        installed, pinned = self.ciderdarling_revisions()
-        return bool(installed and pinned and installed != pinned and not os.environ.get("FLATPAK_ID"))
+        """An available, published descendant of the installed runtime."""
+        choice = self._runtime_choices.get('ciderdarling')
+        release = self.window.cider_release
+        return bool(choice and release and not os.environ.get('FLATPAK_ID')
+                    and runtime_updates.newer(release, runtime.metadata(choice['sysroot'])))
 
     def _runtime_selection_changed(self):
         index = self.runtime_row.get_selected()
@@ -1613,7 +1626,7 @@ class SettingsPage(Adw.Bin):
         elif update:
             installed, pinned = self.ciderdarling_revisions()
             self.runtime_install_row.set_subtitle(
-                _("Installed {installed}, Cider uses {pinned}. Opens a separate terminal for the build and sudo prompts.",
+                _("Installed {installed}, update {pinned} is available. Opens a separate terminal for installation.",
                   installed=installed[:12], pinned=pinned[:12]))
         else:
             self.runtime_install_row.set_subtitle(_("Opens a separate terminal for the build and sudo prompts."))
@@ -1631,7 +1644,7 @@ class SettingsPage(Adw.Bin):
 
     def refresh_runtime_choices(self):
         try:
-            choices = runtime.installed_runtimes(core.DARLING_RUNTIME)
+            choices = self._installed_runtime_choices()
         except (OSError, RuntimeError, ValueError) as error:
             _error_dialog(self.window, _("Could not inspect installed runtimes"), str(error))
             return
@@ -1809,9 +1822,20 @@ class SettingsPage(Adw.Bin):
         self.cider_update_button.add_css_class("suggested-action")
         self.cider_update_button.connect("clicked", lambda *_args: window.install_ciderdarling())
         self.cider_revision_row.add_suffix(self.cider_update_button)
+        self.cider_check_button = Gtk.Button(icon_name='view-refresh-symbolic', valign=Gtk.Align.CENTER,
+            tooltip_text=_("Check for CiderDarling updates"), visible=not bool(os.environ.get('FLATPAK_ID')))
+        self.cider_check_button.connect('clicked', lambda *_args: window.check_ciderdarling_updates(force=True))
+        self.cider_revision_row.add_suffix(self.cider_check_button)
         about.add(self.cider_revision_row)
         self.cider_active_row = Adw.ActionRow(title=_("Active runtime"))
         about.add(self.cider_active_row)
+        automatic = Adw.SwitchRow(title=_("Check for CiderDarling updates automatically"),
+            subtitle=_("Checks in the background. Install an available update in a separate terminal."),
+            active=settings.get('auto_check_ciderdarling_updates', True),
+            sensitive=not bool(os.environ.get('FLATPAK_ID')))
+        automatic.connect('notify::active', lambda row, *_args: window.set_setting(
+            'auto_check_ciderdarling_updates', row.get_active()))
+        about.add(automatic)
         page.add(about)
 
         graphics = Adw.PreferencesGroup(title=_("Graphics"))
@@ -1871,12 +1895,13 @@ class SettingsPage(Adw.Bin):
         installed, pinned = self.ciderdarling_revisions()
         update = self.ciderdarling_update_needed()
         if update:
-            subtitle = _("{installed}; Cider uses {pinned}", installed=installed[:12], pinned=pinned[:12])
+            subtitle = _("{installed}; update {pinned} available", installed=installed[:12], pinned=pinned[:12])
         else:
             subtitle = (installed or _("unknown"))[:12]
         self.cider_revision_row.set_subtitle(subtitle)
         self.cider_update_button.set_visible(update)
         self.cider_update_button.set_sensitive(self.window.runtime_install_job is None)
+        self.cider_check_button.set_sensitive(not self.window.cider_update_checking)
         active = core.DARLING_RUNTIME["runtime"] == "ciderdarling"
         self.cider_active_row.set_subtitle(
             self._runtime_labels["ciderdarling"] if active else
@@ -2606,6 +2631,9 @@ class LauncherWindow(Adw.ApplicationWindow):
         # restarting Darling or signing out. They share the client and Darling.
         self.busy = None
         self.runtime_install_job = None
+        self.cider_release = None if os.environ.get('FLATPAK_ID') else runtime_updates.cached(core.CACHE_DIR)
+        self.cider_update_checking = False
+        self._notified_cider_revision = None
         self.quit_when_idle = False  # the window was closed during an operation
         self.last_log = self._find_last_log()
         self._pending_uri = None
@@ -2623,6 +2651,8 @@ class LauncherWindow(Adw.ApplicationWindow):
         if not self.setup_active:
             threading.Thread(target=self._check_startup_update, daemon=True).start()
         threading.Thread(target=self._sync_ciderdarling_shortcut, daemon=True).start()
+        self._periodic_ciderdarling_updates()
+        GLib.timeout_add_seconds(runtime_updates.CHECK_INTERVAL, self._periodic_ciderdarling_updates)
 
     # A browser join link waiting for the launcher expires like its file
     # (uri.PENDING_MAX_AGE): an old click must not start a game much later.
@@ -2790,7 +2820,8 @@ class LauncherWindow(Adw.ApplicationWindow):
         self.content_stack.add_named(self.split, "launcher")
         self.content_stack.add_named(self.setup, "setup")
         self.set_content(self.content_stack)
-        if page == "setup" or (not core.installed_version() and not self.settings.get("setup_complete", False)):
+        if page == "setup" or (page not in ('settings', 'ciderdarling', 'env', 'roblox', 'flags')
+                and not core.installed_version() and not self.settings.get("setup_complete", False)):
             self.show_setup()
         else:
             self.setup_active = False
@@ -2908,6 +2939,45 @@ class LauncherWindow(Adw.ApplicationWindow):
         self.settings[key] = value
         core.save_settings(self.settings)
 
+    def _periodic_ciderdarling_updates(self):
+        if self.settings.get('auto_check_ciderdarling_updates', True):
+            self.check_ciderdarling_updates()
+        return True
+
+    def check_ciderdarling_updates(self, force=False):
+        if os.environ.get('FLATPAK_ID') or self.cider_update_checking:
+            return
+        self.cider_update_checking = True
+        self.settings_page.refresh_ciderdarling()
+        def worker():
+            release, error = None, None
+            try:
+                release = runtime_updates.check(core.CACHE_DIR, force=force)
+            except (OSError, ValueError, TypeError) as exception:
+                error = str(exception)
+            GLib.idle_add(self._runtime_update_checked, release, error, force)
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _runtime_update_checked(self, release, error, force):
+        self.cider_update_checking = False
+        page = self.settings_page
+        # A running install uses the exact release the user accepted. A
+        # subsequent check can present a newer release after it finishes.
+        if release is not None and self.runtime_install_job is None:
+            self.cider_release = release
+            page._cider_pin = runtime_updates.pin(release)
+            page.refresh_runtime_choices()
+        page.refresh_ciderdarling()
+        if page.ciderdarling_update_needed():
+            revision = self.cider_release['source_revision']
+            if force or revision != self._notified_cider_revision:
+                self._notified_cider_revision = revision
+                _toast(self.toasts, _("A CiderDarling update is available in Settings → CiderDarling."))
+        elif force:
+            _toast(self.toasts, _("Could not check CiderDarling updates: {error}", error=error) if error
+                   else _("No CiderDarling update is available."))
+        return False
+
     def install_ciderdarling(self):
         """Install CiderDarling, or update it to the build Cider's installer
         pins, in a separate terminal (runtime_install.TERMINAL_SCRIPT)."""
@@ -2929,7 +2999,8 @@ class LauncherWindow(Adw.ApplicationWindow):
                 self.end(resume_pending=False)
                 page.refresh_runtime_choices()
                 return
-            job = runtime_install.Installation.create(core.PROJECT, "ciderdarling", core.CACHE_DIR)
+            job = runtime_install.Installation.create(core.PROJECT, "ciderdarling", core.CACHE_DIR,
+                                                       release=self.cider_release)
             if not _launch_runtime_terminal(self, job.command):
                 raise RuntimeError(_("Could not open an installation terminal."))
             self.runtime_install_job = job
@@ -2971,7 +3042,8 @@ class LauncherWindow(Adw.ApplicationWindow):
         choice = page._runtime_choices.get("ciderdarling")
         if error:
             _error_dialog(self, _("Could not install CiderDarling"), error)
-        elif choice is None:
+        elif choice is None or (job.target_revision is not None and
+                runtime.metadata(choice['sysroot']).get('source_revision') != job.target_revision):
             _error_dialog(self, _("Could not detect CiderDarling"),
                           _("The installer finished, but the runtime could not be detected. Check the terminal output."))
         else:
