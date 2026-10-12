@@ -496,9 +496,15 @@ install_darling_build_dependencies() {
       libxrandr-dev libxcursor-dev libgif-dev libpulse-dev libavformat-dev libavcodec-dev \
       libswresample-dev libdbus-1-dev libxkbfile-dev libssl-dev llvm-dev libelf-dev \
       libvulkan-dev libcurl4-openssl-dev libedit-dev ;;
-    pacman) sudo pacman -S --needed --noconfirm make cmake clang flex bison icu fuse git python \
-      pkgconf fontconfig cairo libtiff mesa glu llvm libbsd libxkbfile libxcursor \
-      libxext libxkbcommon libxrandr ffmpeg git-lfs vulkan-headers vulkan-icd-loader ;;
+    pacman)
+      local -a graphics_packages=(mesa)
+      if pacman -Qq mesa-git >/dev/null 2>&1; then
+        say "Using the installed mesa-git in place of the conflicting mesa package."
+        graphics_packages=()
+      fi
+      sudo pacman -S --needed --noconfirm make cmake clang flex bison icu fuse git python \
+        pkgconf fontconfig cairo libtiff "${graphics_packages[@]}" glu llvm libbsd libxkbfile libxcursor \
+        libxext libxkbcommon libxrandr ffmpeg git-lfs vulkan-headers vulkan-icd-loader ;;
     dnf|yum) sudo "$1" install -y make gcc gcc-c++ cmake clang bison flex git git-lfs python3 \
       dbus-devel glibc-devel fuse-devel systemd-devel elfutils-libelf-devel cairo-devel \
       freetype-devel libjpeg-turbo-devel fontconfig-devel libglvnd-devel mesa-libGL-devel \

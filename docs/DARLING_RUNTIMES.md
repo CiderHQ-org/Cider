@@ -51,6 +51,8 @@ versioned bootstrap to fetch pinned public dependencies and apply source
 patches. Builds disable i386, Metal implementation and the global install-time
 Darling shutdown hook. The OpenGL runtime and Metal API stubs are included.
 Both source build paths retain the existing explicit terminal confirmation.
+On Arch, if `mesa-git` is installed, dependency setup recognizes it as the
+host's Mesa provider and omits official `mesa`, avoiding a package conflict.
 
 Automatic compilation parallelism uses process CPU affinity, available host
 memory and cgroup v2 ancestor CPU quotas and memory headroom. It reserves 25%
