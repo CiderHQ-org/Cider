@@ -3,7 +3,6 @@
 import json
 import os
 import re
-import shutil
 import signal
 import subprocess
 import sys
@@ -17,7 +16,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 from pathlib import Path  # noqa: E402
 
-from . import __version__, author, core, discord, dns, i18n, mods, runtime, runtime_install, runtime_updates, studio, uri as uri_handoff  # noqa: E402
+from . import __version__, author, core, discord, dns, i18n, mods, runtime, runtime_install, runtime_updates, studio, terminal, uri as uri_handoff  # noqa: E402
 from .i18n import _  # noqa: E402
 from .setup import SetupWizard  # noqa: E402
 
@@ -82,16 +81,21 @@ def _restart_launcher():
 
 
 def _launch_runtime_terminal(window, command):
-    terminal = shutil.which("xdg-terminal-exec")
-    if terminal:
-        subprocess.Popen([terminal, "--", *command], start_new_session=True)
+    argv = terminal.command(command)
+    if argv:
+        subprocess.Popen(argv, start_new_session=True)
         return True
-    # GIO chooses the desktop terminal. Exec field codes require literal '%'
-    # to be doubled even inside quoted script text or filenames.
+    # GIO's own terminal list is the last resort. Exec field codes require
+    # literal '%' to be doubled even inside quoted script text or filenames.
     line = " ".join(GLib.shell_quote(argument) for argument in command).replace("%", "%%")
     application = Gio.AppInfo.create_from_commandline(line, _("Install CiderDarling"),
                                                      Gio.AppInfoCreateFlags.NEEDS_TERMINAL)
-    return application.launch([], window.get_display().get_app_launch_context())
+    try:
+        return application.launch([], window.get_display().get_app_launch_context())
+    except GLib.Error as error:
+        raise RuntimeError(_("No terminal application was found. Install one (for example xterm), "
+                             "or set the TERMINAL environment variable to your terminal's command, "
+                             "then try again.") + f"\n\n{error.message}") from error
 
 
 def _button_row(title):
@@ -3258,33 +3262,29 @@ class LauncherWindow(Adw.ApplicationWindow):
             else None
         )
         info = getattr(self, "current_game_info", None)
+        brand = f"Cider {__version__}"
+        large_image, large_text = discord.LOGO_URL, brand
+        small_image = small_text = None
+        buttons = [(_("Get Cider"), discord.WEBSITE_URL)]
 
         if info and not info.get("loading") and self.settings.get("discord_rpc_game", True):
             details = info.get("name", _("Playing Roblox"))
             creator = info.get("creator")
             state = _("by {creator}", creator=creator) if creator else _("In Game")
             icon_url = info.get("icon_url")
-            use_icon = self.settings.get("discord_rpc_icon", False) and bool(icon_url)
-            large_image = icon_url if use_icon else "macoblox"
-            large_text = details
-            small_image = "macoblox" if use_icon else None
-            small_text = "Cider" if use_icon else None
+            if self.settings.get("discord_rpc_icon", False) and icon_url:
+                large_image, large_text = icon_url, details
+                small_image, small_text = discord.LOGO_URL, brand
+            if info.get("place_id"):
+                buttons.insert(0, (_("Game page"), f"https://www.roblox.com/games/{info['place_id']}"))
         elif info:
             # Game is active (either fetching details or user hid experience name in settings)
             details = _("Playing Roblox")
             state = _("In Game")
-            large_image = "macoblox"
-            large_text = "Cider"
-            small_image = None
-            small_text = None
         else:
             # Menu (not in an experience)
             details = _("In Main Menu")
             state = None
-            large_image = "macoblox"
-            large_text = "Cider"
-            small_image = None
-            small_text = None
 
         rpc.queue_presence(
             details=details,
@@ -3294,6 +3294,7 @@ class LauncherWindow(Adw.ApplicationWindow):
             large_text=large_text,
             small_image=small_image,
             small_text=small_text,
+            buttons=buttons,
         )
         return False
 

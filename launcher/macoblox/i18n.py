@@ -26,6 +26,8 @@ RU = {
     "Install CiderDarling in a separate terminal, then apply the switch.":
         "Установите CiderDarling в отдельном терминале, затем примените переключение.",
     "Could not open an installation terminal.": "Не удалось открыть терминал для установки.",
+    "No terminal application was found. Install one (for example xterm), or set the TERMINAL environment variable to your terminal's command, then try again.":
+        "Не найден эмулятор терминала. Установите его (например, xterm) или укажите команду своего терминала в переменной окружения TERMINAL, затем повторите попытку.",
     "Could not install CiderDarling": "Не удалось установить CiderDarling",
     "Installation failed or was cancelled. See the separate terminal for details.":
         "Установка завершилась ошибкой или была отменена. Подробности — в отдельном терминале.",
@@ -250,6 +252,8 @@ RU = {
     "In Game": "В игре",
     "In Main Menu": "В главном меню",
     "by {creator}": "от {creator}",
+    "Get Cider": "Скачать Cider",
+    "Game page": "Страница игры",
     "Hide the macOS menu bar": "Скрывать полоску меню macOS",
     "The Roblox, Edit, Window… strip at the top of the game window":
         "Полоска Roblox, Edit, Window… сверху окна игры",

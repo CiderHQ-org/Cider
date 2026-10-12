@@ -6,7 +6,7 @@ pkgdesc='Run the macOS Roblox client on Linux through Darling'
 arch=('x86_64')
 url='https://ciderhq.org'
 _repo='https://github.com/CiderHQ-org/Cider'
-license=('MIT' 'OFL-1.1')
+license=('GPL-3.0-only' 'MIT' 'OFL-1.1')
 depends=('unzip' 'python' 'python-gobject' 'python-cairo'
          'gtk4>=4.14' 'libadwaita>=1.5' 'webkitgtk-6.0' 'sdl2' 'wayland'
          'libpulse' 'libglvnd' 'libx11' 'libxext' 'libxfixes' 'libxi' 'libxcursor' 'gcc-libs')

@@ -3,8 +3,12 @@ Upstream-Name: Cider
 Source: https://github.com/CiderHQ-org/Cider
 
 Files: *
-Copyright: 2026 Narezany and MacOBlox contributors
-License: MIT
+Copyright: 2026 CiderHQ maintainers and Cider contributors
+ 2026 Narezany and Mac O' Blox contributors
+License: GPL-3 and MIT
+Comment: Cider is distributed under the GNU GPL version 3. It is based on
+ Mac O' Blox by Narezany, released under the MIT License; that notice is kept
+ in LICENSES/MIT-MacOBlox.txt and reproduced below.
 
 Files: launcher/macoblox/assets/fonts/Archivo.ttf
  launcher/macoblox/assets/fonts/Archivo-OFL.txt
@@ -15,6 +19,18 @@ Files: launcher/macoblox/assets/fonts/JetBrainsMono.ttf
  launcher/macoblox/assets/fonts/JetBrainsMono-OFL.txt
 Copyright: 2020 The JetBrains Mono Project Authors
 License: OFL-1.1
+
+License: GPL-3
+ This program is free software: you can redistribute it and/or modify it
+ under the terms of the GNU General Public License version 3 as published by
+ the Free Software Foundation.
+ .
+ This program is distributed in the hope that it will be useful, but WITHOUT
+ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+ .
+ On Debian systems, the complete text of the GNU General Public License
+ version 3 can be found in "/usr/share/common-licenses/GPL-3".
 
 License: MIT
  Copyright (c) 2026 Narezany

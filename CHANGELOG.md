@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+- Cider is now licensed under the GNU GPL v3 (`LICENSE`), as the README
+  states. Narezy's original Mac O' Blox MIT notice is kept in
+  `LICENSES/MIT-MacOBlox.txt` and installed with the packages; the Arch,
+  Debian, RPM and Flatpak metadata declare `GPL-3.0-only AND MIT`.
+- **Install in terminal** no longer fails with "Unable to find terminal
+  required for application" when `xdg-terminal-exec` is missing: Cider finds
+  the terminal itself (`$TERMINAL`, the desktop's own terminal,
+  `x-terminal-emulator`, kitty, Alacritty, foot, WezTerm, Ghostty, Konsole,
+  GNOME Terminal and others) before falling back to GIO, whose list older
+  GLib versions keep short. With no terminal at all, the error says what to
+  install or set.
+- Discord Rich Presence shows the Cider logo (served from ciderhq.org; the
+  Discord application has no uploaded art, so the old `macoblox` image key
+  showed nothing), the Cider version on hover, a **Get Cider** button and, when
+  the experience is shown, a **Game page** button.
+- Rich Presence clears again 2 and 10 seconds after a game ends, on the same
+  connection. Legcord and Vesktop (arRPC) apply an update only after looking
+  up its images through Discord's API but apply a clear at once, so an update
+  still resolving when the game closed could land after the clear and stay.
+
 ## 0.23 — 2026-10-12
 
 - Discover complete CiderDarling CI releases in the background and offer

@@ -482,6 +482,10 @@ sound, OpenGL (or Vulkan via Zink) and network to Linux and fixes bugs along the
 Made by [Narezy](https://github.com/narezy). This version is maintained by
 [aubree.wtf](https://aubree.wtf) and maintainers at CiderHQ, with stability + performance fixes, and added features.
 
+Cider is licensed under the [GNU GPL v3](LICENSE). Mac O' Blox, the original code it
+is based on, was released by Narezy under the MIT License; that notice is kept in
+[LICENSES/MIT-MacOBlox.txt](LICENSES/MIT-MacOBlox.txt).
+
 [Darling](https://www.darlinghq.org) · Tux by Larry Ewing and The GIMP ·
 [Comfortaa](https://github.com/alexeiva/comfortaa) font (SIL OFL) ·
 [Archivo](https://github.com/Omnibus-Type/Archivo) and

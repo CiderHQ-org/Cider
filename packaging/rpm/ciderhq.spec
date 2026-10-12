@@ -2,7 +2,7 @@ Name:           ciderhq
 Version:        0.23
 Release:        1%{?dist}
 Summary:        Run the macOS Roblox client on Linux through Darling
-License:        MIT AND OFL-1.1
+License:        GPL-3.0-only AND MIT AND OFL-1.1
 URL:            https://ciderhq.org
 Source0:        https://github.com/CiderHQ-org/Cider/releases/download/v%{version}/ciderhq-%{version}-source.tar.gz#/ciderhq-%{version}.tar.gz
 Source1:        ciderhq-install-payload.sh

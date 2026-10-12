@@ -60,6 +60,7 @@ modules:
       - install -m644 patch_startup_throttle.py /app/share/ciderhq/
       - install -m644 README.md /app/share/ciderhq/
       - install -Dm644 LICENSE /app/share/licenses/ciderhq/LICENSE
+      - install -m644 LICENSES/MIT-MacOBlox.txt /app/share/licenses/ciderhq/
       - install -m644 launcher/macoblox/assets/fonts/*-OFL.txt /app/share/licenses/ciderhq/
       - rm -f /app/share/ciderhq/launcher/install.sh
       - python3 -m compileall -q -d /app/share/ciderhq/launcher /app/share/ciderhq/launcher

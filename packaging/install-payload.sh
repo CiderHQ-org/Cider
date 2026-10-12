@@ -55,5 +55,7 @@ install -Dm644 "$source_root/packaging/org.ciderhq.Cider.xml" \
   "$destdir/usr/share/mime/packages/org.ciderhq.Cider.xml"
 install -Dm644 "$source_root/LICENSE" \
   "$destdir/usr/share/licenses/ciderhq/LICENSE"
+install -m644 "$source_root/LICENSES/MIT-MacOBlox.txt" \
+  "$destdir/usr/share/licenses/ciderhq/"
 install -m644 "$source_root/launcher/macoblox/assets/fonts/"*-OFL.txt \
   "$destdir/usr/share/licenses/ciderhq/"

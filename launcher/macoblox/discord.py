@@ -1,4 +1,4 @@
-"""Discord Rich Presence for MacOBlox over Discord IPC Unix sockets."""
+"""Discord Rich Presence for Cider over Discord IPC Unix sockets."""
 
 from __future__ import annotations
 
@@ -19,6 +19,10 @@ from . import core
 log = logging.getLogger("macoblox.discord")
 
 CLIENT_ID = "1468188794309050523"
+# The application has no uploaded art: images are URLs, which Discord and
+# arRPC-based clients (Legcord, Vesktop) both display.
+LOGO_URL = "https://ciderhq.org/assets/ciderhq-512.png"
+WEBSITE_URL = "https://ciderhq.org"
 
 CACHE_FILE = core.DATA_DIR / "game_cache.json"
 
@@ -404,6 +408,12 @@ class DiscordRPC:
     _TIMEOUT = 2.0
     _FRAME_LIMIT = 1024 * 1024
     _NO_PENDING = object()
+    # arRPC bridges (Legcord, Vesktop) resolve an update's images through
+    # Discord's API before applying it, but apply a clear at once: an update
+    # still resolving when the game closes lands after the clear and stays.
+    # Clear again after these pauses, on the same connection: a new one has
+    # another socket ID and could not clear this one's activity.
+    _CLEAR_AGAIN = (2.0, 8.0)
     # Activities are keyed by the launcher's PID across connections. Serialize
     # old/new transports so a late close cannot clear a replacement's update.
     _TRANSPORT_LOCK = threading.Lock()
@@ -565,10 +575,11 @@ class DiscordRPC:
         details: str = "Playing Roblox",
         state: str | None = None,
         start_time: float | None = None,
-        large_image: str = "macoblox",
+        large_image: str = LOGO_URL,
         large_text: str = "Cider",
         small_image: str | None = None,
         small_text: str | None = None,
+        buttons: list[tuple[str, str]] | None = None,
     ) -> dict:
         assets: dict = {
             "large_image": large_image,
@@ -586,6 +597,9 @@ class DiscordRPC:
             activity["state"] = state
         if start_time:
             activity["timestamps"] = {"start": int(start_time)}
+        if buttons:
+            # Discord shows at most two, to people viewing the profile.
+            activity["buttons"] = [{"label": label[:32], "url": url} for label, url in buttons[:2]]
         return activity
 
     def _set_activity_locked(self, activity, *, closing=False) -> bool:
@@ -655,10 +669,17 @@ class DiscordRPC:
                 self._closed = True
                 self._pending = self._NO_PENDING
         finally:
-            with self._io_lock:
-                try:
-                    self._set_activity_locked(None, closing=True)
-                finally:
+            try:
+                with self._io_lock:
+                    cleared = self._set_activity_locked(None, closing=True)
+                for pause in self._CLEAR_AGAIN if cleared else ():
+                    time.sleep(pause)
+                    with self._io_lock:
+                        # Stops once a newer presence owns the activity.
+                        if not self._set_activity_locked(None, closing=True):
+                            break
+            finally:
+                with self._io_lock:
                     self._disconnect_locked()
             with self._OWNER_LOCK:
                 if self._OWNERS.get(self.client_id) is self._owner_token:
