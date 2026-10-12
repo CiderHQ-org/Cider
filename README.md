@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="branding/ciderhq.webp" alt="Cider logo" width="160">
+</p>
+
 <h1 align="center">
  Cider, by CiderHQ.
 </h1>
@@ -44,7 +48,7 @@ names. The GitHub repository is now [CiderHQ-org/Cider](https://github.com/Cider
 
 ## Install
 
-Version **0.22** is a source release. Use the installer below to install or update.
+Version **0.22Patch1** is a source release. Use the installer below to install or update.
 
 ```bash
 curl -fsSL https://ciderhq.org/install.sh | bash
@@ -395,7 +399,7 @@ how to open the `roblox-studio-auth` link, choose **Roblox Studio (Cider)**.
 
 The Flatpak brings Darling along and runs it without root (see
 [flatpak/darling-noroot.c](flatpak/darling-noroot.c)), so nothing has to be
-installed on the system. Version 0.22 does not include a Flatpak bundle, as the Flatpak is temporarily discontinued to focus on better function on the native version.
+installed on the system. Version 0.22Patch1 does not include a Flatpak bundle, as the Flatpak is temporarily discontinued to focus on better function on the native version.
 The last testing bundle is available in
 [release 0.19](https://github.com/CiderHQ-org/Cider/releases/tag/v0.19):
 

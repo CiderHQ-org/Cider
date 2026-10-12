@@ -102,6 +102,10 @@ class SetupWizard(Adw.Bin):
 
     def _welcome(self):
         page, body = self._page("Welcome to Cider", "Play Roblox on your Linux desktop.")
+        logo = Gtk.Image.new_from_file(str(core.ICONS / "ciderhq-128.png"))
+        logo.set_pixel_size(88)
+        logo.set_halign(Gtk.Align.CENTER)
+        body.prepend(logo)
         body.append(_label("A short setup downloads Roblox and gets it ready to launch. "
                            "You’ll sign in inside Roblox when you’re done.", centered=True))
         actions, _button = self._actions("Get started", lambda *_args: self.show("overview"),

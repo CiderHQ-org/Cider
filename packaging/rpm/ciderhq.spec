@@ -1,6 +1,6 @@
 Name:           ciderhq
-Version:        0.22
-Release:        2%{?dist}
+Version:        0.22Patch1
+Release:        1%{?dist}
 Summary:        Run the macOS Roblox client on Linux through Darling
 License:        MIT AND OFL-1.1
 URL:            https://ciderhq.org
@@ -85,11 +85,14 @@ python3 -m compileall -q -d "%{_datadir}/ciderhq/launcher" "%{buildroot}%{_datad
 %{_datadir}/ciderhq/
 %{_datadir}/applications/org.ciderhq.Cider*.desktop
 %{_datadir}/applications/ciderhq-roblox-window.desktop
-%{_datadir}/icons/hicolor/*/apps/ciderhq.svg
-%{_datadir}/icons/hicolor/*/apps/macoblox.png
+%{_datadir}/icons/hicolor/*/apps/ciderhq.png
 %{_datadir}/mime/packages/org.ciderhq.Cider.xml
 
 %changelog
+* Mon Oct 12 2026 Cider maintainers <noreply@aubree.wtf> - 0.22Patch1-1
+- Add the supplied CiderHQ logo and release installer/runtime updates.
+- Refresh launcher, desktop, website and native package branding.
+
 * Sun Oct 11 2026 Cider maintainers <noreply@aubree.wtf> - 0.22-2
 - Follow the CiderHQ-org/Cider repository move and renamed release archive.
 - Include the old MacOBlox shortcut icons in the payload.

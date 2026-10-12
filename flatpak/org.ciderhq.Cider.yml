@@ -65,8 +65,8 @@ modules:
       - python3 -m compileall -q -d /app/share/ciderhq/launcher /app/share/ciderhq/launcher
       - install -Dm755 flatpak/ciderhq.sh /app/bin/ciderhq
       - for size in 16 22 24 32 48 64 128 256 512 1024; do
-          install -Dm644 "branding/icons/macoblox-$size.png" "/app/share/icons/hicolor/${size}x${size}/apps/org.ciderhq.Cider.png";
-          install -Dm644 "branding/icons/macoblox-$size.png" "/app/share/icons/hicolor/${size}x${size}/apps/macoblox.png";
+          install -Dm644 "branding/icons/ciderhq-$size.png" "/app/share/icons/hicolor/${size}x${size}/apps/org.ciderhq.Cider.png";
+          install -Dm644 "branding/icons/ciderhq-$size.png" "/app/share/icons/hicolor/${size}x${size}/apps/ciderhq.png";
           done
       - install -d /app/share/applications
       - sed 's/^Icon=.*/Icon=org.ciderhq.Cider/' packaging/org.ciderhq.Cider.desktop

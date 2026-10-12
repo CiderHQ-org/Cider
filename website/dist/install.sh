@@ -937,6 +937,7 @@ do_uninstall() {
   local apps=$DATA_HOME/applications
   rm -f -- "$apps/org.ciderhq.Cider.desktop" "$apps/org.ciderhq.Cider.URI.desktop" \
     "$apps/org.ciderhq.Cider.Studio.desktop" "$apps/ciderhq-roblox-window.desktop" \
+    "$DATA_HOME"/icons/hicolor/*/apps/ciderhq.png \
     "$DATA_HOME/icons/hicolor/scalable/apps/ciderhq.svg" "$DATA_HOME/mime/packages/org.ciderhq.Cider.xml"
   local cider_link=$HOME/.local/bin/ciderhq
   if [[ -L $cider_link && $(readlink "$cider_link") == */ciderhq-launcher ]]; then

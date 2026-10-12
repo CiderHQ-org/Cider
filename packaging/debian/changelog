@@ -1,3 +1,10 @@
+ciderhq (0.22Patch1-1) unstable; urgency=medium
+
+  * Add the supplied CiderHQ logo and release the installer/runtime updates.
+  * Refresh launcher, desktop, website and native package branding.
+
+ -- Cider maintainers <noreply@aubree.wtf>  Mon, 12 Oct 2026 12:00:00 -0500
+
 ciderhq (0.22-2) unstable; urgency=medium
 
   * Follow the CiderHQ-org/Cider repository move and renamed source archive.

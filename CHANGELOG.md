@@ -1,7 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.22Patch1 — 2026-10-12
 
+- Add an installer choice between regular Darling and pinned CiderDarling,
+  plus launcher controls to switch between installed runtimes.
+- Add server location detection to the game logs view.
 - Move installer/update URLs, project links and package sources to
   `CiderHQ-org/Cider`. Migrate recognized legacy Git remotes on update and
   refresh the release archive root and SHA256 after the repository rename.
@@ -17,9 +20,9 @@
   recognize the reported `/proc/<pid>/fdinfo` permission crash, offering to
   disable the overlay before another launch. The switch saves immediately;
   the reported disagreement with settings.json has not been reproduced.
-- Temporarily remove the website and launcher welcome logos, and keep the
-  old MacOBlox artwork for installed shortcuts while replacement branding is
-  prepared.
+- Apply the supplied CiderHQ logo to the website, README, launcher welcome,
+  window icons and installed shortcuts. Preserve its colors and transparency
+  and provide PNG sizes for desktop integration.
 - Publish the installer as a static website file so Vercel does not need a
   build script outside its selected deployment directory. Refresh it with
   `bash website/build.sh` whenever the source installer changes.

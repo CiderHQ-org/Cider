@@ -67,6 +67,11 @@
     <control>keyboard</control>
   </supports>
   <releases>
+    <release version="0.22Patch1" date="2026-10-12">
+      <description>
+        <p>New CiderHQ logo, runtime selection, server detection and installer compatibility fixes.</p>
+      </description>
+    </release>
     <release version="0.22" date="2026-10-11">
       <description><p>Cider rebrand, multi-monitor mouse lock, Roblox 0.742 GLSL and credential-free Darling builds. Source release; no Flatpak bundle.</p></description>
     </release>

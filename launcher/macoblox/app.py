@@ -3057,7 +3057,7 @@ class LauncherApp(Adw.Application):
     def do_activate(self):
         pending = uri_handoff.peek_pending()
         if not self.window:
-            Gtk.Window.set_default_icon_name("macoblox")
+            Gtk.Window.set_default_icon_name("ciderhq")
             Gtk.IconTheme.get_for_display(Gdk.Display.get_default()).add_search_path(
                 str(core.PROJECT / "launcher" / "icons"))
             Gtk.IconTheme.get_for_display(Gdk.Display.get_default()).add_search_path(str(core.ICONS))

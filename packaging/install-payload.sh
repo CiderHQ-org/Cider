@@ -29,6 +29,7 @@ find "$share/launcher" -type d -name __pycache__ -exec rm -rf -- {} +
 cp -r --no-preserve=ownership "$source_root/branding/icons" \
   "$source_root/branding/contributors" "$share/branding/"
 install -m644 "$source_root/branding/"*.png "$source_root/branding/"*.svg "$share/branding/"
+install -m644 "$source_root/branding/ciderhq.webp" "$share/branding/"
 install -m644 "$source_root/patch_startup_throttle.py" "$share/"
 install -m644 "$source_root/README.md" "$share/"
 install -m755 "$build_dir/libMacOBloxShims.dylib" \
@@ -40,11 +41,9 @@ export MACOBLOX_PREBUILT_SHIM=$libdir/ciderhq/shim
 exec python3 /usr/share/ciderhq/launcher/ciderhq-launcher "\$@"
 WRAPPER
 chmod 755 "$destdir/usr/bin/ciderhq"
-install -Dm644 "$source_root/branding/icons/ciderhq.svg" \
-  "$destdir/usr/share/icons/hicolor/scalable/apps/ciderhq.svg"
 for size in 16 22 24 32 48 64 128 256 512 1024; do
-  install -Dm644 "$source_root/branding/icons/macoblox-$size.png" \
-    "$destdir/usr/share/icons/hicolor/${size}x${size}/apps/macoblox.png"
+  install -Dm644 "$source_root/branding/icons/ciderhq-$size.png" \
+    "$destdir/usr/share/icons/hicolor/${size}x${size}/apps/ciderhq.png"
 done
 for file in org.ciderhq.Cider.desktop org.ciderhq.Cider.URI.desktop \
   org.ciderhq.Cider.Studio.desktop ciderhq-roblox-window.desktop; do

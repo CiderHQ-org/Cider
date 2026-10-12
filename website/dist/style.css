@@ -95,7 +95,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .window-bar a:hover { color: var(--accent); }
 .window-body { padding: 1.5rem; }
 .window-body p { margin: 0 0 1rem; color: #bdbdbd; }
-.wordmark { display: block; width: 280px; max-width: 100%; height: auto; margin-bottom: 1.5rem; }
+.brand-logo { display: block; width: 128px; max-width: 100%; height: auto; margin-bottom: 1rem; }
 h1 { margin: 0 0 .75rem; font-size: clamp(1.8rem, 2.3vw, 2.5rem); font-weight: 600; line-height: 1.2; }
 .tags { display: flex; flex-wrap: wrap; gap: .5rem; }
 .tags span { padding: .2rem .5rem; border: 1px solid var(--border); background: var(--raised); color: var(--dim); font-size: 13px; }
@@ -187,7 +187,6 @@ h1 { margin: 0 0 .75rem; font-size: clamp(1.8rem, 2.3vw, 2.5rem); font-weight: 6
 @media (max-width: 760px) {
   .desktop { grid-template-columns: minmax(0, 1fr); width: calc(100% - 32px); margin-top: 20px; gap: 16px; }
   .desktop { grid-template-areas: "about" "screenshots" "install" "help"; }
-  .wordmark { width: 260px; }
   h1 { font-size: 2rem; }
   .site-footer { width: calc(100% - 32px); font-size: 12px; }
 }
