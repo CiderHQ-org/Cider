@@ -52,7 +52,7 @@ names. The GitHub repository is now [CiderHQ-org/Cider](https://github.com/Cider
 
 ## Install
 
-Version **0.22Patch1** is a source release. Use the installer below to install or update.
+Every **Latest** version is a source release. Use the installer below to install or update.
 
 ```bash
 curl -fsSL https://ciderhq.org/install.sh | bash
