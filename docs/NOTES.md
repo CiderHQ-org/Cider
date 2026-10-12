@@ -51,7 +51,7 @@ Delete files from within the shell (`darling shell rm ...`) or while the server 
 From a regular Linux terminal:
 
 ```bash
-cd MacOBlox
+cd Cider
 ./run_debug.sh
 ```
 

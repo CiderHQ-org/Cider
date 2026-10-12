@@ -1,10 +1,10 @@
 Name:           ciderhq
 Version:        0.22
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Run the macOS Roblox client on Linux through Darling
 License:        MIT AND OFL-1.1
 URL:            https://ciderhq.org
-Source0:        https://github.com/aubree-lat/MacOBlox/archive/refs/tags/v%{version}.tar.gz#/ciderhq-%{version}.tar.gz
+Source0:        https://github.com/CiderHQ-org/Cider/archive/refs/tags/v%{version}.tar.gz#/ciderhq-%{version}.tar.gz
 Source1:        ciderhq-install-payload.sh
 ExclusiveArch:  x86_64
 
@@ -68,7 +68,7 @@ Roblox is downloaded on first setup. A full Darling installation including
 GUI frameworks and stubs is required.
 
 %prep
-%setup -q -n MacOBlox-%{version}
+%setup -q -n Cider-%{version}
 
 %build
 MACOBLOX_BUILD_DIR="$PWD/native-build" ./build_debug_shim.sh
@@ -90,6 +90,10 @@ python3 -m compileall -q -d "%{_datadir}/ciderhq/launcher" "%{buildroot}%{_datad
 %{_datadir}/mime/packages/org.ciderhq.Cider.xml
 
 %changelog
+* Sun Oct 11 2026 Cider maintainers <noreply@aubree.wtf> - 0.22-2
+- Follow the CiderHQ-org/Cider repository move and renamed release archive.
+- Include the old MacOBlox shortcut icons in the payload.
+
 * Sun Oct 11 2026 Cider maintainers <noreply@aubree.wtf> - 0.22-1
 - Rebrand and repair multi-monitor input, Roblox 0.742 GLSL and Darling source credentials.
 

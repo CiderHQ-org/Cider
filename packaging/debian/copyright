@@ -1,6 +1,6 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: Cider
-Source: https://github.com/aubree-lat/MacOBlox
+Source: https://github.com/CiderHQ-org/Cider
 
 Files: *
 Copyright: 2026 Narezany and MacOBlox contributors

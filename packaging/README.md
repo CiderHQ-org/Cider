@@ -82,7 +82,7 @@ Then install the packaging tools and native development dependencies:
 ```bash
 sudo apt install build-essential debhelper dh-python python3 clang lld \
   pkg-config libsdl2-dev libwayland-dev
-cd work/native-packages/MacOBlox-0.22
+cd work/native-packages/Cider-0.22
 dpkg-buildpackage -b -us -uc
 ```
 

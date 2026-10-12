@@ -1,11 +1,11 @@
 # Maintainer: aubree.wtf <https://aubree.wtf/>
 pkgname=ciderhq
 pkgver=0.22
-pkgrel=1
+pkgrel=2
 pkgdesc='Run the macOS Roblox client on Linux through Darling'
 arch=('x86_64')
 url='https://ciderhq.org'
-_repo='https://github.com/aubree-lat/MacOBlox'
+_repo='https://github.com/CiderHQ-org/Cider'
 license=('MIT' 'OFL-1.1')
 depends=('darling' 'unzip' 'python' 'python-gobject' 'python-cairo'
          'gtk4>=4.14' 'libadwaita>=1.5' 'webkitgtk-6.0' 'sdl2' 'wayland'
@@ -21,15 +21,15 @@ provides=('macoblox')
 conflicts=('ciderhq-git' 'macoblox' 'macoblox-git')
 replaces=('macoblox')
 source=("$pkgname-$pkgver.tar.gz::$_repo/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('5851907f87d668f8bab10fd74589a4113b1ddd8b0d9cd23e8968521370579d1d')
+sha256sums=('3936c376e0c3cbde38979573e82902169ffd7ba3c43211654ebceeb7622419c9')
 
 build() {
-  cd "MacOBlox-$pkgver"
+  cd "Cider-$pkgver"
   MACOBLOX_BUILD_DIR="$srcdir/native-build" ./build_debug_shim.sh
 }
 
 package() {
-  cd "MacOBlox-$pkgver"
+  cd "Cider-$pkgver"
   bash packaging/install-payload.sh "$PWD" "$srcdir/native-build" "$pkgdir" /usr/lib
   python -m compileall -q -d /usr/share/ciderhq/launcher "$pkgdir/usr/share/ciderhq/launcher"
 }

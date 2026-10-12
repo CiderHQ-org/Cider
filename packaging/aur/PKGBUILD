@@ -1,12 +1,12 @@
 # Maintainer: aubree.wtf <https://aubree.wtf/>
 pkgname=ciderhq-git
-_name=MacOBlox
+_name=Cider
 pkgver=0.22.r0
-pkgrel=1
+pkgrel=2
 pkgdesc="Run the macOS Roblox client on Linux through Darling"
 arch=('x86_64')
 url="https://ciderhq.org"
-_repo="https://github.com/aubree-lat/MacOBlox"
+_repo="https://github.com/CiderHQ-org/Cider"
 license=('MIT' 'OFL-1.1')
 depends=('darling' 'unzip' 'python' 'python-gobject' 'python-cairo'
          'gtk4>=4.14' 'libadwaita>=1.5' 'webkitgtk-6.0' 'sdl2' 'wayland'

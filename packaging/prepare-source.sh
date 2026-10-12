@@ -55,7 +55,7 @@ def metadata(info):
 with output.open('wb') as raw, gzip.GzipFile(filename='', mode='wb', fileobj=raw, mtime=0) as zipped:
     with tarfile.open(fileobj=zipped, mode='w') as archive:
         for path in sorted(paths):
-            archive.add(root / path, arcname=f'MacOBlox-{version}/{path}', recursive=False, filter=metadata)
+            archive.add(root / path, arcname=f'Cider-{version}/{path}', recursive=False, filter=metadata)
 PY
   checksum=$(sha256sum -- "$archive")
   checksum=${checksum%% *}
@@ -63,11 +63,11 @@ elif [[ $# == 2 ]]; then
   cp -- "$2" "$archive"
 else
   curl --fail --location --retry 3 \
-    "https://github.com/aubree-lat/MacOBlox/archive/refs/tags/v$version.tar.gz" --output "$archive"
+    "https://github.com/CiderHQ-org/Cider/archive/refs/tags/v$version.tar.gz" --output "$archive"
 fi
 printf '%s  %s\n' "$checksum" "$archive" | sha256sum --check --status
 tar -xzf "$archive" -C "$staging"
-source_root=$staging/MacOBlox-$version
+source_root=$staging/Cider-$version
 cp -r --no-preserve=ownership "$packaging_dir/debian" "$source_root/debian"
 install -m755 "$packaging_dir/install-payload.sh" "$source_root/debian/install-payload.sh"
 install -d "$staging/rpm/SOURCES" "$staging/rpm/SPECS" "$staging/aur/ciderhq"
@@ -82,4 +82,4 @@ fi
 mv --no-clobber -T -- "$staging" "$output"
 [[ ! -d $staging ]] || { printf 'Output was created by another process: %s\n' "$output" >&2; exit 1; }
 printf 'Debian source: %s\nRPM top directory: %s\nStable AUR recipe: %s\n' \
-  "$output/MacOBlox-$version" "$output/rpm" "$output/aur/ciderhq"
+  "$output/Cider-$version" "$output/rpm" "$output/aur/ciderhq"

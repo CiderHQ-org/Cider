@@ -25,7 +25,7 @@ The source installer moves its old `~/.local/share/MacOBlox` checkout to
 `Library/MacOBlox` to `Library/CiderHQ`. Existing Cider data is never replaced.
 Settings, Roblox/Studio files and saved sign-in stay available. Internal shim
 filenames and `MACOBLOX_*` environment variables retain their compatibility
-names; the GitHub repository currently remains `aubree-lat/MacOBlox`.
+names. The GitHub repository is now [CiderHQ-org/Cider](https://github.com/CiderHQ-org/Cider).
 
 ## Install
 
@@ -103,7 +103,7 @@ sudo dnf install clang lld unzip pipewire-utils python3-gobject gtk4 libadwaita 
 
 ```bash
 git clone --filter=blob:none --no-checkout --depth 1 --single-branch --branch main \
-  https://github.com/aubree-lat/MacOBlox ~/.local/share/CiderHQ
+  https://github.com/CiderHQ-org/Cider ~/.local/share/CiderHQ
 git -C ~/.local/share/CiderHQ sparse-checkout set --no-cone --stdin <<'PATTERNS'
 /*
 !/website/
@@ -339,7 +339,7 @@ The Flatpak brings Darling along and runs it without root (see
 [flatpak/darling-noroot.c](flatpak/darling-noroot.c)), so nothing has to be
 installed on the system. Version 0.22 does not include a Flatpak bundle.
 The last testing bundle is available in
-[release 0.19](https://github.com/aubree-lat/MacOBlox/releases/tag/v0.19):
+[release 0.19](https://github.com/CiderHQ-org/Cider/releases/tag/v0.19):
 
 ```bash
 flatpak install --user MacOBlox-0.19-x86_64.flatpak
@@ -355,7 +355,7 @@ than the previous GNOME runtime recipe. To build it yourself:
 
 ```bash
 flatpak install --user flathub org.flatpak.Builder org.freedesktop.Platform//26.08 org.freedesktop.Sdk//26.08 org.freedesktop.Sdk.Extension.llvm22//26.08
-cd MacOBlox/flatpak
+cd Cider/flatpak
 flatpak run --env=FLATPAK_USER_DIR=$HOME/.local/share/flatpak --command=flatpak-builder org.flatpak.Builder --user --install --force-clean build-dir org.ciderhq.Cider.yml
 ```
 </details>

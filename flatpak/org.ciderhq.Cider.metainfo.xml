@@ -31,28 +31,28 @@
   <launchable type="desktop-id">org.ciderhq.Cider.desktop</launchable>
   <screenshots>
     <screenshot type="default">
-      <image>https://raw.githubusercontent.com/aubree-lat/MacOBlox/main/flatpak/screenshots/roblox.png</image>
+      <image>https://raw.githubusercontent.com/CiderHQ-org/Cider/main/flatpak/screenshots/roblox.png</image>
       <caption>Roblox running through Cider</caption>
     </screenshot>
     <screenshot>
-      <image>https://raw.githubusercontent.com/aubree-lat/MacOBlox/main/flatpak/screenshots/launcher-play.png</image>
+      <image>https://raw.githubusercontent.com/CiderHQ-org/Cider/main/flatpak/screenshots/launcher-play.png</image>
       <caption>The launcher</caption>
     </screenshot>
     <screenshot>
-      <image>https://raw.githubusercontent.com/aubree-lat/MacOBlox/main/flatpak/screenshots/launcher-flags.png</image>
+      <image>https://raw.githubusercontent.com/CiderHQ-org/Cider/main/flatpak/screenshots/launcher-flags.png</image>
       <caption>Fast flags</caption>
     </screenshot>
     <screenshot>
-      <image>https://raw.githubusercontent.com/aubree-lat/MacOBlox/main/flatpak/screenshots/launcher-settings.png</image>
+      <image>https://raw.githubusercontent.com/CiderHQ-org/Cider/main/flatpak/screenshots/launcher-settings.png</image>
       <caption>Settings</caption>
     </screenshot>
     <screenshot>
-      <image>https://raw.githubusercontent.com/aubree-lat/MacOBlox/main/flatpak/screenshots/launcher-info.png</image>
+      <image>https://raw.githubusercontent.com/CiderHQ-org/Cider/main/flatpak/screenshots/launcher-info.png</image>
       <caption>Community and authors</caption>
     </screenshot>
   </screenshots>
   <url type="homepage">https://ciderhq.org</url>
-  <url type="bugtracker">https://github.com/aubree-lat/MacOBlox/issues</url>
+  <url type="bugtracker">https://github.com/CiderHQ-org/Cider/issues</url>
   <branding>
     <color type="primary" scheme_preference="light">#c4b5fd</color>
     <color type="primary" scheme_preference="dark">#3b2a7a</color>

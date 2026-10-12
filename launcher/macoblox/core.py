@@ -275,9 +275,9 @@ def latest_version(channel=None, required_log=None):
     return _validated_deployment(data)
 
 
-REPO_URL = "https://github.com/aubree-lat/MacOBlox.git"
-RELEASES_URL = "https://github.com/aubree-lat/MacOBlox/releases/latest"
-LAUNCHER_RELEASE_URL = "https://api.github.com/repos/aubree-lat/MacOBlox/releases/latest"
+REPO_URL = "https://github.com/CiderHQ-org/Cider.git"
+RELEASES_URL = "https://github.com/CiderHQ-org/Cider/releases/latest"
+LAUNCHER_RELEASE_URL = "https://api.github.com/repos/CiderHQ-org/Cider/releases/latest"
 # Keep these patterns aligned with install.sh. Hosting files stay on main,
 # while partial app fetches only materialize blobs selected by this checkout.
 LAUNCHER_SPARSE_PATTERNS = """/*
@@ -321,11 +321,19 @@ def update_launcher(progress=None):
         return False, RELEASES_URL
     if progress:
         progress(0.2, _("Pulling latest version…"))
-    # Checkouts from before the move to this fork still point at the original
-    # repository, which does not have its fixes (install.sh does the same).
+    # Match the installer's migration of recognized legacy repository URLs.
     origin = _git("remote", "get-url", "origin").stdout.strip()
-    if origin in ("https://github.com/narezy/MacOBlox", "https://github.com/narezy/MacOBlox.git"):
-        _git("remote", "set-url", "origin", REPO_URL)
+    legacy_remotes = {
+        "https://github.com/narezy/MacOBlox", "https://github.com/narezy/MacOBlox.git",
+        "https://github.com/aubree-lat/MacOBlox", "https://github.com/aubree-lat/MacOBlox.git",
+        "git@github.com:aubree-lat/MacOBlox", "git@github.com:aubree-lat/MacOBlox.git",
+        "ssh://git@github.com/aubree-lat/MacOBlox", "ssh://git@github.com/aubree-lat/MacOBlox.git",
+    }
+    if origin in legacy_remotes:
+        result = _git("remote", "set-url", "origin", REPO_URL)
+        if result.returncode:
+            raise RuntimeError(_("Could not update the files in {path}:\n{output}",
+                                 path=PROJECT, output=(result.stderr or result.stdout).strip()))
     for arguments, patterns in (
         (("config", "remote.origin.promisor", "true"), None),
         (("config", "remote.origin.partialclonefilter", "blob:none"), None),

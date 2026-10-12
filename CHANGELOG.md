@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Move installer/update URLs, project links and package sources to
+  `CiderHQ-org/Cider`. Migrate recognized legacy Git remotes on update and
+  refresh the release archive root and SHA256 after the repository rename.
 - Prepare the pinned Darling source for Clang/LLVM 23: disable supported
   Objective-C constant literal families, replace the reported empty literals
   with Foundation factory calls, and guard the split branch opcodes for older

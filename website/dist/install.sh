@@ -15,7 +15,7 @@
 
 set -euo pipefail
 
-REPO=https://github.com/aubree-lat/MacOBlox.git
+REPO=https://github.com/CiderHQ-org/Cider.git
 DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
 DIR=$DATA_HOME/CiderHQ
 LEGACY_DIR=$DATA_HOME/MacOBlox
@@ -596,10 +596,13 @@ do_install() {
   if [[ -d $DIR/.git ]]; then
     say "Updating Cider"
 
-    # Checkouts from before the move to this fork still point at the original
-    # repository, which does not have its fixes.
+    # Migrate recognized upstream/fork URLs after the Cider organization move.
+    # Other user-configured remotes are kept.
     case $(git -C "$DIR" remote get-url origin 2>/dev/null) in
-      https://github.com/narezy/MacOBlox | https://github.com/narezy/MacOBlox.git)
+      https://github.com/narezy/MacOBlox | https://github.com/narezy/MacOBlox.git | \
+      https://github.com/aubree-lat/MacOBlox | https://github.com/aubree-lat/MacOBlox.git | \
+      git@github.com:aubree-lat/MacOBlox | git@github.com:aubree-lat/MacOBlox.git | \
+      ssh://git@github.com/aubree-lat/MacOBlox | ssh://git@github.com/aubree-lat/MacOBlox.git)
         git -C "$DIR" remote set-url origin "$REPO" ;;
     esac
 

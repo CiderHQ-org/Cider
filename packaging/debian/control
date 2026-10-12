@@ -7,8 +7,8 @@ Build-Depends: debhelper-compat (= 13), dh-python, python3, clang, lld,
 Standards-Version: 4.7.2
 Rules-Requires-Root: no
 Homepage: https://ciderhq.org
-Vcs-Git: https://github.com/aubree-lat/MacOBlox.git
-Vcs-Browser: https://github.com/aubree-lat/MacOBlox
+Vcs-Git: https://github.com/CiderHQ-org/Cider.git
+Vcs-Browser: https://github.com/CiderHQ-org/Cider
 
 Package: ciderhq
 Provides: macoblox
