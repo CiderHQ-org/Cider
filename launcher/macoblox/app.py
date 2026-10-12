@@ -3,6 +3,8 @@
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
 import threading
 import time
@@ -14,7 +16,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 from pathlib import Path  # noqa: E402
 
-from . import __version__, author, core, discord, dns, i18n, mods, runtime, studio, uri as uri_handoff  # noqa: E402
+from . import __version__, author, core, discord, dns, i18n, mods, runtime, runtime_install, studio, uri as uri_handoff  # noqa: E402
 from .i18n import _  # noqa: E402
 from .setup import SetupWizard  # noqa: E402
 
@@ -76,6 +78,19 @@ def _restart_launcher():
     if not entry.is_file():
         raise FileNotFoundError(_("Cider's launcher files are missing. Reinstall Cider before restarting."))
     os.execve(sys.executable, [sys.executable, str(entry)], environment)
+
+
+def _launch_runtime_terminal(window, command):
+    terminal = shutil.which("xdg-terminal-exec")
+    if terminal:
+        subprocess.Popen([terminal, "--", *command], start_new_session=True)
+        return True
+    # GIO chooses the desktop terminal. Exec field codes require literal '%'
+    # to be doubled even inside quoted script text or filenames.
+    line = " ".join(GLib.shell_quote(argument) for argument in command).replace("%", "%%")
+    application = Gio.AppInfo.create_from_commandline(line, _("Install CiderDarling"),
+                                                     Gio.AppInfoCreateFlags.NEEDS_TERMINAL)
+    return application.launch([], window.get_display().get_app_launch_context())
 
 
 def _button_row(title):
@@ -1196,6 +1211,13 @@ class SettingsPage(Adw.Bin):
         self.runtime_active_row.add_suffix(self.runtime_refresh_button)
         self.runtime_active_row.add_suffix(self.runtime_apply_button)
         darling_group.add(self.runtime_active_row)
+        self.runtime_install_row = Adw.ActionRow(title=_("Install CiderDarling"),
+            subtitle=_("Opens a separate terminal for the build and sudo prompts."), visible=False)
+        self.runtime_install_button = Gtk.Button(label=_("Install in terminal"), valign=Gtk.Align.CENTER)
+        self.runtime_install_button.add_css_class("suggested-action")
+        self.runtime_install_button.connect("clicked", lambda *_args: window.install_ciderdarling())
+        self.runtime_install_row.add_suffix(self.runtime_install_button)
+        darling_group.add(self.runtime_install_row)
         self._runtime_handler = self.runtime_row.connect("notify::selected", lambda *_args: self._runtime_selection_changed())
         self._runtime_selection_changed()
         self.env_page.add(darling_group)
@@ -1542,13 +1564,23 @@ class SettingsPage(Adw.Bin):
 
     def _runtime_selection_changed(self):
         index = self.runtime_row.get_selected()
-        choice = self._runtime_choices.get(self._runtime_codes[index]) if index < len(self._runtime_codes) else None
+        selected = self._runtime_codes[index] if index < len(self._runtime_codes) else None
+        choice = self._runtime_choices.get(selected)
         bundled = bool(os.environ.get("FLATPAK_ID"))
+        installing = self.window.runtime_install_job is not None
         changed = choice is not None and any(choice[key] != core.DARLING_RUNTIME[key]
                                              for key in runtime.SELECTION_KEYS)
-        self.runtime_apply_button.set_sensitive(changed and not bundled)
+        self.runtime_apply_button.set_sensitive(changed and not bundled and not installing)
+        self.runtime_install_row.set_visible(not bundled and (installing or (selected == "ciderdarling" and choice is None)))
+        self.runtime_install_button.set_sensitive(not bundled and not installing)
+        self.runtime_install_row.set_subtitle(_("Installing CiderDarling in another terminal…") if installing
+            else _("Opens a separate terminal for the build and sudo prompts."))
         if bundled:
             subtitle = _("Flatpak uses its bundled Darling runtime.")
+        elif installing:
+            subtitle = _("Installing in a separate terminal. Your current runtime remains selected.")
+        elif selected == "ciderdarling" and choice is None:
+            subtitle = _("Install CiderDarling in a separate terminal, then apply the switch.")
         elif choice is None:
             subtitle = _("Install this runtime with Cider's installer before switching.")
         else:
@@ -2348,6 +2380,7 @@ class LauncherWindow(Adw.ApplicationWindow):
         # One long operation at a time: starting, updating, building,
         # restarting Darling or signing out. They share the client and Darling.
         self.busy = None
+        self.runtime_install_job = None
         self.quit_when_idle = False  # the window was closed during an operation
         self.last_log = self._find_last_log()
         self.pending_uri = None
@@ -2544,6 +2577,68 @@ class LauncherWindow(Adw.ApplicationWindow):
     def set_setting(self, key, value):
         self.settings[key] = value
         core.save_settings(self.settings)
+
+    def install_ciderdarling(self):
+        if os.environ.get("FLATPAK_ID"):
+            return
+        page = self.settings_page
+        if page._runtime_codes[page.runtime_row.get_selected()] != "ciderdarling":
+            return
+        if not self.begin("installing runtime"):
+            return
+        job = None
+        try:
+            if core.roblox_pids():
+                self.end(resume_pending=False)
+                _toast(self.toasts, _("Close Roblox first"))
+                return
+            if "ciderdarling" in runtime.installed_runtimes(core.DARLING_RUNTIME):
+                self.end(resume_pending=False)
+                page.refresh_runtime_choices()
+                return
+            job = runtime_install.Installation.create(core.PROJECT, "ciderdarling", core.CACHE_DIR)
+            if not _launch_runtime_terminal(self, job.command):
+                raise RuntimeError(_("Could not open an installation terminal."))
+            self.runtime_install_job = job
+            page._runtime_selection_changed()
+            GLib.timeout_add(1000, self._watch_runtime_install, job)
+        except (GLib.Error, OSError, RuntimeError, ValueError) as error:
+            if job is not None:
+                try:
+                    job.close()
+                except OSError:
+                    pass
+            self.end(resume_pending=False)
+            _error_dialog(self, _("Could not install CiderDarling"), str(error))
+
+    def _watch_runtime_install(self, job):
+        if self.runtime_install_job is not job:
+            return False
+        error = None
+        try:
+            status = job.poll()
+            if status is None:
+                return True
+            if status != 0:
+                error = _("Installation failed or was cancelled. See the separate terminal for details.")
+        except (OSError, RuntimeError, ValueError) as exception:
+            error = str(exception)
+        self.runtime_install_job = None
+        try:
+            job.close()
+        except OSError as exception:
+            error = error or str(exception)
+        self.end(resume_pending=False)
+        self.settings_page.refresh_runtime_choices()
+        if error:
+            _error_dialog(self, _("Could not install CiderDarling"), error)
+        elif "ciderdarling" not in self.settings_page._runtime_choices:
+            _error_dialog(self, _("Could not detect CiderDarling"),
+                          _("The installer finished, but the runtime could not be detected. Check the terminal output."))
+        else:
+            self.settings_page.runtime_row.set_selected(self.settings_page._runtime_codes.index("ciderdarling"))
+            _toast(self.toasts, _("CiderDarling installed. Apply the runtime choice to switch."))
+        return False
 
     def set_language(self, code):
         if code == i18n.language():

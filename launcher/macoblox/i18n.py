@@ -6,6 +6,23 @@ LANGUAGES = {"en": "English", "ru": "Русский"}
 _language = "en"
 
 RU = {
+    "Install CiderDarling": "Установить CiderDarling",
+    "Install in terminal": "Установить в терминале",
+    "Opens a separate terminal for the build and sudo prompts.": "Откроет отдельный терминал для сборки и запросов sudo.",
+    "Installing CiderDarling in another terminal…": "CiderDarling устанавливается в другом терминале…",
+    "Installing in a separate terminal. Your current runtime remains selected.":
+        "Установка выполняется в отдельном терминале. Текущая среда остаётся выбранной.",
+    "Install CiderDarling in a separate terminal, then apply the switch.":
+        "Установите CiderDarling в отдельном терминале, затем примените переключение.",
+    "Could not open an installation terminal.": "Не удалось открыть терминал для установки.",
+    "Could not install CiderDarling": "Не удалось установить CiderDarling",
+    "Installation failed or was cancelled. See the separate terminal for details.":
+        "Установка завершилась ошибкой или была отменена. Подробности — в отдельном терминале.",
+    "Could not detect CiderDarling": "Не удалось обнаружить CiderDarling",
+    "The installer finished, but the runtime could not be detected. Check the terminal output.":
+        "Установщик завершил работу, но среда не обнаружена. Проверьте вывод терминала.",
+    "CiderDarling installed. Apply the runtime choice to switch.":
+        "CiderDarling установлена. Примените выбор среды, чтобы переключиться.",
     "Darling runtime": "Среда Darling",
     "DarlingHQ's Darling": "Darling от DarlingHQ",
     "CiderHQ's CiderDarling": "CiderDarling от CiderHQ",

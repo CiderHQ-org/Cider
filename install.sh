@@ -490,44 +490,44 @@ confirm_darling_build() {
 
 install_darling_build_dependencies() {
   case $1 in
-    apt-get) sudo apt-get install -y build-essential cmake clang bison flex xz-utils git-lfs \
+    apt-get) sudo apt-get install -y build-essential cmake clang bison flex xz-utils git git-lfs python3 \
       libfuse-dev libudev-dev libcap2-bin libglu1-mesa-dev libcairo2-dev libgl-dev \
       libtiff-dev libfreetype-dev libxml2-dev libegl-dev libfontconfig-dev libbsd-dev \
       libxrandr-dev libxcursor-dev libgif-dev libpulse-dev libavformat-dev libavcodec-dev \
       libswresample-dev libdbus-1-dev libxkbfile-dev libssl-dev llvm-dev libelf-dev \
       libvulkan-dev libcurl4-openssl-dev libedit-dev ;;
-    pacman) sudo pacman -S --needed --noconfirm make cmake clang flex bison icu fuse \
+    pacman) sudo pacman -S --needed --noconfirm make cmake clang flex bison icu fuse git python \
       pkgconf fontconfig cairo libtiff mesa glu llvm libbsd libxkbfile libxcursor \
       libxext libxkbcommon libxrandr ffmpeg git-lfs vulkan-headers vulkan-icd-loader ;;
-    dnf|yum) sudo "$1" install -y make gcc gcc-c++ cmake clang bison flex git-lfs \
+    dnf|yum) sudo "$1" install -y make gcc gcc-c++ cmake clang bison flex git git-lfs python3 \
       dbus-devel glibc-devel fuse-devel systemd-devel elfutils-libelf-devel cairo-devel \
       freetype-devel libjpeg-turbo-devel fontconfig-devel libglvnd-devel mesa-libGL-devel \
       mesa-libEGL-devel mesa-libGLU-devel libtiff-devel libxml2-devel libbsd-devel \
       libXcursor-devel libXrandr-devel giflib-devel pulseaudio-libs-devel libxkbfile-devel \
       openssl-devel llvm-devel libcap-devel libavcodec-free-devel libavformat-free-devel ;;
     zypper) sudo zypper --non-interactive install make gcc gcc-c++ cmake clang bison flex \
-      git-lfs fuse-devel systemd-devel libelf-devel cairo-devel freetype2-devel \
+      git git-lfs python3 fuse-devel systemd-devel libelf-devel cairo-devel freetype2-devel \
       fontconfig-devel Mesa-libGL-devel Mesa-libEGL-devel glu-devel libxml2-devel \
       libbsd-devel libXcursor-devel libXrandr-devel giflib-devel libpulse-devel \
       libxkbfile-devel libopenssl-devel llvm-devel libcap-devel libtiff-devel \
       libjpeg-devel dbus-1-devel libavcodec-devel libavformat-devel libswresample-devel ;;
-    apk) sudo apk add build-base cmake clang bison flex xz fuse-dev libcap-dev git-lfs \
+    apk) sudo apk add build-base cmake clang bison flex xz fuse-dev libcap-dev git git-lfs \
       python3 glu-dev cairo-dev mesa-dev tiff-dev freetype-dev libxml2-dev fontconfig-dev \
       libbsd-dev libxrandr-dev libxcursor-dev giflib-dev pulseaudio-dev ffmpeg-dev \
       dbus-dev libxkbfile-dev openssl-dev linux-headers llvm-dev xdg-user-dirs ;;
-    xbps-install) sudo xbps-install -y base-devel cmake clang bison flex xz git-lfs \
+    xbps-install) sudo xbps-install -y base-devel cmake clang bison flex xz git git-lfs python3 \
       fuse-devel libcap-devel eudev-libudev-devel glu-devel cairo-devel MesaLib-devel \
       tiff-devel freetype-devel libxml2-devel fontconfig-devel libbsd-devel \
       libXrandr-devel libXcursor-devel giflib-devel pulseaudio-devel ffmpeg-devel \
       dbus-devel libxkbfile-devel openssl-devel llvm21-devel ;;
     emerge) sudo emerge --noreplace dev-build/cmake llvm-core/clang llvm-core/llvm \
-      sys-devel/bison sys-devel/flex dev-vcs/git-lfs sys-fs/fuse:0 sys-libs/libcap \
+      sys-devel/bison sys-devel/flex dev-vcs/git dev-vcs/git-lfs dev-lang/python sys-fs/fuse:0 sys-libs/libcap \
       virtual/libudev media-libs/glu x11-libs/cairo media-libs/mesa media-libs/tiff \
       media-libs/freetype dev-libs/libxml2 media-libs/fontconfig dev-libs/libbsd \
       x11-libs/libXrandr x11-libs/libXcursor media-libs/giflib media-libs/libpulse \
       media-video/ffmpeg sys-apps/dbus x11-libs/libxkbfile dev-libs/openssl ;;
     eopkg) sudo eopkg install -y -c system.devel || return 1
-      sudo eopkg install -y cmake clang llvm-devel bison flex git-lfs fuse-devel \
+      sudo eopkg install -y cmake clang llvm-devel bison flex git git-lfs python3 fuse-devel \
         libcap-devel systemd-devel mesalib-devel cairo-devel libtiff-devel freetype2-devel \
         libxml2-devel fontconfig-devel libbsd-devel libxrandr-devel libxcursor-devel \
         giflib-devel pulseaudio-devel ffmpeg-devel dbus-devel libxkbfile-devel openssl-devel ;;
@@ -834,6 +834,14 @@ for namespace, version in [('Gtk', '4.0'), ('Adw', '1'), ('WebKit', '6.0')]:
     gi.require_version(namespace, version)
 from gi.repository import Gtk, Adw, WebKit
 PYTHON
+}
+
+do_install_runtime() {
+  [[ $(uname -m) == x86_64 ]] || die "Darling runs only on x86_64."
+  command -v python3 >/dev/null || die "Python 3 is required for runtime installation."
+  say "Installing $(darling_runtime_name) for use with Cider."
+  ensure_darling
+  say "$(darling_runtime_name) is installed. Return to Cider and apply the runtime choice when ready."
 }
 
 do_install() {
@@ -1170,6 +1178,8 @@ Cider installer
   install.sh --darling ciderdarling
                            choose CiderHQ's pinned Darling runtime
                            source builds still ask for terminal confirmation
+  install.sh --install-runtime --darling ciderdarling
+                           install only the runtime, keeping the current selection
   install.sh --uninstall   remove Cider (asks first, unless --yes)
   install.sh --uninstall --purge
                            also delete the selected Darling prefix (Roblox sign-in)
@@ -1189,6 +1199,7 @@ main() {
     arg=$1
     case $arg in
       --install | --update) action=install ;;
+      --install-runtime) action=runtime ;;
       --uninstall) action=uninstall ;;
       --purge) PURGE=1 ;;
       -y | --yes) assume_yes=1 ;;
@@ -1262,6 +1273,7 @@ main() {
       fi
       do_install ;;
     uninstall) do_uninstall "$PURGE" ;;
+    runtime) banner; do_install_runtime ;;
     quit) ;;
   esac
 }

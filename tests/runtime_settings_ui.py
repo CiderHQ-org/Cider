@@ -20,7 +20,7 @@ for key in ("DPREFIX", "FLATPAK_ID", "MACOBLOX_PAGE"):
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "launcher"))
 # Do not run startup update checks, author avatars or other unrelated workers.
 threading.Thread.start = lambda self: None
-from macoblox import app, core, runtime
+from macoblox import app, core, runtime, runtime_install
 from gi.repository import Adw, Gio
 
 selection_file = base / "runtime.json"
@@ -156,6 +156,65 @@ with patch.dict(os.environ, FLATPAK_ID="org.ciderhq.Cider"):
         page.apply_runtime()
         assert len(restarts) == 2
 
+# A missing CiderDarling can be installed without selecting it or replacing
+# launcher files. The real terminal launch is mocked; job status is simulated.
+Path(choices["ciderdarling"]["executable"]).unlink()
+runtime.save_selection(choices["regular"], selection_file, current=choices["ciderdarling"])
+context, window = fixture("regular")
+with context, patch.object(app, "_launch_runtime_terminal", return_value=True) as launch_terminal:
+    page = window.settings_page
+    page.runtime_row.set_selected(1)
+    assert page.runtime_install_row.get_visible() and page.runtime_install_button.get_sensitive()
+    before = selection_file.read_bytes()
+    window.busy = "building"
+    page.runtime_install_button.emit("clicked")
+    assert not launch_terminal.called and selection_file.read_bytes() == before
+    window.busy = None
+    with patch.object(core, "roblox_pids", return_value=[999]):
+        page.runtime_install_button.emit("clicked")
+    assert not launch_terminal.called and window.busy is None
+    page.runtime_install_button.emit("clicked")
+    job = window.runtime_install_job
+    assert job is not None and window.busy == "installing runtime"
+    assert not page.runtime_install_button.get_sensitive() and not page.runtime_apply_button.get_sensitive()
+    assert launch_terminal.call_args.args[1] == job.command
+    assert window._watch_runtime_install(job) is True
+    assert selection_file.read_bytes() == before and len(restarts) == 2
+    client = Path(choices["ciderdarling"]["executable"])
+    client.write_text("#!/bin/sh\nexit 0\n"); client.chmod(0o755)
+    (job.directory / "result").write_text("0\n")
+    assert window._watch_runtime_install(job) is False
+    assert window.runtime_install_job is None and window.busy is None
+    assert not page.runtime_install_row.get_visible() and page.runtime_apply_button.get_sensitive()
+    assert selection_file.read_bytes() == before and len(restarts) == 2
+    assert not job.directory.exists()
+
+Path(choices["ciderdarling"]["executable"]).unlink()
+context, window = fixture("regular")
+with context:
+    page = window.settings_page
+    page.runtime_row.set_selected(1)
+    before = selection_file.read_bytes()
+    with patch.object(app, "_launch_runtime_terminal", side_effect=RuntimeError("No terminal available")):
+        page.runtime_install_button.emit("clicked")
+    assert window.runtime_install_job is None and window.busy is None
+    assert selection_file.read_bytes() == before and "No terminal" in errors[-1][-1]
+    with patch.object(app, "_launch_runtime_terminal", return_value=True):
+        page.runtime_install_button.emit("clicked")
+    job = window.runtime_install_job
+    (job.directory / "result").write_text("1\n")
+    window._watch_runtime_install(job)
+    assert window.runtime_install_job is None and window.busy is None
+    assert selection_file.read_bytes() == before and "cancelled" in errors[-1][-1]
+    assert page.runtime_install_button.get_sensitive()
+
+with patch.dict(os.environ, FLATPAK_ID="org.ciderhq.Cider"):
+    context, window = fixture("regular")
+    with context, patch.object(app, "_launch_runtime_terminal") as launch_terminal:
+        assert not window.settings_page.runtime_install_row.get_visible()
+        window.install_ciderdarling()
+        assert not launch_terminal.called
+
 with patch.object(app.os, "execve") as execute, patch.object(app.sys, "argv", ["launcher", "roblox:old-link"]):
     app._restart_launcher()
     command, arguments, environment = execute.call_args.args
@@ -164,4 +223,4 @@ with patch.object(app.os, "execve") as execute, patch.object(app.sys, "argv", ["
     assert environment["MACOBLOX_PAGE"] == "settings" and "roblox:old-link" not in arguments
 
 temporary.cleanup()
-print("PASS: GTK switches both ways; custom prefixes persist; busy/game, missing runtimes, failed saves and Flatpak are protected; restart does not replay a URI")
+print("PASS: GTK switches and terminal installation; custom prefixes persist; busy/game, missing runtimes, failed saves/installs and Flatpak are protected; restart does not replay a URI")

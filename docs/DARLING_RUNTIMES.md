@@ -19,6 +19,25 @@ Missing runtimes are labelled and cannot be applied. The refresh button
 detects runtimes added or removed since Settings was opened. Flatpak presents
 the bundled runtime as read-only.
 
+When CiderDarling is missing, selecting it shows **Install in terminal**.
+This opens the desktop terminal with the local installer using
+`--install-runtime --darling ciderdarling`. That mode installs only the runtime:
+it does not update or replace Cider's checkout, build its compatibility shim,
+activate a different runtime or touch either guest prefix. Source compilation
+still asks for terminal confirmation and installing dependencies uses sudo.
+Native package payloads include the same standalone installer.
+
+The launch uses `xdg-terminal-exec` when available, with
+[GIO's terminal flag](https://docs.gtk.org/gio/flags.AppInfoCreateFlags.html) as
+fallback. GIO arguments use
+[quoted command-line values and escaped percent signs](https://docs.gtk.org/gio/type_func.AppInfo.create_from_commandline.html).
+The terminal keeps its build output visible until Enter is pressed. Atomic
+started/result records track the actual installer shell independently of
+terminal clients that detach. Closing the terminal early, failure to open it
+or a failed/cancelled install releases the launcher operation and preserves
+the current selection. Success refreshes the runtime choices and previews
+CiderDarling; **Apply and restart Cider** remains a separate action.
+
 Regular Darling reuses a matching installed client and sysroot, then tries the
 existing distro and checksum-verified upstream packages before offering a
 source build. CiderDarling always uses CiderHQ's pinned source or a matching
@@ -86,6 +105,8 @@ the expected revision and manifest metadata.
 PYTHONPATH=launcher python3 -m unittest discover -s tests -p 'installer_runtime_test.py'
 PYTHONPATH=launcher python3 -m unittest discover -s tests -p 'runtime_selection_test.py'
 GSETTINGS_BACKEND=memory GDK_BACKEND=x11 GSK_RENDERER=cairo xvfb-run -a python3 tests/runtime_settings_ui.py
+PYTHONPATH=launcher python3 -m unittest discover -s tests -p 'runtime_install_test.py'
+GSETTINGS_BACKEND=memory GDK_BACKEND=x11 QT_QPA_PLATFORM=xcb GSK_RENDERER=cairo dbus-run-session -- xvfb-run -a python3 tests/runtime_install_terminal.py
 bash -n install.sh build_debug_shim.sh run_debug.sh
 bash website/build.sh
 cmp install.sh website/dist/install.sh
@@ -97,6 +118,14 @@ failures, missing/removed runtime checks, refresh after installation, Flatpak
 read-only behavior and restart arguments without replaying a Roblox URI. It
 uses temporary configuration, fake runtime clients and mocked restarts; it
 does not install or execute Darling or alter the live launcher.
+
+The install-only mode is checked with stubbed runtime installation: launcher
+updates, launcher dependency installation and preference activation are not
+called. Real pseudo-terminal tests exercise build confirmation input, safe
+arguments, completion codes, startup failure and keeping output open. The
+separate-terminal fixture exercises the desktop-default launch and GIO
+fallback on a private display/session bus, using only a fake installer with
+special-character paths. No system software is installed by these tests.
 
 The actual Cider shim and framework replacements built against the staged
 CiderDarling root. Real Mach-O threading, condition-variable, ulock, datagram

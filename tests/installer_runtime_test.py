@@ -50,6 +50,24 @@ main '''
         for options in ('--darling wrong', '--darling', '--darling='):
             self.assertNotEqual(self.shell(body + options).returncode, 0)
 
+    def test_install_runtime_does_not_update_launcher_or_activate_runtime(self):
+        file = self.base / 'config/ciderhq/runtime.json'
+        original = {'schema_version': 1, 'runtime': 'regular',
+                    'executable': '/usr/bin/darling', 'sysroot': '/usr/libexec/darling',
+                    'prefix': str(self.base / 'saved-prefix')}
+        runtime.save_selection(original, file)
+        before = file.read_bytes()
+        output = self.checked('''
+ensure_darling() { printf 'ensured:%s\\n' "$DARLING_RUNTIME"; }
+do_install() { exit 91; }
+install_tools() { exit 92; }
+save_darling_selection() { exit 93; }
+main --install-runtime --darling ciderdarling --yes
+''')
+        self.assertIn('ensured:ciderdarling', output)
+        self.assertEqual(file.read_bytes(), before)
+        self.assertFalse((self.base / 'data/CiderHQ').exists())
+
     def test_atomic_save_roundtrip_update_retains_selection_and_prefix(self):
         self.checked('''
 DARLING_RUNTIME=ciderdarling

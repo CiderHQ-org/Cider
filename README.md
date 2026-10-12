@@ -89,8 +89,12 @@ Installed runtimes can also be switched in **Settings → Environment → Darlin
 Choose **DarlingHQ's Darling** or **CiderHQ's CiderDarling**, then press
 **Apply and restart Cider**. Close Roblox and wait for launcher operations to
 finish first. The refresh button detects runtimes installed while Cider was
-open. Custom prefixes are remembered for both choices; missing runtimes are
-labelled and must be installed before switching. Flatpak keeps this selector
+open. If CiderDarling is missing, select it and click **Install in terminal**.
+The separate terminal runs the pinned runtime installer, shows build progress
+and handles confirmation and sudo prompts. It stays open when the build
+finishes; Cider refreshes the choices and you can apply the switch when ready.
+Installing this way keeps the current runtime selection and launcher files.
+Custom prefixes are remembered for both choices. Flatpak keeps this selector
 read-only because its runtime is bundled.
 
 Run the same command again to update or uninstall. Updates save local source

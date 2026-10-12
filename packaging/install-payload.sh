@@ -32,6 +32,7 @@ install -m644 "$source_root/branding/"*.png "$source_root/branding/"*.svg "$shar
 install -m644 "$source_root/branding/ciderhq.webp" "$share/branding/"
 install -m644 "$source_root/patch_startup_throttle.py" "$share/"
 install -m644 "$source_root/README.md" "$share/"
+install -m755 "$source_root/install.sh" "$share/"
 install -m755 "$build_dir/libMacOBloxShims.dylib" \
   "$build_dir/libmacoblox-wayland.so" "$shim/"
 cp -r --no-preserve=ownership "$build_dir/frameworks" "$shim/"
