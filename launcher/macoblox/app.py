@@ -3263,7 +3263,7 @@ class LauncherWindow(Adw.ApplicationWindow):
         )
         info = getattr(self, "current_game_info", None)
         brand = f"Cider {__version__}"
-        large_image, large_text = discord.LOGO_URL, brand
+        large_image, large_text = discord.LOGO, brand
         small_image = small_text = None
         buttons = [(_("Get Cider"), discord.WEBSITE_URL)]
 
@@ -3274,7 +3274,7 @@ class LauncherWindow(Adw.ApplicationWindow):
             icon_url = info.get("icon_url")
             if self.settings.get("discord_rpc_icon", False) and icon_url:
                 large_image, large_text = icon_url, details
-                small_image, small_text = discord.LOGO_URL, brand
+                small_image, small_text = discord.LOGO, brand
             if info.get("place_id"):
                 buttons.insert(0, (_("Game page"), f"https://www.roblox.com/games/{info['place_id']}"))
         elif info:

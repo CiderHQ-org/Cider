@@ -107,7 +107,7 @@ class DiscordPresenceTests(unittest.TestCase):
         self.discord.wait(lambda c: c[0]["closed"])
         connection, = self.discord.connections
         self.assertEqual(connection["activities"][1:], [None, None, None])
-        self.assertEqual(connection["activities"][0]["assets"]["large_image"], discord.LOGO_URL)
+        self.assertEqual(connection["activities"][0]["assets"]["large_image"], discord.LOGO)
 
     def test_newer_presence_stops_the_repeated_clears(self):
         with patch.object(discord.DiscordRPC, "_CLEAR_AGAIN", (0.3, 30.0)):
@@ -125,7 +125,7 @@ class DiscordPresenceTests(unittest.TestCase):
         activity = discord.DiscordRPC._activity(
             details="Game", buttons=[("Game page", "https://www.roblox.com/games/1"),
                                      ("Get Cider", discord.WEBSITE_URL), ("Third", "https://example.com")])
-        self.assertEqual(activity["assets"]["large_image"], discord.LOGO_URL)
+        self.assertEqual(activity["assets"]["large_image"], discord.LOGO)
         self.assertEqual(activity["buttons"], [{"label": "Game page", "url": "https://www.roblox.com/games/1"},
                                                {"label": "Get Cider", "url": discord.WEBSITE_URL}])
         self.assertNotIn("buttons", discord.DiscordRPC._activity(details="Menu"))

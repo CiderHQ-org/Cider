@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.23patch1 — 2026-10-12
 
 - Cider is now licensed under the GNU GPL v3 (`LICENSE`), as the README
   states. Narezy's original Mac O' Blox MIT notice is kept in
@@ -13,10 +13,11 @@
   GNOME Terminal and others) before falling back to GIO, whose list older
   GLib versions keep short. With no terminal at all, the error says what to
   install or set.
-- Discord Rich Presence shows the Cider logo (served from ciderhq.org; the
-  Discord application has no uploaded art, so the old `macoblox` image key
-  showed nothing), the Cider version on hover, a **Get Cider** button and, when
-  the experience is shown, a **Game page** button.
+- Discord Rich Presence uses CiderHQ's own Discord application, so it reads
+  "Playing CiderHQ" with the Cider logo (the old "Mac O` Blox" application had
+  no uploaded art, so its `macoblox` image key showed nothing). It also shows
+  the Cider version on hover, a **Get Cider** button and, when the experience
+  is shown, a **Game page** button.
 - Rich Presence clears again 2 and 10 seconds after a game ends, on the same
   connection. Legcord and Vesktop (arRPC) apply an update only after looking
   up its images through Discord's API but apply a clear at once, so an update

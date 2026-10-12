@@ -18,10 +18,9 @@ from . import core
 
 log = logging.getLogger("macoblox.discord")
 
-CLIENT_ID = "1468188794309050523"
-# The application has no uploaded art: images are URLs, which Discord and
-# arRPC-based clients (Legcord, Vesktop) both display.
-LOGO_URL = "https://ciderhq.org/assets/ciderhq-512.png"
+# CiderHQ's Discord application; "ciderhq" is the logo uploaded to it.
+CLIENT_ID = "1559277724160233553"
+LOGO = "ciderhq"
 WEBSITE_URL = "https://ciderhq.org"
 
 CACHE_FILE = core.DATA_DIR / "game_cache.json"
@@ -575,7 +574,7 @@ class DiscordRPC:
         details: str = "Playing Roblox",
         state: str | None = None,
         start_time: float | None = None,
-        large_image: str = LOGO_URL,
+        large_image: str = LOGO,
         large_text: str = "Cider",
         small_image: str | None = None,
         small_text: str | None = None,

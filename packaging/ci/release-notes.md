@@ -1,11 +1,14 @@
-Cider now discovers complete CiderDarling CI releases automatically. Available
-runtime updates appear in Settings → CiderDarling and install in a separate
-terminal with download progress and sudo prompts. Regular Darling remains a
-runtime choice, and each runtime keeps its own prefix and Roblox sign-in.
+Cider 0.23patch1 is a small follow-up to 0.23.
 
-This release also fixes game joins freezing in Darling's exp10 math wrappers,
-adds freeze diagnostics and CiderDarling controls, and includes the recent
-launcher, logging and session fixes.
+- **Discord Rich Presence** now uses CiderHQ's own Discord application with
+  the Cider logo, shows the Cider version on hover, and adds **Get Cider** and
+  **Game page** buttons. It also clears itself again shortly after a game
+  ends, to keep the status from sticking in Legcord and Vesktop.
+- **Install in terminal** (CiderDarling) now finds kitty, Alacritty, foot,
+  WezTerm, Ghostty, Konsole and other terminals itself, fixing "Unable to find
+  terminal required for application" on systems without `xdg-terminal-exec`.
+- Cider is now licensed under the **GNU GPL v3**. The original Mac O' Blox
+  MIT notice is kept in `LICENSES/MIT-MacOBlox.txt`.
 
 Install the package for your distro:
 
@@ -16,9 +19,8 @@ Install the package for your distro:
 - Current Fedora and compatible derivatives: the binary `.rpm` package
   with `sudo dnf install ./ciderhq-*.x86_64.rpm`.
 
-Choose an installed Darling runtime or install CiderDarling from the launcher.
-Roblox is downloaded on first setup. Packages install Cider's launcher and
-compatibility shims; the runtime update downloads are separate.
+Arch and RPM packages are versioned `0.23.patch1` so package managers treat
+them as an upgrade from 0.23. Source installs update from the launcher as usual.
 
 The source archive, AUR recipe and source RPM are also attached. `SHA256SUMS`
 records every attached package and source archive.

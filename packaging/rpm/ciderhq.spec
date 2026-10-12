@@ -1,10 +1,12 @@
+# rpm sorts 0.23patch1 before 0.23, but 0.23.patch1 after it.
+%global upstream_version 0.23patch1
 Name:           ciderhq
-Version:        0.23
+Version:        0.23.patch1
 Release:        1%{?dist}
 Summary:        Run the macOS Roblox client on Linux through Darling
 License:        GPL-3.0-only AND MIT AND OFL-1.1
 URL:            https://ciderhq.org
-Source0:        https://github.com/CiderHQ-org/Cider/releases/download/v%{version}/ciderhq-%{version}-source.tar.gz#/ciderhq-%{version}.tar.gz
+Source0:        https://github.com/CiderHQ-org/Cider/releases/download/v%{upstream_version}/ciderhq-%{upstream_version}-source.tar.gz#/ciderhq-%{upstream_version}.tar.gz
 Source1:        ciderhq-install-payload.sh
 ExclusiveArch:  x86_64
 
@@ -66,7 +68,7 @@ Roblox is downloaded on first setup. A full Darling installation including
 GUI frameworks and stubs is required.
 
 %prep
-%setup -q -n Cider-%{version}
+%setup -q -n Cider-%{upstream_version}
 
 %build
 MACOBLOX_BUILD_DIR="$PWD/native-build" ./build_debug_shim.sh
@@ -87,6 +89,10 @@ python3 -m compileall -q -d "%{_datadir}/ciderhq/launcher" "%{buildroot}%{_datad
 %{_datadir}/mime/packages/org.ciderhq.Cider.xml
 
 %changelog
+* Mon Oct 12 2026 Cider maintainers <noreply@aubree.wtf> - 0.23.patch1-1
+- Relicense under the GPL v3 and show CiderHQ's Discord presence.
+- Find terminals without xdg-terminal-exec for runtime installs.
+
 * Mon Oct 12 2026 Cider maintainers <noreply@aubree.wtf> - 0.23-1
 - Add automatic runtime update discovery and the game-join math repair.
 - Package the current launcher and diagnostics; let users choose their runtime.

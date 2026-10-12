@@ -1,6 +1,8 @@
 # Maintainer: aubree.wtf <https://aubree.wtf/>
 pkgname=ciderhq
-pkgver=0.23
+# pacman sorts 0.23patch1 before 0.23, but 0.23.patch1 after it.
+_tag=0.23patch1
+pkgver=0.23.patch1
 pkgrel=1
 pkgdesc='Run the macOS Roblox client on Linux through Darling'
 arch=('x86_64')
@@ -22,16 +24,16 @@ optdepends=('darling: regular Darling runtime'
 provides=('macoblox')
 conflicts=('ciderhq-git' 'macoblox' 'macoblox-git')
 replaces=('macoblox')
-source=("$pkgname-$pkgver.tar.gz::$_repo/releases/download/v$pkgver/ciderhq-$pkgver-source.tar.gz")
+source=("$pkgname-$_tag.tar.gz::$_repo/releases/download/v$_tag/ciderhq-$_tag-source.tar.gz")
 sha256sums=('@RELEASE_SHA256@')
 
 build() {
-  cd "Cider-$pkgver"
+  cd "Cider-$_tag"
   MACOBLOX_BUILD_DIR="$srcdir/native-build" ./build_debug_shim.sh
 }
 
 package() {
-  cd "Cider-$pkgver"
+  cd "Cider-$_tag"
   bash packaging/install-payload.sh "$PWD" "$srcdir/native-build" "$pkgdir" /usr/lib
   python -m compileall -q -d /usr/share/ciderhq/launcher "$pkgdir/usr/share/ciderhq/launcher"
 }
