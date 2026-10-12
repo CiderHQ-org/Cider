@@ -29,6 +29,7 @@ from .gpus import GPU_ENVIRONMENT
 from .i18n import _
 from .rootless_scope import rootless_process_in_prefix
 from .paths import migrate_directory, user_directory
+from .runtime import resolve_runtime, guest_variables
 
 PROJECT = Path(__file__).resolve().parents[2]
 # Everything the launcher writes: the project folder for a git checkout, the
@@ -43,12 +44,12 @@ SHIM = SHIM_DIR / "libMacOBloxShims.dylib"
 # Frameworks RobloxPlayer links that Darling lacks; stubs from frameworks/.
 FRAMEWORKS = ["CoreML", "CoreHaptics", "DeviceCheck"]
 FRAMEWORKS_BUILD = SHIM_DIR / "frameworks"
-# Packages install Darling's macOS root to /usr/libexec/darling, a build from
-# source to /usr/local/libexec/darling, the Flatpak to /app/libexec/darling.
-DARLING_SYSROOT = next((path for path in (Path("/usr/libexec/darling"), Path("/usr/local/libexec/darling"),
-                                          Path("/app/libexec/darling"))
-                        if path.is_dir()), Path("/usr/libexec/darling"))
-DARLING_PREFIX = Path(os.environ.get("DPREFIX") or Path.home() / ".darling")
+# Keep the selected client, build root and guest prefix together even when
+# regular Darling and CiderDarling are both installed.
+DARLING_RUNTIME = resolve_runtime()
+DARLING_EXECUTABLE = DARLING_RUNTIME["executable"]
+DARLING_SYSROOT = Path(DARLING_RUNTIME["sysroot"])
+DARLING_PREFIX = Path(DARLING_RUNTIME["prefix"])
 # Rootless Darling (for sandboxes such as Flatpak, see flatpak/darling-noroot.c):
 # this library is preloaded into `darling` only, never into the launcher.
 NOROOT_LIB = os.environ.get("MACOBLOX_NOROOT_LIB")
@@ -987,7 +988,7 @@ def darling_version(env=None):
     for the launch log: reports from another Darling build than the tested
     one are otherwise hard to tell apart."""
     try:
-        result = subprocess.run(["darling", "--version"], capture_output=True, text=True,
+        result = subprocess.run([DARLING_EXECUTABLE, "--version"], capture_output=True, text=True,
                                 timeout=5, env=env, stdin=subprocess.DEVNULL)
     except (OSError, subprocess.SubprocessError):
         return "unknown"
@@ -1002,6 +1003,7 @@ def darlingserver_running():
 def darling_environment():
     """Environment for every `darling` command the launcher runs."""
     env = dict(os.environ)
+    env["DPREFIX"] = str(DARLING_PREFIX)
     # Darling's Mesa receives X11 displays; a Wayland session may say otherwise.
     env["EGL_PLATFORM"] = "x11"
     if NOROOT_LIB:
@@ -1188,7 +1190,7 @@ def logout():
     # darlingserver runs: its overlay then stops showing new files to the host.
     if darlingserver_running():
         try:
-            subprocess.run(["darling", "shell", "/bin/rm", "-rf",
+            subprocess.run([DARLING_EXECUTABLE, "shell", "/bin/rm", "-rf",
                             *[_darling_path(path) for path in SESSION_FILES]],
                            env=darling_environment(), stdin=subprocess.DEVNULL,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60)
@@ -1225,6 +1227,8 @@ SHIM_STAMP = BUILD_DIR / "sources.sha256"
 def _shim_sources_hash():
     """Hash of everything the shim build uses, and of the launcher version."""
     digest = hashlib.sha256(__version__.encode())
+    digest.update(str(DARLING_SYSROOT).encode())
+    digest.update(str(DARLING_RUNTIME["metadata"].get("source_revision", "")).encode())
     for path in sorted([*PROJECT.glob("*.c"), *PROJECT.glob("*.cpp"), *PROJECT.glob("*.m"), *PROJECT.glob("*.h"),
                         *(PROJECT / "frameworks").glob("*"), BUILD_SCRIPT]):
         try:
@@ -1265,7 +1269,7 @@ def shim_built():
 
 def missing_tools():
     """Programs the launcher needs that are not installed."""
-    needed = {"darling": "darling", "unzip": "unzip"}
+    needed = {DARLING_EXECUTABLE: "darling", "unzip": "unzip"}
     if not PREBUILT_SHIM:
         needed.update({"clang": "clang", "ld.lld": "lld"})
     missing = [package for program, package in needed.items() if not shutil.which(program)]
@@ -1324,7 +1328,7 @@ def prepare_prefix(env):
     if not DARLING_PREFIX.is_dir():
         # Let Darling create the prefix first.
         try:
-            subprocess.run(["darling", "shell", "true"], env=env, stdin=subprocess.DEVNULL,
+            subprocess.run([DARLING_EXECUTABLE, "shell", "true"], env=env, stdin=subprocess.DEVNULL,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=300)
         except (OSError, subprocess.SubprocessError):
             pass
@@ -1938,7 +1942,7 @@ class RobloxSession:
         return env
 
     def shim_variables(self):
-        variables = [
+        variables = guest_variables(DARLING_RUNTIME["metadata"]) + [
             f"MACOBLOX_SESSION_DIRECTORY=Library/{SESSION_DIR.name}",
             f"MACOBLOX_MOUSE_SENSITIVITY={self.settings['mouse_sensitivity']:.2f}",
             f"MACOBLOX_SCROLL_SENSITIVITY={self.settings.get('scroll_sensitivity', 1.5):.2f}",
@@ -2081,6 +2085,7 @@ class RobloxSession:
                   os.open(path, flags | os.O_APPEND)) as log:
             log.write(f"Cider {__version__}\n".encode())
             log.write(f"Darling: {darling_version(env)}\n".encode())
+            log.write(f"Darling selection: {DARLING_RUNTIME['runtime']}; {DARLING_EXECUTABLE}; root {DARLING_SYSROOT}\n".encode())
             log.write(f"Renderer requested: {renderer_name}\n".encode())
             log.write(f"MangoHud requested: {'Enabled' if self.settings.get('mangohud', False) else 'Disabled'}\n".encode())
             log.write(f"Window backend: {'Native Wayland (experimental)' if env.get('MACOBLOX_WAYLAND') == '1' else 'X11 / Xwayland'}\n".encode())
@@ -2113,7 +2118,7 @@ class RobloxSession:
                 # vanish before the client log begins.
                 log.write(b"[Cider Startup] Darling warmup starting\n")
                 log.flush()
-                warmup = subprocess.run(["darling", "shell", "true"], env=env,
+                warmup = subprocess.run([DARLING_EXECUTABLE, "shell", "true"], env=env,
                                         stdin=subprocess.DEVNULL, stdout=log,
                                         stderr=subprocess.STDOUT, timeout=120)
                 log.write(f"[Cider Startup] Darling warmup status={warmup.returncode}\n".encode())
@@ -2121,7 +2126,7 @@ class RobloxSession:
             if changed:
                 log.write(f"Priority: {changed} Darling processes raised to nice {_nice_target(SERVER_NICE)}\n".encode())
             log.flush()
-            command = ["darling", "shell", "/bin/bash", "-c", LAUNCH_SCRIPT, "macoblox",
+            command = [DARLING_EXECUTABLE, "shell", "/bin/bash", "-c", LAUNCH_SCRIPT, "macoblox",
                        f"/Volumes/SystemRoot{DATA_DIR}", f"/Volumes/SystemRoot{SHIM.parent}",
                        self.launch_uri if self.launch_uri is not None else "",
                        *self.shim_variables()]

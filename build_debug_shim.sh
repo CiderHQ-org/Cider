@@ -3,9 +3,18 @@ set -euo pipefail
 project_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 # Output goes to MACOBLOX_BUILD_DIR when the sources are read-only (a package).
 build_dir=${MACOBLOX_BUILD_DIR:-$project_dir/build}
-# Packages put Darling's macOS root in /usr/libexec, a source build in /usr/local.
-sysroot=${DARLING_SYSROOT:-/usr/libexec/darling}
-[[ -d $sysroot || -n ${DARLING_SYSROOT:-} || ! -d /usr/local/libexec/darling ]] || sysroot=/usr/local/libexec/darling
+# Direct builds use the installer's saved selection too. The launcher and
+# package recipes can still supply an explicit build root.
+sysroot=${DARLING_SYSROOT:-}
+if [[ -z $sysroot ]]; then
+  sysroot=$(python3 - "$project_dir/launcher" <<'PY'
+import sys
+sys.path.insert(0, sys.argv[1])
+from macoblox.runtime import resolve_runtime
+print(resolve_runtime()['sysroot'])
+PY
+  )
+fi
 mkdir -p "$build_dir"
 # Native Wayland windowing lives in a Linux helper behind a versioned ABI.
 if pkg-config --exists sdl2 wayland-client wayland-egl wayland-cursor; then

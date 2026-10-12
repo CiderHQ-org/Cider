@@ -28,6 +28,14 @@ PREFIX=${DPREFIX:-$HOME/.darling}
 # installs before the shim was tested with it.
 DARLING_TAG=v0.1.20260608
 DARLING_DEBS_SHA256=27469ef3932da2e91dd7fb34b70e3628a3e54b7af9fb5480051f44af35eca1fd
+CIDER_DARLING_REPO=https://github.com/CiderHQ-org/CiderDarling.git
+CIDER_DARLING_REVISION=4312cd798e1ec1967b13b1a8adcedd5efcba8a10
+CIDER_DARLING_MANIFEST=2be76e8bf45ab7fc06e937ea3876049d6e46ffaab35ebc6d255f8f3f713707a0
+CIDER_DARLING_INSTALL=/opt/ciderdarling/$CIDER_DARLING_REVISION
+DARLING_RUNTIME=''
+DARLING_CHOICE_EXPLICIT=''
+DARLING_EXECUTABLE=''
+DARLING_SELECTION=()
 
 # Colours unless NO_COLOR is set or the output is no terminal; arrows and
 # dots only where the locale is UTF-8.
@@ -47,6 +55,129 @@ esac
 
 say() { printf '  %s%s%s %s\n' "$ACCENT" "$BULLET" "$RESET" "$*"; }
 die() { printf '%sError:%s %s\n' "$BAD" "$RESET" "$*" >&2; exit 1; }
+
+darling_runtime_name() {
+  if [[ $DARLING_RUNTIME == ciderdarling ]]; then
+    printf '%s' "CiderHQ's CiderDarling"
+  else
+    printf '%s' 'Regular Darling'
+  fi
+}
+
+load_darling_selection() {
+  local saved='' file=$CONFIG_HOME/ciderhq/runtime.json
+  if [[ -f $file ]]; then
+    command -v python3 >/dev/null || die "Python 3 is needed to read the saved Darling selection."
+    saved=$(python3 - "$file" <<'PY'
+import json
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+try:
+    if path.stat().st_size > 16384: raise ValueError('file is too large')
+    data = json.loads(path.read_text())
+    if not isinstance(data, dict) or data.get('schema_version') != 1 or data.get('runtime') not in ('regular', 'ciderdarling'):
+        raise ValueError('unknown runtime or schema')
+    for key in ('executable', 'sysroot', 'prefix'):
+        value = data.get(key)
+        if not isinstance(value, str) or not Path(value).is_absolute() or any(c in value for c in '\n\r\0'):
+            raise ValueError(f'invalid {key}')
+    print('\n'.join(data[key] for key in ('runtime', 'executable', 'sysroot', 'prefix')))
+except (OSError, ValueError) as error:
+    sys.exit(f'Cannot read {path}: {error}')
+PY
+    ) || die "Cannot read the saved Darling selection. Fix $file before continuing."
+    mapfile -t DARLING_SELECTION <<< "$saved"
+  fi
+  DARLING_RUNTIME=${DARLING_RUNTIME:-${DARLING_SELECTION[0]:-regular}}
+  case $DARLING_RUNTIME in
+    regular | ciderdarling) ;;
+    *) die "--darling must be regular or ciderdarling." ;;
+  esac
+  select_darling_prefix
+  if [[ ${DARLING_SELECTION[0]:-} == "$DARLING_RUNTIME" ]]; then
+    DARLING_EXECUTABLE=${DARLING_SELECTION[1]}
+  elif [[ $DARLING_RUNTIME == ciderdarling ]]; then
+    DARLING_EXECUTABLE=$CIDER_DARLING_INSTALL/bin/darling
+  else
+    DARLING_EXECUTABLE=$(command -v darling || printf '%s' darling)
+  fi
+}
+
+select_darling_prefix() {
+  if [[ -n ${DPREFIX:-} ]]; then
+    PREFIX=$DPREFIX
+  elif [[ ${DARLING_SELECTION[0]:-} == "$DARLING_RUNTIME" ]]; then
+    PREFIX=${DARLING_SELECTION[3]}
+  elif [[ $DARLING_RUNTIME == ciderdarling ]]; then
+    PREFIX=$HOME/.ciderdarling
+  else
+    PREFIX=$HOME/.darling
+  fi
+}
+
+save_darling_selection() {
+  # Activate only after the launcher and its selected-root shim built
+  # successfully. A failed build leaves the previous selection available.
+  python3 - "$CONFIG_HOME/ciderhq/runtime.json" "$DARLING_RUNTIME" "$DARLING_EXECUTABLE" "$DARLING_SYSROOT" "$PREFIX" <<'PY'
+import json
+import os
+from pathlib import Path
+import sys
+import tempfile
+path = Path(sys.argv[1])
+data = dict(zip(('runtime', 'executable', 'sysroot', 'prefix'), sys.argv[2:]))
+data['schema_version'] = 1
+for key in ('executable', 'sysroot', 'prefix'):
+    data[key] = str(Path(data[key]).absolute())
+path.parent.mkdir(parents=True, exist_ok=True)
+temporary = None
+try:
+    with tempfile.NamedTemporaryFile(mode='w', dir=path.parent, prefix='.runtime-', delete=False) as stream:
+        temporary = Path(stream.name)
+        json.dump(data, stream, indent=2)
+        stream.write('\n')
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.replace(temporary, path)
+finally:
+    if temporary is not None: temporary.unlink(missing_ok=True)
+PY
+}
+
+select_regular_darling() {
+  local executable root
+  while IFS= read -r executable; do
+    [[ -x $executable ]] || continue
+    root=$(dirname -- "$(dirname -- "$(readlink -f -- "$executable")")")/libexec/darling
+    [[ -d $root && ! -f $root/usr/share/ciderdarling/runtime.json ]] || continue
+    DARLING_EXECUTABLE=$executable
+    export DARLING_SYSROOT=$root
+    return 0
+  done < <(
+    if [[ ${DARLING_SELECTION[0]:-} == regular ]]; then printf '%s\n' "${DARLING_SELECTION[1]}"; fi
+    type -aP darling || true
+  )
+  return 1
+}
+
+ciderdarling_matches() {
+  [[ -x $CIDER_DARLING_INSTALL/bin/darling ]] || return 1
+  python3 - "$CIDER_DARLING_INSTALL/libexec/darling/usr/share/ciderdarling/runtime.json" "$CIDER_DARLING_REVISION" "$CIDER_DARLING_MANIFEST" <<'PY'
+import json
+from pathlib import Path
+import sys
+try:
+    data = json.loads(Path(sys.argv[1]).read_text())
+    valid = (data.get('schema_version') == 1 and data.get('name') == 'CiderDarling'
+             and data.get('architecture') == 'x86_64' and data.get('source_revision') == sys.argv[2]
+             and data.get('patch_manifest_sha256') == sys.argv[3])
+except (OSError, ValueError, AttributeError):
+    valid = False
+sys.exit(0 if valid else 1)
+PY
+}
+
 UPDATE_BACKUP=''
 INSTALL_LOG=''
 # NEW: Track whether we're showing live output
@@ -65,7 +196,7 @@ detect_package_manager() {
   local ID='' ID_LIKE='' VERSION_ID='' family manager
   [[ ! -r /etc/os-release ]] || . /etc/os-release
   family=" ${ID:-} ${ID_LIKE:-} "
-  
+
   # Check immutable/special systems first
   if [[ -e /run/ostree-booted ]]; then
     printf '%s' manual; return
@@ -76,7 +207,7 @@ detect_package_manager() {
   elif [[ -f /etc/os-release ]] && grep -q "^ID.*=.*\(nixos\|guix\|steamos\|microos\|aeon\|kalpa\)" /etc/os-release; then
     printf '%s' manual; return
   fi
-  
+
   # Try ID first, then ID_LIKE
   case "$ID" in
     arch|archarm) printf '%s' pacman; return ;;
@@ -88,7 +219,7 @@ detect_package_manager() {
     void) printf '%s' xbps-install; return ;;
     solus) printf '%s' eopkg; return ;;
   esac
-  
+
   # Try ID_LIKE patterns as fallback
   if [[ "$family" == *" arch "* ]]; then
     printf '%s' pacman; return
@@ -101,14 +232,14 @@ detect_package_manager() {
   elif [[ "$family" == *" alpine "* ]]; then
     printf '%s' apk; return
   fi
-  
+
   # Fall back to checking which manager exists on PATH
   for manager in pacman apt-get dnf zypper apk xbps-install eopkg emerge yum; do
     if command -v "$manager" >/dev/null 2>&1; then
       printf '%s' "$manager"; return
     fi
   done
-  
+
   printf '%s' manual
 }
 
@@ -124,6 +255,12 @@ setup_plan() {
   printf '    4. Add the app menu entry and ciderhq command.\n\n'
   printf '  Computer    %s (%s)\n' "$(distribution_name)" "$(uname -m)"
   printf '  Destination %s\n' "${DIR/#$HOME/\~}"
+  printf '  Runtime     %s\n' "$(darling_runtime_name)"
+  printf '  Prefix      %s\n' "${PREFIX/#$HOME/\~}"
+  if [[ $DARLING_RUNTIME == ciderdarling ]]; then
+    printf '  %sCiderDarling builds from source into its own versioned directory.%s\n' "$DIM" "$RESET"
+    printf '  %sIts separate prefix needs sign-in on first use; regular Darling data stays available.%s\n' "$DIM" "$RESET"
+  fi
   printf '  %sSystem packages may ask for your sudo password.%s\n' "$DIM" "$RESET"
   if is_installed; then
     printf '  %sUpdates keep settings, Roblox, Studio and existing backups.%s\n' "$DIM" "$RESET"
@@ -311,10 +448,15 @@ try_darling_package() {
 
 confirm_darling_build() {
   local answer=''
-  say "Darling needs compilation on $(distribution_name)."
-  say "This installs build dependencies and Darling into /usr/local using sudo."
+  say "$(darling_runtime_name) needs compilation on $(distribution_name)."
+  if [[ $DARLING_RUNTIME == ciderdarling ]]; then
+    say "This installs build dependencies and CiderDarling into $CIDER_DARLING_INSTALL using sudo."
+    say "The build uses pinned CiderDarling ${CIDER_DARLING_REVISION:0:12}, 64-bit OpenGL and a saved log."
+  else
+    say "This installs build dependencies and Darling into /usr/local using sudo."
+    say "The build uses the pinned $DARLING_TAG release, 64-bit components and a saved log."
+  fi
   say "Allow several hours, at least 4 GiB RAM and about 25 GiB free disk space."
-  say "The build uses the pinned $DARLING_TAG release, 64-bit components and a saved log."
   # Never consume piped installer text, and --yes does not bypass this prompt.
   if ! (: </dev/tty) 2>/dev/null; then
     die "Source compilation requires confirmation in a terminal. Rerun interactively."
@@ -465,63 +607,141 @@ print(f'Darling compiler compatibility: prepared {len(prepared)} source files (L
 PY
 }
 
+darling_build_jobs() {
+  local requested=${DARLING_BUILD_JOBS:-auto}
+  if [[ $requested != auto ]]; then
+    [[ $requested =~ ^[1-9][0-9]*$ && ${#requested} -le 4 ]] && ((requested <= 8192)) ||
+      die "DARLING_BUILD_JOBS must be auto or an integer between 1 and 8192."
+    printf '%s' "$requested"
+    return
+  fi
+  python3 - <<'PY'
+import math
+import os
+from pathlib import Path
+cpus = len(os.sched_getaffinity(0)) if hasattr(os, 'sched_getaffinity') else (os.cpu_count() or 1)
+memory = None
+try:
+    fields = dict(line.split(':', 1) for line in Path('/proc/meminfo').read_text().splitlines())
+    memory = int(fields.get('MemAvailable', fields['MemTotal']).split()[0]) * 1024
+except (OSError, ValueError, KeyError):
+    pass
+# Walk v2 ancestors: a nested scope may inherit a tighter CPU or RAM limit.
+try:
+    relative = next(line[3:] for line in Path('/proc/self/cgroup').read_text().splitlines() if line.startswith('0::'))
+    mount = Path('/sys/fs/cgroup')
+    current = mount / relative.lstrip('/')
+    while current.is_relative_to(mount):
+        try:
+            quota, period = (current / 'cpu.max').read_text().split()
+            if quota != 'max': cpus = min(cpus, max(1, math.ceil(int(quota) / int(period))))
+        except (OSError, ValueError, ZeroDivisionError):
+            pass
+        try:
+            limit = (current / 'memory.max').read_text().strip()
+            used = int((current / 'memory.current').read_text())
+            if limit != 'max':
+                headroom = max(0, int(limit) - used)
+                memory = headroom if memory is None else min(memory, headroom)
+        except (OSError, ValueError):
+            pass
+        if current == mount: break
+        current = current.parent
+except (OSError, StopIteration):
+    pass
+# Reserve 25% headroom, budget 1 GiB per compiler. Low-memory hosts can use
+# DARLING_BUILD_JOBS=1 and swap; an explicit override wins over this policy.
+jobs = min(cpus, int(memory * .75) // (1024**3)) if memory is not None else min(cpus, 2)
+print(max(1, min(jobs, 8192)))
+PY
+}
+
+download_ciderdarling() (
+  local source=$1 jobs=$2
+  export GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/false SSH_ASKPASS=/bin/false GIT_LFS_SKIP_SMUDGE=1
+  local -a public_git=(git -c credential.helper= -c core.askPass=/bin/false
+    -c filter.lfs.required=false -c filter.lfs.smudge= -c filter.lfs.process=)
+  "${public_git[@]}" clone --no-checkout --depth 1 "$CIDER_DARLING_REPO" "$source" || return 1
+  "${public_git[@]}" -C "$source" fetch --depth 1 origin "$CIDER_DARLING_REVISION" || return 1
+  "${public_git[@]}" -C "$source" checkout --detach FETCH_HEAD || return 1
+  [[ $(git -C "$source" rev-parse HEAD) == "$CIDER_DARLING_REVISION" ]] || return 1
+  # Dependency fetches have their own bounded parallelism; compilation uses
+  # the full memory-aware job count below.
+  ((jobs <= 32)) || jobs=32
+  python3 "$source/tools/cider/bootstrap.py" --jobs "$jobs"
+)
+
 build_darling_source() {
-  local manager=$1 build log jobs=${DARLING_BUILD_JOBS:-2}
-  [[ $jobs =~ ^[1-9][0-9]*$ ]] || die "DARLING_BUILD_JOBS must be a positive integer."
+  local manager=$1 build log jobs install_prefix=/usr/local
+  local -a runtime_options=()
+  jobs=$(darling_build_jobs) || die "Cannot determine the Darling build job count."
+  if [[ $DARLING_RUNTIME == ciderdarling ]]; then
+    install_prefix=$CIDER_DARLING_INSTALL
+    runtime_options=(-DENABLE_METAL=OFF -DCIDER_APPLY_PATCHES=ON -DCIDER_SHUTDOWN_ON_INSTALL=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo)
+  fi
   install_darling_build_dependencies "$manager" || die "Could not install Darling build dependencies. Check enabled repositories and package names for your distro, then rerun."
   mkdir -p -- "$CACHE_HOME/ciderhq/installer"
   build=$(umask 077; mktemp -d "$CACHE_HOME/ciderhq/installer/darling-source-XXXXXX")
   log=$build/build.log
-  say "Building Darling; sources and log: $build"
-  
+  say "Building $(darling_runtime_name); sources and log: $build"
+
   # Public source does not need credentials. Swift's optional SDK binaries
   # use a separate LFS service; Roblox uses the C/C++/Objective-C runtime.
-  GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/false SSH_ASKPASS=/bin/false \
-    GIT_LFS_SKIP_SMUDGE=1 GIT_CLONE_PROTECTION_ACTIVE=false \
-    git -c credential.helper= -c core.askPass=/bin/false clone --recursive --branch "$DARLING_TAG" \
-    https://github.com/darlinghq/darling.git "$build/source" 2>&1 | tee "$log" ||
-    die "Public Darling source download failed; no GitHub login is needed. Check the failed repository URL in: $log"
-  
-  git -C "$build/source" lfs install --local --skip-smudge 2>&1 | tee -a "$log" ||
-    die "Git LFS initialization failed. Log: $log"
-  local swift_library first_line
-  for swift_library in "$build/source/src/external/swift"/*.dylib; do
-    [[ -f $swift_library ]] || continue
-    first_line=''
-    IFS= read -r -n 80 first_line < "$swift_library" || true
-    if [[ $first_line == 'version https://git-lfs.github.com/spec/v1' ]]; then
-      rm -- "$swift_library"
-    fi
-  done
-  say "Optional Swift SDK LFS downloads skipped; Roblox's runtime is built from source."
+  if [[ $DARLING_RUNTIME == ciderdarling ]]; then
+    download_ciderdarling "$build/source" "$jobs" 2>&1 | tee "$log" ||
+      die "Pinned CiderDarling source preparation failed. Log: $log"
+  else
+    GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/false SSH_ASKPASS=/bin/false \
+      GIT_LFS_SKIP_SMUDGE=1 GIT_CLONE_PROTECTION_ACTIVE=false \
+      git -c credential.helper= -c core.askPass=/bin/false clone --recursive --branch "$DARLING_TAG" \
+      https://github.com/darlinghq/darling.git "$build/source" 2>&1 | tee "$log" ||
+      die "Public Darling source download failed; no GitHub login is needed. Check the failed repository URL in: $log"
 
-  prepare_darling_compiler_compatibility "$build/source" 2>&1 | tee -a "$log" ||
-    die "Darling compiler compatibility preparation failed. Log: $log"
+    git -C "$build/source" lfs install --local --skip-smudge 2>&1 | tee -a "$log" ||
+      die "Git LFS initialization failed. Log: $log"
+    local swift_library first_line
+    for swift_library in "$build/source/src/external/swift"/*.dylib; do
+      [[ -f $swift_library ]] || continue
+      first_line=''
+      IFS= read -r -n 80 first_line < "$swift_library" || true
+      if [[ $first_line == 'version https://git-lfs.github.com/spec/v1' ]]; then
+        rm -- "$swift_library"
+      fi
+    done
+    say "Optional Swift SDK LFS downloads skipped; Roblox's runtime is built from source."
+
+    prepare_darling_compiler_compatibility "$build/source" 2>&1 | tee -a "$log" ||
+      die "Darling compiler compatibility preparation failed. Log: $log"
+  fi
   local c_literal_flags cxx_literal_flags
   c_literal_flags=$(darling_literal_flags clang) || die "Cannot inspect Clang's supported Objective-C flags."
   cxx_literal_flags=$(darling_literal_flags clang++) || die "Cannot inspect Clang++'s supported Objective-C flags."
   [[ -z $c_literal_flags$cxx_literal_flags ]] || say "Disabling Objective-C constant literals unsupported by Darling's Foundation."
-  
+
   # Configure with live output
   say "Configuring Darling (this may take a few minutes)..."
   cmake -S "$build/source" -B "$build/build" -DTARGET_i386=OFF \
     -DCMAKE_C_FLAGS="${CFLAGS:-} $c_literal_flags" \
     -DCMAKE_CXX_FLAGS="${CXXFLAGS:-} $cxx_literal_flags" \
-    -DCMAKE_INSTALL_PREFIX=/usr/local 2>&1 | tee -a "$log" ||
+    -DCMAKE_INSTALL_PREFIX="$install_prefix" "${runtime_options[@]}" 2>&1 | tee -a "$log" ||
     die "Darling configuration failed; check distro build dependencies. Log: $log"
-  
+
   # Build with live output
   say "Compiling Darling (using $jobs parallel jobs; this will take a while)..."
   cmake --build "$build/build" --parallel "$jobs" 2>&1 | tee -a "$log" ||
     die "Darling compilation failed. Log: $log"
-  
+
   # Install with live output
   say "Installing Darling..."
   sudo cmake --install "$build/build" 2>&1 | tee -a "$log" || die "Darling installation failed. Log: $log"
-  
-  export PATH="/usr/local/bin:$PATH"
+
+  if [[ $DARLING_RUNTIME == ciderdarling ]]; then
+    ciderdarling_matches || die "Installed CiderDarling metadata does not match the pinned source. Log: $log"
+  else
+    export PATH="/usr/local/bin:$PATH"
+  fi
   hash -r
-  command -v darling >/dev/null || die "Build completed but darling was not installed. Log: $log"
+  [[ -x $install_prefix/bin/darling ]] || die "Build completed but darling was not installed. Log: $log"
   say "Darling installed. Build files retained at $build"
 }
 
@@ -546,16 +766,32 @@ try_darling_debs() {
 }
 
 ensure_darling() {
-  command -v darling >/dev/null && return 0
   local manager
+  if [[ $DARLING_RUNTIME == ciderdarling ]]; then
+    if ! ciderdarling_matches; then
+      [[ ! -e $CIDER_DARLING_INSTALL && ! -L $CIDER_DARLING_INSTALL ]] ||
+        die "CiderDarling's version directory exists with incomplete or mismatched metadata: $CIDER_DARLING_INSTALL. Preserve it and resolve the incomplete installation before retrying."
+      manager=$(detect_package_manager)
+      [[ $manager != manual ]] || die "CiderDarling source installation needs your host's supported build method on this system."
+      confirm_darling_build || die "CiderDarling compilation declined. Setup stopped."
+      build_darling_source "$manager"
+    fi
+    DARLING_EXECUTABLE=$CIDER_DARLING_INSTALL/bin/darling
+    export DARLING_SYSROOT=$CIDER_DARLING_INSTALL/libexec/darling
+    export DPREFIX=$PREFIX
+    return
+  fi
+  select_regular_darling && { export DPREFIX=$PREFIX; return 0; }
   manager=$(detect_package_manager)
   [[ $manager != manual ]] || die "Install Darling using your immutable/NixOS/Guix host's supported method."
   say "Checking configured repositories for Darling"
-  if try_darling_package "$manager"; then return 0; fi
-  if [[ $manager == apt-get ]] && try_darling_debs; then return 0; fi
+  if try_darling_package "$manager" && select_regular_darling; then export DPREFIX=$PREFIX; return 0; fi
+  if [[ $manager == apt-get ]] && try_darling_debs && select_regular_darling; then export DPREFIX=$PREFIX; return 0; fi
   say "No usable Darling package was installed from the configured repositories."
   confirm_darling_build || die "Darling compilation declined. Setup stopped."
   build_darling_source "$manager"
+  select_regular_darling || die "Regular Darling was built but its matching client and runtime root are unavailable."
+  export DPREFIX=$PREFIX
 }
 
 validate_tools() {
@@ -625,9 +861,9 @@ do_install() {
   say "This can take a few minutes."
   mkdir -p -- "$CACHE_HOME/ciderhq/installer"
   INSTALL_LOG=$(umask 077; mktemp "$CACHE_HOME/ciderhq/installer/build-$(date -u +%Y%m%d-%H%M%S)-XXXXXX.log")
-  
+
   # IMPROVED: Show build output live with tee
-  if ! "$DIR/build_debug_shim.sh" 2>&1 | tee "$INSTALL_LOG"; then
+  if ! DARLING_SYSROOT="$DARLING_SYSROOT" "$DIR/build_debug_shim.sh" 2>&1 | tee "$INSTALL_LOG"; then
     say "Build output saved to: $INSTALL_LOG"
     say "Last 40 lines of output:"
     tail -n 40 -- "$INSTALL_LOG" >&2
@@ -636,6 +872,7 @@ do_install() {
   say "Compatibility libraries built."
   step 4 "Add the launcher to your desktop"
   "$DIR/launcher/install.sh"
+  save_darling_selection
   setup_success
 }
 
@@ -665,7 +902,7 @@ do_uninstall() {
   # showing deleted files), and nothing should run from the folder that goes.
   if pgrep -u "$(id -u)" -x darlingserver >/dev/null 2>&1; then
     say "Stopping Roblox and Darling"
-    darling shutdown >/dev/null 2>&1 || true
+    DPREFIX="$PREFIX" "$DARLING_EXECUTABLE" shutdown >/dev/null 2>&1 || true
   fi
   if [[ -x $DIR/studio/wine/bin/wineserver ]]; then
     WINEPREFIX=$DIR/studio/prefix "$DIR/studio/wine/bin/wineserver" -k >/dev/null 2>&1 || true
@@ -712,9 +949,8 @@ do_uninstall() {
     rm -rf -- "$PREFIX"
   fi
   say "Cider is uninstalled."
-  if command -v darling >/dev/null; then
-    printf '    %sDarling stays installed; remove it with your package manager if nothing else uses it.%s\n' \
-      "$DIM" "$RESET"
+  if command -v "$DARLING_EXECUTABLE" >/dev/null; then
+    printf '    %s%s stays installed.%s\n' "$DIM" "$(darling_runtime_name)" "$RESET"
   fi
 }
 
@@ -819,7 +1055,7 @@ menu_main() {
     first="Update Cider|Review the update plan"
   else
     text="  ${BOLD}Welcome to Cider${RESET}
-  ${DIM}First setup · 1 of 3${RESET}
+  ${DIM}First setup · 1 of 4${RESET}
 
   Play the macOS Roblox client on your Linux desktop.
   We'll prepare the launcher, Darling and the system tools.
@@ -831,13 +1067,29 @@ menu_main() {
 menu_install() {
   local operation='Install'
   is_installed && operation='Update'
+  if [[ -z $DARLING_CHOICE_EXPLICIT ]]; then
+    local text="  ${BOLD}Choose Darling · 2 of 4${RESET}
+
+  Regular Darling uses your installed runtime or distro/upstream packages.
+  CiderHQ's CiderDarling includes our threading and graphics changes.
+  CiderDarling currently needs a source build and its own first-time sign-in.
+  Current selection: $(darling_runtime_name)"
+    if [[ $DARLING_RUNTIME == ciderdarling ]]; then
+      choose "$text" "CiderHQ's CiderDarling|Keep the current selection" "Regular Darling|Use the upstream runtime" "Back|"
+      case $CHOICE in 0) DARLING_RUNTIME=ciderdarling ;; 1) DARLING_RUNTIME=regular ;; *) return 1 ;; esac
+    else
+      choose "$text" "Regular Darling|Default; use the upstream runtime" "CiderHQ's CiderDarling|Build CiderHQ's runtime" "Back|"
+      case $CHOICE in 0) DARLING_RUNTIME=regular ;; 1) DARLING_RUNTIME=ciderdarling ;; *) return 1 ;; esac
+    fi
+    select_darling_prefix
+  fi
   while :; do
-    choose "  ${BOLD}Setup · 2 of 3${RESET}
+    choose "  ${BOLD}Setup · 3 of 4${RESET}
 
 $(setup_plan)" "Continue|Confirm this setup plan" "Back|Return to the welcome screen"
     [[ $CHOICE == 0 ]] || return 1
     choose "  ${BOLD}Ready to ${operation,,} Cider${RESET}
-  ${DIM}Setup · 3 of 3${RESET}
+  ${DIM}Setup · 4 of 4${RESET}
 
   Destination: ${DIR/#$HOME/\~}
   Setup downloads the launcher and builds the compatibility libraries.
@@ -890,29 +1142,50 @@ Cider installer
   install.sh --update      same as --install
   install.sh --install --yes
                            install or update without setup prompts
+  install.sh --darling regular
+                           choose regular Darling (default on first install)
+  install.sh --darling ciderdarling
+                           choose CiderHQ's pinned Darling runtime
+                           source builds still ask for terminal confirmation
   install.sh --uninstall   remove Cider (asks first, unless --yes)
   install.sh --uninstall --purge
-                           also delete Darling's prefix, ${PREFIX/#$HOME/\~} (your Roblox sign-in)
+                           also delete the selected Darling prefix (Roblox sign-in)
 
 With curl, options go after "bash -s --":
+  curl -fsSL https://ciderhq.org/install.sh | bash -s -- --darling ciderdarling
   curl -fsSL https://ciderhq.org/install.sh | bash -s -- --uninstall
+
+Updates keep your saved runtime choice. DARLING_BUILD_JOBS defaults to auto:
+available CPU threads capped by memory headroom; set a positive count to override.
 USAGE
 }
 
 main() {
   local action='' assume_yes='' reviewed='' arg
-  for arg in "$@"; do
+  while (($#)); do
+    arg=$1
     case $arg in
       --install | --update) action=install ;;
       --uninstall) action=uninstall ;;
       --purge) PURGE=1 ;;
       -y | --yes) assume_yes=1 ;;
+      --darling)
+        (($# >= 2)) || die "--darling needs regular or ciderdarling."
+        DARLING_RUNTIME=$2
+        DARLING_CHOICE_EXPLICIT=1
+        shift ;;
+      --darling=*) DARLING_RUNTIME=${arg#*=}; DARLING_CHOICE_EXPLICIT=1 ;;
       -h | --help)
         usage
         return 0 ;;
       *) die "Unknown option: $arg (see --help)" ;;
     esac
+    shift
   done
+  if [[ -n $DARLING_CHOICE_EXPLICIT && -z $DARLING_RUNTIME ]]; then
+    die "--darling needs regular or ciderdarling."
+  fi
+  load_darling_selection
   # Package managers may ask questions; with curl | bash stdin is this script.
   if [[ ! -t 0 ]] && (: </dev/tty) 2>/dev/null; then exec </dev/tty; fi
   [[ $EUID -ne 0 ]] || die "Run this as your user, not root. sudo is used when needed."

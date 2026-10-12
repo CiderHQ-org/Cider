@@ -56,6 +56,31 @@ app menu. Open it for a first-time guide that downloads Roblox, prepares its
 app environment, and explains how to sign in. Existing Roblox installations
 open the launcher directly; **Setup guide** in its menu reopens the guide.
 
+Setup offers **Regular Darling** (the default on first install) or
+**CiderHQ's CiderDarling**, our Darling variant with threading, CPU detection
+and OpenGL fixes. Updates keep your choice. You can also choose explicitly:
+
+```bash
+curl -fsSL https://ciderhq.org/install.sh | bash -s -- --darling ciderdarling
+curl -fsSL https://ciderhq.org/install.sh | bash -s -- --darling regular
+```
+
+Regular Darling keeps the installed-runtime, distro package and pinned upstream
+download paths. [CiderDarling](https://github.com/CiderHQ-org/CiderDarling) currently
+builds from pinned source into `/opt/ciderdarling/<revision>`, using sudo for
+dependencies and installation. The source build asks for confirmation even
+with `--yes`. Its x86_64 build includes OpenGL and Metal API stubs.
+Compilation uses the available CPU threads, capped by memory headroom;
+`DARLING_BUILD_JOBS=8` overrides the automatic job count.
+
+CiderDarling uses `~/.ciderdarling` by default; regular Darling uses `~/.darling`.
+Sign in again the first time you use the separate prefix. Switching keeps both
+prefixes and runtime installations available. An explicit `DPREFIX` overrides
+the prefix. The installer saves the client, matching runtime root and prefix
+in `~/.config/ciderhq/runtime.json` (or your XDG config directory) after setup
+succeeds. Restart the launcher after switching. Flatpak continues to use its
+bundled runtime.
+
 Run the same command again to update or uninstall. Updates save local source
 changes in `~/.local/share/CiderHQ-backups` (or your XDG data directory) and
 keep settings and sign-in. Without a terminal, or for scripts, the choices
@@ -79,8 +104,9 @@ Installer and launcher updates exclude `website/` and its hosting configuration.
 Maintainers publishing the website should run `bash website/build.sh` after
 editing `install.sh` to refresh its copy at `website/dist/install.sh`.
 
-Uninstalling keeps Darling and its prefix, `~/.darling`, which holds your Roblox
-sign-in; `--purge` (or **Uninstall everything** in the menu) deletes that too.
+Uninstalling keeps both runtime installations and their prefixes, which hold
+your Roblox sign-in; `--purge` (or **Uninstall everything** in the menu) deletes
+only the selected prefix.
 
 Works on Arch and its relatives (CachyOS, EndeavourOS, Manjaro), Ubuntu 24.04+,
 Debian 13, Linux Mint 22 and Fedora with Darling built from source.
@@ -320,7 +346,8 @@ Public source downloads do not need a GitHub login. The installer skips
 Darling's optional Swift SDK files from its separate LFS service; the current
 Roblox client does not link that runtime. Source-built Darling therefore does
 not include Swift SDK support. Build dependencies and installing Darling into
-`/usr/local` still use sudo.
+`/usr/local` (regular Darling) or `/opt/ciderdarling/<revision>` (CiderDarling)
+still use sudo.
 </details>
 
 <details>

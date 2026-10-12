@@ -1,6 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 project_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+runtime_fields=$(python3 - "$project_dir/launcher" <<'PY'
+import sys
+sys.path.insert(0, sys.argv[1])
+from macoblox.runtime import resolve_runtime, guest_variables
+runtime = resolve_runtime()
+print('\n'.join(runtime[key] for key in ('executable', 'sysroot', 'prefix')))
+print('1' if guest_variables(runtime['metadata']) else '')
+PY
+)
+mapfile -t runtime <<< "$runtime_fields"
+darling_executable=${runtime[0]}
+export DARLING_SYSROOT=${runtime[1]} DPREFIX=${runtime[2]}
+if [[ ${runtime[3]:-} == 1 ]]; then export MACOBLOX_NATIVE_WORKQUEUE=1; fi
 # An upgraded kernel can leave the running kernel without loadable modules.
 if ! grep -qw overlay /proc/filesystems; then
   running_kernel=$(uname -r)
@@ -32,7 +45,7 @@ macoblox_env=()
 while IFS= read -r name; do
   macoblox_env+=("$name=${!name}")
 done < <(compgen -e | grep '^MACOBLOX_' || true)
-darling shell /bin/bash -c '
+"$darling_executable" shell /bin/bash -c '
   project_dir=$1
   env_count=$2
   shift 2
