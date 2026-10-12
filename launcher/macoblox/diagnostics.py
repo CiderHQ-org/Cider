@@ -170,7 +170,16 @@ def _macho_names(path, offsets, nm):
     return names
 
 
-def _symbolize(wanted, tool):
+def _host_path(path, roots):
+    """The host file behind a path in the game's maps. Darling's libraries
+    appear by their path inside its container, whose root is the prefix over
+    the runtime's root; the host's own files are under /Volumes/SystemRoot."""
+    candidates = [path.removeprefix("/Volumes/SystemRoot")] if path.startswith("/Volumes/SystemRoot/") else []
+    candidates += [str(Path(root) / path.lstrip("/")) for root in roots] + [path]
+    return next((candidate for candidate in candidates if os.path.isfile(candidate)), None)
+
+
+def _symbolize(wanted, tool, roots=()):
     """{(path, offset): name}, one lookup per library (best effort; Darling's
     Mach-O libraries usually keep their symbols)."""
     names = {}
@@ -179,11 +188,14 @@ def _symbolize(wanted, tool):
         if path.startswith("/"):
             by_path.setdefault(path, []).append(offset)
     nm = shutil.which("llvm-nm")
-    for path, offsets in by_path.items():
+    for mapped, offsets in by_path.items():
+        path = _host_path(mapped, roots)
+        if not path:
+            continue
         offsets = sorted(set(offsets))
         if _macho_layout(path):
             if nm:
-                names.update({(path, offset): name for offset, name in _macho_names(path, offsets, nm).items()})
+                names.update({(mapped, offset): name for offset, name in _macho_names(path, offsets, nm).items()})
             continue
         if not tool[1]:
             continue
@@ -201,7 +213,7 @@ def _symbolize(wanted, tool):
             functions = output.split("\n")[0::2]
         for offset, function in zip(offsets, functions):
             if function and function != "??":
-                names[(path, offset)] = function.strip()
+                names[(mapped, offset)] = function.strip()
     return names
 
 
@@ -251,7 +263,7 @@ def _stack_candidates(pid, syscall, regions):
     return found
 
 
-def _describe_threads(pid, first, second, regions, symbolize):
+def _describe_threads(pid, first, second, regions, symbolize, roots=()):
     threads = []
     for tid in sorted(set(first) | set(second)):
         a, b = first.get(tid), second.get(tid)
@@ -267,7 +279,7 @@ def _describe_threads(pid, first, second, regions, symbolize):
             _label, path, offset = _locate(address, regions)
             if path:
                 wanted.add((path, offset))
-    names = _symbolize(wanted, _symbolizer()) if symbolize else {}
+    names = _symbolize(wanted, _symbolizer(), roots) if symbolize else {}
 
     def where(address):
         label, path, offset = _locate(address, regions)
@@ -316,13 +328,34 @@ def _game_environment(pid):
     return "\n".join(sorted(kept)) + "\n"
 
 
+def _annotate_addresses(text, regions, roots, symbolize):
+    """gdb cannot read Darling's Mach-O images: name its addresses."""
+    addresses = {int(token, 16) for token in re.findall(r"\b0x[0-9a-f]{6,16}\b", text)}
+    located = {address: _locate(address, regions) for address in addresses}
+    located = {address: value for address, value in located.items() if value[0]}
+    names = (_symbolize({(path, offset) for _label, path, offset in located.values()}, _symbolizer(), roots)
+             if symbolize else {})
+
+    def label(match):
+        value = located.get(int(match.group(0), 16))
+        if not value:
+            return match.group(0)
+        name = names.get((value[1], value[2]))
+        return f"{match.group(0)} <{value[0]}{' ' + name if name else ''}>"
+    return re.sub(r"\b0x[0-9a-f]{6,16}\b", label, text)
+
+
 def _gdb_backtraces(pid):
     gdb = shutil.which("gdb")
     if not gdb:
         return "gdb is not installed\n"
     try:
+        # gdb cannot unwind Darling's Mach-O code by itself: the registers and
+        # the top of each stack let the return addresses be read anyway.
         result = subprocess.run([gdb, "-p", str(pid), "-batch", "-nx", "-ex", "set pagination off",
-                                 "-ex", "thread apply all bt 30"],
+                                 "-ex", "thread apply all bt 30",
+                                 "-ex", "thread apply all info registers rip rsp rbp",
+                                 "-ex", "thread apply all x/64gx $sp"],
                                 capture_output=True, text=True, timeout=90)
         return result.stdout + result.stderr
     except subprocess.TimeoutExpired:
@@ -375,16 +408,20 @@ def collect(output_dir=None, *, gdb=False, symbolize=True, interval=SAMPLE_INTER
     first = {pid: _sample_process(pid) for pid in pids}
     if pids:
         time.sleep(interval)
+    roots = (core.DARLING_PREFIX, core.DARLING_SYSROOT)
     for pid in pids:
         second = _sample_process(pid)
         regions = _mappings(pid)
-        files[f"process-{pid}/threads.txt"] = (_ptrace_note(pid) + "\n" +
-                                               _describe_threads(pid, first[pid], second, regions, symbolize))
+        # Everything read from the process first: symbol lookups take a while
+        # and a frozen game is often closed meanwhile.
         files[f"process-{pid}/maps.txt"] = _text(f"/proc/{pid}/maps")
         files[f"process-{pid}/environment.txt"] = _game_environment(pid)
         files[f"process-{pid}/status.txt"] = _text(f"/proc/{pid}/status")
-        if gdb:
-            files[f"process-{pid}/gdb.txt"] = _gdb_backtraces(pid)
+        backtraces = _gdb_backtraces(pid) if gdb else None
+        files[f"process-{pid}/threads.txt"] = (_ptrace_note(pid) + "\n" +
+                                               _describe_threads(pid, first[pid], second, regions, symbolize, roots))
+        if backtraces is not None:
+            files[f"process-{pid}/gdb.txt"] = _annotate_addresses(backtraces, regions, roots, symbolize)
 
     sources = {
         "runtime.json": core.CONFIG_DIR / "runtime.json",

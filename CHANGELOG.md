@@ -16,7 +16,9 @@
   archive with every game thread's wait sampled twice, logs (join tickets and
   cookies redacted) and the runtime selection. With **Allow freeze
   diagnostics** (`MACOBLOX_ALLOW_DEBUGGER=1`) the game lets it read each
-  thread's instruction pointer and stack, as library + offset.
+  thread's instruction pointer and stack, as library + offset and symbol
+  (Darling's own libraries included); `--gdb` adds gdb's backtraces, registers
+  and stack tops, with the same names.
 - Shim: watchdog thread kicks are off unless `MACOBLOX_KICK=1`. Each kick ran
   Darling's signal handler (several darlingserver requests at an arbitrary
   point), and Darling restarts untimed waits after a signal anyway, so a
