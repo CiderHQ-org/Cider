@@ -35,8 +35,8 @@ bash packaging/prepare-source.sh /work/prepared "$archive"
 export DARLING_SYSROOT=/runtime
 case $flavor in
   arch)
-    chown -R builder: /work/prepared/aur
-    su -m builder -c 'cd /work/prepared/aur/ciderhq && makepkg --printsrcinfo > .SRCINFO && makepkg --nodeps --noconfirm'
+    chown -R builder: /work/prepared
+    su builder -c 'export DARLING_SYSROOT=/runtime; cd /work/prepared/aur/ciderhq && makepkg --printsrcinfo > .SRCINFO && makepkg --nodeps --noconfirm'
     cp /work/prepared/aur/ciderhq/ciderhq-*.pkg.tar.zst /out/
     cp /work/prepared/aur/ciderhq/PKGBUILD /out/ciderhq.PKGBUILD
     cp /work/prepared/aur/ciderhq/.SRCINFO /out/ciderhq.SRCINFO
