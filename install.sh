@@ -450,9 +450,11 @@ for relative, edits in patches.items():
     text = original
     for before, after, count in edits:
         # Some replacements contain the original fragment (includes/cases).
-        if text.count(after) == count:
+        after_count = text.count(after)
+        before_count = text.count(before)
+        if after_count == count and before_count == count * after.count(before):
             continue
-        if text.count(before) != count:
+        if before_count != count or after_count:
             raise SystemExit(f'Darling compiler compatibility: unexpected source layout in {relative}; no files changed')
         text = text.replace(before, after)
     if text != original:
