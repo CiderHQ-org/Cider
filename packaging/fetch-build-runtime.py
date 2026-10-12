@@ -32,6 +32,15 @@ def download(url, target, digest):
         raise ValueError('Build runtime checksum does not match')
 
 
+def build_files(member, path):
+    # Darling's root links some paths to absolute guest paths (/System/...,
+    # /Volumes/SystemRoot/..., /dev). They resolve only inside Darling and the
+    # build uses none of them, but the data filter rejects them: leave them out.
+    if member.issym() and member.linkname.startswith('/'):
+        return None
+    return tarfile.data_filter(member, path)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
@@ -57,7 +66,7 @@ def main():
             members = source.getmembers()
             if any(Path(member.name).parts[0] != revision for member in members):
                 raise ValueError('Build runtime archive names another revision')
-            source.extractall(out / 'stage', members=members, filter='data')
+            source.extractall(out / 'stage', members=members, filter=build_files)
         sysroot = out / 'stage' / revision / 'libexec/darling'
     else:
         # This lets Cider packages build while CiderDarling's first CI release
