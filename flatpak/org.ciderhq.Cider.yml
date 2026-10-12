@@ -67,9 +67,9 @@ modules:
       - install -Dm644 branding/icons/ciderhq.svg /app/share/icons/hicolor/scalable/apps/org.ciderhq.Cider.svg
       - install -Dm644 branding/icons/ciderhq.svg /app/share/icons/hicolor/scalable/apps/ciderhq.svg
       - install -d /app/share/applications
-      - sed 's/^Icon=.*/Icon=org.ciderhq.Cider/' packaging/org.ciderhq.Cider.desktop
+      - sed 's/^Icon=.*/Icon=applications-games/' packaging/org.ciderhq.Cider.desktop
         > /app/share/applications/org.ciderhq.Cider.desktop
-      - sed 's/^Icon=.*/Icon=org.ciderhq.Cider/' packaging/org.ciderhq.Cider.URI.desktop
+      - sed 's/^Icon=.*/Icon=applications-games/' packaging/org.ciderhq.Cider.URI.desktop
         > /app/share/applications/org.ciderhq.Cider.URI.desktop
       # The Roblox window's own entry, so docks show its icon.
       - sed 's/^Icon=.*/Icon=org.ciderhq.Cider/' packaging/ciderhq-roblox-window.desktop

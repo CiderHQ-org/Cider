@@ -68,6 +68,8 @@ build instructions. These recipes require a full Darling package and have
 not yet been built in their target distros.
 
 Installer and launcher updates exclude `website/` and its hosting configuration.
+Maintainers publishing the website should run `bash website/build.sh` after
+editing `install.sh` to refresh its copy at `website/dist/install.sh`.
 
 Uninstalling keeps Darling and its prefix, `~/.darling`, which holds your Roblox
 sign-in; `--purge` (or **Uninstall everything** in the menu) deletes that too.

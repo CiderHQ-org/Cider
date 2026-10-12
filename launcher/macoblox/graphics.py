@@ -132,12 +132,14 @@ def mangohud_environment(renderer, enabled=False):
 
     Avoid OpenGL LD_PRELOAD: Darling strips it from host commands, and
     forwarding MangoHud's dlsym hook to the guest can select software GL.
-    Explicit terminal options remain available alongside the Settings switch.
+    The Settings switch controls activation, including when the desktop or a
+    running Darling server inherited an overlay enabled by an earlier launch.
     """
-    variables = {name: os.environ[name] for name in
-                 ("MANGOHUD", "MANGOHUD_CONFIG", "MANGOHUD_CONFIGFILE") if name in os.environ}
-    if enabled:
-        variables["MANGOHUD"] = "1"
+    variables = {"MANGOHUD": "1" if enabled else "0", "MACOBLOX_MANGOHUD_OPENGL": ""}
+    if not enabled:
+        return variables
+    variables.update({name: os.environ[name] for name in
+                      ("MANGOHUD_CONFIG", "MANGOHUD_CONFIGFILE") if name in os.environ})
     if variables.get("MANGOHUD") == "1" and renderer == "opengl":
         roots = ("/usr/lib/mangohud", "/usr/lib64/mangohud",
                  "/usr/lib/x86_64-linux-gnu/mangohud", "/usr/local/lib/mangohud",

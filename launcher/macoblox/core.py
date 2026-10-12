@@ -1165,6 +1165,9 @@ def exit_reason(log_path):
         return "captcha"
     if "X connection to " in tail and "broken (explicit kill or server shutdown)" in tail:
         return "x11_broken"
+    if ("[MangoHud]" in tail and "filesystem_error" in tail and
+            re.search(r"Permission denied: [\"']/proc/\d+/fdinfo", tail)):
+        return "mangohud_fdinfo"
     return None
 
 
@@ -2069,6 +2072,7 @@ class RobloxSession:
             log.write(f"Cider {__version__}\n".encode())
             log.write(f"Darling: {darling_version(env)}\n".encode())
             log.write(f"Renderer requested: {renderer_name}\n".encode())
+            log.write(f"MangoHud requested: {'Enabled' if self.settings.get('mangohud', False) else 'Disabled'}\n".encode())
             log.write(f"Window backend: {'Native Wayland (experimental)' if env.get('MACOBLOX_WAYLAND') == '1' else 'X11 / Xwayland'}\n".encode())
             if self.gpu_adapter:
                 name = self.gpu_adapter["name"].replace("\n", " ").replace("\r", " ")[:200]

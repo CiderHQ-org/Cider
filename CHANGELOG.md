@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+- Prepare the pinned Darling source for Clang/LLVM 23: disable supported
+  Objective-C constant literal families, replace the reported empty literals
+  with Foundation factory calls, and guard the split branch opcodes for older
+  LLVM. Add Vulkan headers/loader to Arch source-build dependencies.
+  These changes follow the CachyOS field report; a full Darling rebuild and
+  Metal rendering have not been verified here. The compile prompt already
+  reads `/dev/tty` for piped installs.
+- Make the MangoHud switch control activation despite inherited environment
+  variables or a previous Darling session. Record the requested state and
+  recognize the reported `/proc/<pid>/fdinfo` permission crash, offering to
+  disable the overlay before another launch. The switch saves immediately;
+  the reported disagreement with settings.json has not been reproduced.
+- Temporarily remove the website and launcher welcome logos, and use standard
+  game icons for launcher shortcuts while replacement branding is prepared.
+- Publish the installer as a static website file so Vercel does not need a
+  build script outside its selected deployment directory. Refresh it with
+  `bash website/build.sh` whenever the source installer changes.
+
 ## 0.22 — 2026-10-11
 
 - Rebrand to **Cider**, `ciderhq` native packages/command and `org.ciderhq.Cider`

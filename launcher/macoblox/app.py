@@ -1207,6 +1207,7 @@ class SettingsPage(Adw.Bin):
         mangohud.connect("notify::active", lambda row, _pspec: window.set_setting(
             "mangohud", row.get_active()))
         game.add(mangohud)
+        self.mangohud_row = mangohud
 
         sensitivity = Adw.SpinRow.new_with_range(0.1, 5.0, 0.05)
         sensitivity.set_digits(2)
@@ -2754,7 +2755,8 @@ class LauncherWindow(Adw.ApplicationWindow):
         # Roblox's macOS updater cannot reliably replace the host bundle through
         # Darling. It exits with success/a quit sentinel, so this is independent
         # of the frontend exit code and must precede pending-URI auto-retries.
-        if core.exit_reason(self.last_log) == "update_required":
+        reason = core.exit_reason(self.last_log)
+        if reason == "update_required":
             target = core.required_client_update(self.last_log)
             if target and "channel" in target:
                 self.set_setting("roblox_channel", target["channel"])
@@ -2763,6 +2765,14 @@ class LauncherWindow(Adw.ApplicationWindow):
             self.set_visible(True)
             self.present()
             self._roblox_update_required_dialog(target)
+            return False
+        if reason == "mangohud_fdinfo" and status not in (0, -1):
+            # Stop queued protocol retries until the user can disable the
+            # crashing overlay; otherwise the same join immediately crashes.
+            self.pending_uri = self.pending_uri or uri_handoff.peek_pending() or session.launch_uri
+            self.set_visible(True)
+            self.present()
+            self._mangohud_crash_dialog()
             return False
         pending = self.pending_uri or uri_handoff.peek_pending()
         if pending:
@@ -2776,7 +2786,6 @@ class LauncherWindow(Adw.ApplicationWindow):
         else:
             self.get_application().quit()
         if failed:
-            reason = core.exit_reason(self.last_log)
             if reason == "captcha":
                 self._captcha_dialog()
             elif reason == "x11_broken":
@@ -2784,6 +2793,24 @@ class LauncherWindow(Adw.ApplicationWindow):
             else:
                 _toast(self.toasts, _("Roblox exited with code {status}", status=status))
         return False
+
+    def _mangohud_crash_dialog(self):
+        dialog = Adw.AlertDialog(
+            heading=_("MangoHud overlay crashed"),
+            body=_("MangoHud could not read process statistics from /proc. Turn off the overlay, then launch Roblox again."))
+        dialog.add_response("close", _("Close"))
+        dialog.add_response("disable", _("Turn off MangoHud"))
+        dialog.set_default_response("disable")
+        dialog.set_close_response("close")
+
+        def response(_dialog, choice):
+            if choice == "disable":
+                self.set_setting("mangohud", False)
+                self.settings_page.mangohud_row.set_active(False)
+                _toast(self.toasts, _("MangoHud is off for the next launch"))
+
+        dialog.connect("response", response)
+        dialog.present(self)
 
     def _roblox_update_required_dialog(self, target=None):
         self._update_required_dialog_active = True
@@ -2884,7 +2911,7 @@ class LauncherApp(Adw.Application):
     def do_activate(self):
         pending = uri_handoff.peek_pending()
         if not self.window:
-            Gtk.Window.set_default_icon_name("ciderhq")
+            Gtk.Window.set_default_icon_name("applications-games")
             Gtk.IconTheme.get_for_display(Gdk.Display.get_default()).add_search_path(
                 str(core.PROJECT / "launcher" / "icons"))
             Gtk.IconTheme.get_for_display(Gdk.Display.get_default()).add_search_path(str(core.ICONS))

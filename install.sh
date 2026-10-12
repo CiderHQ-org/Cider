@@ -334,7 +334,7 @@ install_darling_build_dependencies() {
       libvulkan-dev libcurl4-openssl-dev libedit-dev ;;
     pacman) sudo pacman -S --needed --noconfirm make cmake clang flex bison icu fuse \
       pkgconf fontconfig cairo libtiff mesa glu llvm libbsd libxkbfile libxcursor \
-      libxext libxkbcommon libxrandr ffmpeg git-lfs ;;
+      libxext libxkbcommon libxrandr ffmpeg git-lfs vulkan-headers vulkan-icd-loader ;;
     dnf|yum) sudo "$1" install -y make gcc gcc-c++ cmake clang bison flex git-lfs \
       dbus-devel glibc-devel fuse-devel systemd-devel elfutils-libelf-devel cairo-devel \
       freetype-devel libjpeg-turbo-devel fontconfig-devel libglvnd-devel mesa-libGL-devel \
@@ -371,6 +371,98 @@ install_darling_build_dependencies() {
   esac
 }
 
+# Clang 23 can emit Objective-C constant classes absent from Darling's
+# Foundation. Query each compiler instead of passing new flags to older Clang.
+darling_literal_flags() {
+  local compiler=$1 help family
+  help=$("$compiler" -cc1 -help) || return 1
+  for family in nsnumber nsarray nsdictionary; do
+    if [[ $help == *"-fconstant-$family-literals"* ]]; then
+      printf '%s ' "-fno-constant-$family-literals"
+    fi
+  done
+}
+
+prepare_darling_compiler_compatibility() {
+  # These edits describe the pinned v0.1.20260608 submodules. Validate every
+  # original fragment before writing, and recognize already applied edits.
+  python3 - "$1" <<'PY'
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1])
+patches = {
+    'src/external/cfnetwork/src/HTTP/NSHTTPCookieStorage.m': [
+        ('return @[];', 'return [NSArray array];', 1),
+    ],
+    'src/external/iokitd/src/IORegistryEntry.mm': [
+        ('return @{};', 'return [NSDictionary dictionary];', 1),
+    ],
+    'src/external/security/OSX/sec/Security/SecKeyProxy.m': [
+        ('reply(result ? @[result] : @[], error)',
+         'reply(result ? @[result] : [NSArray array], error)', 1),
+        ('NSMutableArray *parameters = @[].mutableCopy;',
+         'NSMutableArray *parameters = [NSMutableArray array];', 1),
+    ],
+    'src/external/security/trust/trustd/SecPinningDb.m': [
+        ('kSecPinningDbKeyRules:@[@{}]',
+         'kSecPinningDbKeyRules:@[[NSDictionary dictionary]]', 2),
+    ],
+    'src/external/security/keychain/SecureObjectSync/SOSControlServer.m': [
+        ('complete(@[], [NSError errorWithDomain:',
+         'complete([NSArray array], [NSError errorWithDomain:', 1),
+    ],
+    'src/external/security/OSX/sec/ipc/server_endpoint.m': [
+        ('fakeEntitlements: @{}]', 'fakeEntitlements: [NSDictionary dictionary]]', 1),
+    ],
+}
+
+branch_include = '''#include <llvm-c/BitReader.h>
+#include <llvm/Config/llvm-config.h>
+
+// LLVM 23 split the C API's branch opcode; keep older LLVM builds supported.
+#if LLVM_VERSION_MAJOR >= 23
+#define CIDER_LLVM_CONDITIONAL_BRANCH LLVMCondBr
+#define CIDER_LLVM_UNCONDITIONAL_BRANCH LLVMUncondBr
+#else
+#define CIDER_LLVM_CONDITIONAL_BRANCH LLVMBr
+#define CIDER_LLVM_UNCONDITIONAL_BRANCH LLVMBr
+#endif'''
+patches['src/external/metal/deps/indium/src/iridium/air.cpp'] = [
+    ('#include <llvm-c/BitReader.h>', branch_include, 1),
+    ('lastInstOpcode == LLVMBr &&', 'lastInstOpcode == CIDER_LLVM_CONDITIONAL_BRANCH &&', 1),
+    ('lastInstOpcodeFirstBlock == LLVMBr &&',
+     'lastInstOpcodeFirstBlock == CIDER_LLVM_UNCONDITIONAL_BRANCH &&', 1),
+    ('lastInstOpcodeSecondBlock == LLVMBr &&',
+     'lastInstOpcodeSecondBlock == CIDER_LLVM_UNCONDITIONAL_BRANCH &&', 1),
+    ('case LLVMBr: {', '''#if LLVM_VERSION_MAJOR >= 23
+                case LLVMUncondBr:
+                case LLVMCondBr: {
+#else
+                case LLVMBr: {
+#endif''', 1),
+]
+
+prepared = []
+for relative, edits in patches.items():
+    path = root / relative
+    original = path.read_text()
+    text = original
+    for before, after, count in edits:
+        # Some replacements contain the original fragment (includes/cases).
+        if text.count(after) == count:
+            continue
+        if text.count(before) != count:
+            raise SystemExit(f'Darling compiler compatibility: unexpected source layout in {relative}; no files changed')
+        text = text.replace(before, after)
+    if text != original:
+        prepared.append((path, text))
+for path, text in prepared:
+    path.write_text(text)
+print(f'Darling compiler compatibility: prepared {len(prepared)} source files (LLVM 23 branches are version guarded)')
+PY
+}
+
 build_darling_source() {
   local manager=$1 build log jobs=${DARLING_BUILD_JOBS:-2}
   [[ $jobs =~ ^[1-9][0-9]*$ ]] || die "DARLING_BUILD_JOBS must be a positive integer."
@@ -400,10 +492,19 @@ build_darling_source() {
     fi
   done
   say "Optional Swift SDK LFS downloads skipped; Roblox's runtime is built from source."
+
+  prepare_darling_compiler_compatibility "$build/source" 2>&1 | tee -a "$log" ||
+    die "Darling compiler compatibility preparation failed. Log: $log"
+  local c_literal_flags cxx_literal_flags
+  c_literal_flags=$(darling_literal_flags clang) || die "Cannot inspect Clang's supported Objective-C flags."
+  cxx_literal_flags=$(darling_literal_flags clang++) || die "Cannot inspect Clang++'s supported Objective-C flags."
+  [[ -z $c_literal_flags$cxx_literal_flags ]] || say "Disabling Objective-C constant literals unsupported by Darling's Foundation."
   
   # Configure with live output
   say "Configuring Darling (this may take a few minutes)..."
   cmake -S "$build/source" -B "$build/build" -DTARGET_i386=OFF \
+    -DCMAKE_C_FLAGS="${CFLAGS:-} $c_literal_flags" \
+    -DCMAKE_CXX_FLAGS="${CXXFLAGS:-} $cxx_literal_flags" \
     -DCMAKE_INSTALL_PREFIX=/usr/local 2>&1 | tee -a "$log" ||
     die "Darling configuration failed; check distro build dependencies. Log: $log"
   
