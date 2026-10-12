@@ -5,15 +5,17 @@
 <h1 align="center">
  Cider, by CiderHQ.
 </h1>
+
+ <p align="center"> 
+    <a href="https://discord.gg/jCjHYYNq48"> 
+      <img src="https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white" alt="Discord" width="140"> 
+   </a> 
+ </p>
  
  <p align="center">
   The Roblox client meant for MacOS, running on Linux through <a href="https://www.darlinghq.org">Darling</a>, a compatability layer for using MacOS applications on Linux.
   
   improved by aubree.wtf and CiderHQ maintainers. with patches and more, Mac O' Blox, now Cider was originally created by narezy. Credits of the base to Cider go to narezy.
-</p>
-
-<p align="center">
-  <a href="https://discord.gg/jCjHYYNq48"><img src="https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white" alt="Discord"></a>
 </p>
 
 <h1 align="center">
@@ -26,10 +28,11 @@ A.I. Disclaimer, do not use Cider if against the usage of A.I.
   Description
 </h1>
 
-Full graphics with antialiasing, sound, camera and mouse lock, a session that
+Full graphics* with antialiasing, sound, camera and mouse lock, a session that
 survives restarts, and a small launcher with fast flags. Roblox Studio too, in
 its Windows version through Wine. English and Russian. Cider is under the GPL v3 license. Do not make Cider proprietary, nor may any derivatives be closed source.
 Any derivatives must be also under the GPL v3 license, and cannot remove any copyright notices.
+* What we mean by "Full graphics" is that the game is running and largely playable. Due to the nature of OpenGL, we cannot provide maxiumum graphics.
 
 <h1 align="center">
   Migration from Mac O' Blox to Cider
@@ -204,7 +207,7 @@ git -C ~/.local/share/CiderHQ reset --hard HEAD
 <details>
 <summary>Hey, this sounds like Gracejuice!</summary>
 
-Grapejuice and Cider are inherently similar because
+Grapejuice and Cider are inherently similar because Grapejuice used Wine to run the Windows version of the Roblox client on Linux, while Cider uses Darling with along with added libraries to use the MacOS version of the Roblox client on Linux. Ergo, Grapejuice and Cider use the same methods, though use different versions of the Roblox client.
 </details>
 
 <details>
@@ -322,7 +325,7 @@ original relative deltas.
 
 Update Cider and restart Roblox. The launcher applies verified RakNet
 compatibility patches for Roblox **0.741.0.7411056** and **0.742.0.7421053**.
-The launch log includes **RakNet compatibility** and **Roblox version**.
+The launch log includes **RakNet compatibility** and your **CURRENT Roblox version**.
 If compatibility says **unsupported client**, share those lines and the full
 launch log so that deployment can be inspected. Unsupported executables are
 left unchanged.
@@ -478,5 +481,5 @@ Made by [Narezy](https://github.com/narezy). This version is maintained by
 icons from [Simple Icons](https://simpleicons.org)
 
 <h2 align="center">
-  Cider© 2026 is under CiderHQ via the GNU General Public License, and Roblox® is a registered trademarked of Roblox Corporation.
+  Cider© 2026 is under CiderHQ via the GNU General Public License, and Roblox® is a registered trademarked of Roblox Corporation. Cider and CiderHQ is not affiliated with, nor endorsed by Roblox Corporation, and any relatives or Roblox Corporation
 </h2>
