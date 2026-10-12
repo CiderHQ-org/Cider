@@ -86,6 +86,7 @@ python3 -m compileall -q -d "%{_datadir}/ciderhq/launcher" "%{buildroot}%{_datad
 %{_datadir}/applications/org.ciderhq.Cider*.desktop
 %{_datadir}/applications/ciderhq-roblox-window.desktop
 %{_datadir}/icons/hicolor/*/apps/ciderhq.svg
+%{_datadir}/icons/hicolor/*/apps/macoblox.png
 %{_datadir}/mime/packages/org.ciderhq.Cider.xml
 
 %changelog

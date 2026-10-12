@@ -13,8 +13,10 @@ if [[ $project_dir == "$data_home/MacOBlox" && ! -e $data_home/CiderHQ ]]; then
   project_dir=$data_home/CiderHQ
   launcher_dir=$project_dir/launcher
 fi
-install -Dm644 "$project_dir/branding/icons/ciderhq.svg" \
-  "$data_home/icons/hicolor/scalable/apps/ciderhq.svg"
+for size in 16 22 24 32 48 64 128 256 512 1024; do
+  install -Dm644 "$project_dir/branding/icons/macoblox-$size.png" \
+    "$data_home/icons/hicolor/${size}x${size}/apps/macoblox.png"
+done
 
 install -d "$HOME/.local/bin"
 ln -sf "$launcher_dir/ciderhq-launcher" "$HOME/.local/bin/ciderhq"
@@ -40,7 +42,7 @@ Comment[ru]=Запуск клиента Roblox для macOS на Linux чере�
 GenericName=Roblox launcher
 GenericName[ru]=Лаунчер Roblox
 Exec=$exec_path
-Icon=applications-games
+Icon=macoblox
 Terminal=false
 Categories=Game;
 Keywords=roblox;darling;
@@ -56,7 +58,7 @@ Type=Application
 Name=Cider Roblox Link Handler
 Comment=Open Roblox links in Cider
 Exec=$exec_path %u
-Icon=applications-games
+Icon=macoblox
 Terminal=false
 NoDisplay=true
 MimeType=x-scheme-handler/roblox;x-scheme-handler/roblox-player;
@@ -71,7 +73,7 @@ Name=Roblox Studio (Cider)
 Comment=Roblox Studio through Wine
 Comment[ru]=Roblox Studio через Wine
 Exec=$exec_path --studio %u
-Icon=applications-games
+Icon=macoblox
 Terminal=false
 Categories=Development;
 MimeType=x-scheme-handler/roblox-studio;x-scheme-handler/roblox-studio-auth;application/x-roblox-place;
@@ -115,7 +117,7 @@ cat > "$data_home/applications/ciderhq-roblox-window.desktop" <<DESKTOP
 Type=Application
 Name=Roblox (Cider)
 Exec=$exec_path
-Icon=applications-games
+Icon=macoblox
 NoDisplay=true
 StartupWMClass=RobloxPlayer
 DESKTOP

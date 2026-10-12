@@ -14,8 +14,9 @@
   recognize the reported `/proc/<pid>/fdinfo` permission crash, offering to
   disable the overlay before another launch. The switch saves immediately;
   the reported disagreement with settings.json has not been reproduced.
-- Temporarily remove the website and launcher welcome logos, and use standard
-  game icons for launcher shortcuts while replacement branding is prepared.
+- Temporarily remove the website and launcher welcome logos, and keep the
+  old MacOBlox artwork for installed shortcuts while replacement branding is
+  prepared.
 - Publish the installer as a static website file so Vercel does not need a
   build script outside its selected deployment directory. Refresh it with
   `bash website/build.sh` whenever the source installer changes.

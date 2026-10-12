@@ -1504,10 +1504,11 @@ def restart_darling():
 
 def icon_argb_file():
     """Write the logo in _NET_WM_ICON layout for the shim (see MACOBLOX_ICON_ARGB)."""
-    target = CACHE_DIR / "icon.argb"
-    source = ICONS / "ciderhq.svg"
-    sources = [(source, size) for size in (32, 64, 128)]
-    if target.exists() and source.exists() and target.stat().st_mtime >= source.stat().st_mtime:
+    # Separate cache identity avoids retaining the temporary Cider artwork.
+    target = CACHE_DIR / "icon-macoblox.argb"
+    sources = [(ICONS / f"macoblox-{size}.png", size) for size in (32, 64, 128)]
+    if target.exists() and all(source.exists() and target.stat().st_mtime >= source.stat().st_mtime
+                               for source, _size in sources):
         return target
     from gi.repository import GdkPixbuf  # only needed here
 

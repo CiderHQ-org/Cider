@@ -42,6 +42,10 @@ WRAPPER
 chmod 755 "$destdir/usr/bin/ciderhq"
 install -Dm644 "$source_root/branding/icons/ciderhq.svg" \
   "$destdir/usr/share/icons/hicolor/scalable/apps/ciderhq.svg"
+for size in 16 22 24 32 48 64 128 256 512 1024; do
+  install -Dm644 "$source_root/branding/icons/macoblox-$size.png" \
+    "$destdir/usr/share/icons/hicolor/${size}x${size}/apps/macoblox.png"
+done
 for file in org.ciderhq.Cider.desktop org.ciderhq.Cider.URI.desktop \
   org.ciderhq.Cider.Studio.desktop ciderhq-roblox-window.desktop; do
   install -Dm644 "$source_root/packaging/$file" \

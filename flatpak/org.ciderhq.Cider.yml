@@ -64,12 +64,14 @@ modules:
       - rm -f /app/share/ciderhq/launcher/install.sh
       - python3 -m compileall -q -d /app/share/ciderhq/launcher /app/share/ciderhq/launcher
       - install -Dm755 flatpak/ciderhq.sh /app/bin/ciderhq
-      - install -Dm644 branding/icons/ciderhq.svg /app/share/icons/hicolor/scalable/apps/org.ciderhq.Cider.svg
-      - install -Dm644 branding/icons/ciderhq.svg /app/share/icons/hicolor/scalable/apps/ciderhq.svg
+      - for size in 16 22 24 32 48 64 128 256 512 1024; do
+          install -Dm644 "branding/icons/macoblox-$size.png" "/app/share/icons/hicolor/${size}x${size}/apps/org.ciderhq.Cider.png";
+          install -Dm644 "branding/icons/macoblox-$size.png" "/app/share/icons/hicolor/${size}x${size}/apps/macoblox.png";
+          done
       - install -d /app/share/applications
-      - sed 's/^Icon=.*/Icon=applications-games/' packaging/org.ciderhq.Cider.desktop
+      - sed 's/^Icon=.*/Icon=org.ciderhq.Cider/' packaging/org.ciderhq.Cider.desktop
         > /app/share/applications/org.ciderhq.Cider.desktop
-      - sed 's/^Icon=.*/Icon=applications-games/' packaging/org.ciderhq.Cider.URI.desktop
+      - sed 's/^Icon=.*/Icon=org.ciderhq.Cider/' packaging/org.ciderhq.Cider.URI.desktop
         > /app/share/applications/org.ciderhq.Cider.URI.desktop
       # The Roblox window's own entry, so docks show its icon.
       - sed 's/^Icon=.*/Icon=org.ciderhq.Cider/' packaging/ciderhq-roblox-window.desktop

@@ -2,6 +2,6 @@
 Type=Application
 Name=Roblox (Cider)
 Exec=ciderhq
-Icon=ciderhq
+Icon=macoblox
 NoDisplay=true
 StartupWMClass=RobloxPlayer
