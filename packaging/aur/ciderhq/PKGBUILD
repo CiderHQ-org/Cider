@@ -1,7 +1,7 @@
 # Maintainer: aubree.wtf <https://aubree.wtf/>
 pkgname=ciderhq
-pkgver=0.22
-pkgrel=2
+pkgver=0.22Patch1
+pkgrel=1
 pkgdesc='Run the macOS Roblox client on Linux through Darling'
 arch=('x86_64')
 url='https://ciderhq.org'
@@ -21,7 +21,7 @@ provides=('macoblox')
 conflicts=('ciderhq-git' 'macoblox' 'macoblox-git')
 replaces=('macoblox')
 source=("$pkgname-$pkgver.tar.gz::$_repo/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('3936c376e0c3cbde38979573e82902169ffd7ba3c43211654ebceeb7622419c9')
+sha256sums=('65f5df199da08ea0e3edf3e5e520a2a8296eec8dc2aa984d30dfc96c1b6d97a9')
 
 build() {
   cd "Cider-$pkgver"

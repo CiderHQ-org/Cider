@@ -44,7 +44,7 @@ and the appropriate Vulkan driver.
 
 ## Prepare sources
 
-The official Cider 0.22Patch1 archive is pinned in `release.json` after publication. For release builds,
+The official Cider 0.22Patch1 archive is pinned in `release.json`. For release builds,
 use the source preparation command below. To package local source edits:
 
 ```bash
