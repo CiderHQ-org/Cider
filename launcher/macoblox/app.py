@@ -2237,7 +2237,7 @@ ABOUT = ("Cider runs the real Roblox client for macOS on Linux through Darling. 
 
 def _links():
     """(title, icon, uri) of the project's community pages."""
-    links = [("Website", "web-browser-symbolic", "https://ciderhq.org"),
+    links = [("Website", "macoblox-web-symbolic", "https://ciderhq.org"),
              ("Discord", "macoblox-discord-symbolic", author.DISCORD_URL)]
     if author.GITHUB_URL:
         links.append(("GitHub", "macoblox-github-symbolic", author.GITHUB_URL))

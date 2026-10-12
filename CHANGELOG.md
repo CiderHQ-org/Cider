@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- The launcher's Website link shows a bundled globe icon. It used the
+  icon theme's `web-browser-symbolic`, which KDE's Breeze does not have, so
+  Breeze users saw a missing-icon symbol.
+
 ## 0.23patch1 — 2026-10-12
 
 - Cider is now licensed under the GNU GPL v3 (`LICENSE`), as the README
