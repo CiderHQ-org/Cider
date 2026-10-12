@@ -19,8 +19,8 @@ for file in libMacOBloxShims.dylib libmacoblox-wayland.so; do
     exit 1
   }
 done
-share=$destdir/usr/share/macoblox
-shim=$destdir$libdir/macoblox/shim
+share=$destdir/usr/share/ciderhq
+shim=$destdir$libdir/ciderhq/shim
 install -d "$share/branding" "$shim" "$destdir/usr/bin"
 cp -r --no-preserve=ownership "$source_root/launcher" "$share/"
 rm -f "$share/launcher/install.sh"
@@ -28,30 +28,28 @@ find "$share/launcher" -type d -name __pycache__ -exec rm -rf -- {} +
 # Include runtime branding; design sources and the website are not installed.
 cp -r --no-preserve=ownership "$source_root/branding/icons" \
   "$source_root/branding/contributors" "$share/branding/"
-install -m644 "$source_root/branding/"*.png "$share/branding/"
+install -m644 "$source_root/branding/"*.png "$source_root/branding/"*.svg "$share/branding/"
 install -m644 "$source_root/patch_startup_throttle.py" "$share/"
 install -m644 "$source_root/README.md" "$share/"
 install -m755 "$build_dir/libMacOBloxShims.dylib" \
   "$build_dir/libmacoblox-wayland.so" "$shim/"
 cp -r --no-preserve=ownership "$build_dir/frameworks" "$shim/"
-cat > "$destdir/usr/bin/macoblox" <<WRAPPER
+cat > "$destdir/usr/bin/ciderhq" <<WRAPPER
 #!/bin/sh
-export MACOBLOX_PREBUILT_SHIM=$libdir/macoblox/shim
-exec python3 /usr/share/macoblox/launcher/macoblox-launcher "\$@"
+export MACOBLOX_PREBUILT_SHIM=$libdir/ciderhq/shim
+exec python3 /usr/share/ciderhq/launcher/ciderhq-launcher "\$@"
 WRAPPER
-chmod 755 "$destdir/usr/bin/macoblox"
-for size in 16 22 24 32 48 64 128 256 512; do
-  install -Dm644 "$source_root/branding/icons/macoblox-$size.png" \
-    "$destdir/usr/share/icons/hicolor/${size}x${size}/apps/macoblox.png"
-done
-for file in wtf.aubree.MacOBlox.desktop wtf.aubree.MacOBlox.URI.desktop \
-  wtf.aubree.MacOBlox.Studio.desktop macoblox-roblox-window.desktop; do
+chmod 755 "$destdir/usr/bin/ciderhq"
+install -Dm644 "$source_root/branding/icons/ciderhq.svg" \
+  "$destdir/usr/share/icons/hicolor/scalable/apps/ciderhq.svg"
+for file in org.ciderhq.Cider.desktop org.ciderhq.Cider.URI.desktop \
+  org.ciderhq.Cider.Studio.desktop ciderhq-roblox-window.desktop; do
   install -Dm644 "$source_root/packaging/$file" \
     "$destdir/usr/share/applications/$file"
 done
-install -Dm644 "$source_root/packaging/wtf.aubree.MacOBlox.xml" \
-  "$destdir/usr/share/mime/packages/wtf.aubree.MacOBlox.xml"
+install -Dm644 "$source_root/packaging/org.ciderhq.Cider.xml" \
+  "$destdir/usr/share/mime/packages/org.ciderhq.Cider.xml"
 install -Dm644 "$source_root/LICENSE" \
-  "$destdir/usr/share/licenses/macoblox/LICENSE"
+  "$destdir/usr/share/licenses/ciderhq/LICENSE"
 install -m644 "$source_root/launcher/macoblox/assets/fonts/"*-OFL.txt \
-  "$destdir/usr/share/licenses/macoblox/"
+  "$destdir/usr/share/licenses/ciderhq/"

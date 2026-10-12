@@ -225,7 +225,7 @@ void capture(Window &window,unsigned id,bool enabled) {
     if(next){window.anchor_x=window.x;window.anchor_y=window.y;}
     if(SDL_SetRelativeMouseMode(next?SDL_TRUE:SDL_FALSE)<0) {
         next=false;
-        std::fprintf(stderr,"[MacOBlox Wayland] Relative pointer unavailable: %s\n",SDL_GetError());
+        std::fprintf(stderr,"[Cider Wayland] Relative pointer unavailable: %s\n",SDL_GetError());
     }
     window.capture=next;
     update_cursor(window);
@@ -272,7 +272,7 @@ void translate(const SDL_Event &input) {
         case SDL_WINDOWEVENT_CLOSE:event.type=MW_CLOSE;break;
         default:return;
         }
-        if(getenv("MACOBLOX_TRACE_WAYLAND"))std::fprintf(stderr,"[MacOBlox Wayland] Window event %u for %u\n",event.type,found->first);
+        if(getenv("MACOBLOX_TRACE_WAYLAND"))std::fprintf(stderr,"[Cider Wayland] Window event %u for %u\n",event.type,found->first);
         break;
     default:return;
     }
@@ -280,7 +280,7 @@ void translate(const SDL_Event &input) {
 }
 unsigned create_window(int width,int height,bool bootstrap=false) {
     if(width<1 || height<1 || width>16384 || height>16384)return 0;
-    SDL_Window *window=SDL_CreateWindow("Mac O' Blox",SDL_WINDOWPOS_UNDEFINED,SDL_WINDOWPOS_UNDEFINED,
+    SDL_Window *window=SDL_CreateWindow("Cider",SDL_WINDOWPOS_UNDEFINED,SDL_WINDOWPOS_UNDEFINED,
                                       width,height,SDL_WINDOW_RESIZABLE|(bootstrap?SDL_WINDOW_HIDDEN:0));
     SDL_SysWMinfo info{};SDL_VERSION(&info.version);
     if(!window || !SDL_GetWindowWMInfo(window,&info) || info.subsystem!=SDL_SYSWM_WAYLAND || !info.info.wl.surface) {
@@ -294,7 +294,7 @@ unsigned create_window(int width,int height,bool bootstrap=false) {
     windows.emplace(id,std::move(native_window));
     windows.at(id).wl_surface_handle=info.info.wl.surface;
     if(!bootstrap)map_initial_frame(info.info.wl.surface,width,height);
-    std::fprintf(stderr,"[MacOBlox Wayland] Created window %u (%dx%d)\n",id,width,height);
+    std::fprintf(stderr,"[Cider Wayland] Created window %u (%dx%d)\n",id,width,height);
     return id;
 }
 void *display(){return native_display;}
@@ -342,6 +342,8 @@ unsigned create_subwindow(unsigned parent_id,int x,int y,int width,int height) {
         if(!show_subwindow(id,inserted.first->second)) {
             wl_egl_window_destroy(egl_window);wl_surface_destroy(child_surface);subwindows.erase(id);return 0;
         }
+        static unsigned reported;
+        if(reported++<24)std::fprintf(stderr,"[Cider Wayland] Created GL view %u for window %u at %d,%d (%dx%d)\n",id,parent_id,x,y,width,height);
         return id;
     });
 }
@@ -492,8 +494,8 @@ extern "C" const macoblox_wayland_api *macoblox_wayland_host_api() {
     std::call_once(once,[]{
         std::promise<bool> initialized;auto result=initialized.get_future();
         ui=std::thread([&initialized]{
-            SDL_SetHint("SDL_APP_ID","macoblox-roblox-window");
-            SDL_SetHint("SDL_VIDEO_WAYLAND_WMCLASS","macoblox-roblox-window");
+            SDL_SetHint("SDL_APP_ID","ciderhq-roblox-window");
+            SDL_SetHint("SDL_VIDEO_WAYLAND_WMCLASS","ciderhq-roblox-window");
             SDL_SetHint(SDL_HINT_VIDEO_WAYLAND_PREFER_LIBDECOR,"1");
             SDL_SetHint(SDL_HINT_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR,"0");
             /* Selecting Wayland explicitly forbids SDL's X11 fallback. */
@@ -506,7 +508,7 @@ extern "C" const macoblox_wayland_api *macoblox_wayland_host_api() {
             if(!bootstrap){initialized.set_value(false);return;}
             initialize_cursor_surfaces();
             SDL_StartTextInput();initialized.set_value(true);
-            std::fprintf(stderr,"[MacOBlox Wayland] Native Wayland display connected\n");
+            std::fprintf(stderr,"[Cider Wayland] Native Wayland display connected\n");
             while(!stopping.load()) {
                 std::deque<std::function<void()>> batch;
                 {std::lock_guard<std::mutex> guard(queue_mutex);batch.swap(commands);}

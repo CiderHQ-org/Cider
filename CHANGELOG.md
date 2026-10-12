@@ -1,3 +1,28 @@
+# Changelog
+
+## 0.22 — 2026-10-11
+
+- Rebrand to **Cider**, `ciderhq` native packages/command and `org.ciderhq.Cider`
+  desktop identity. Move settings, caches, source installs and guest session
+  data from legacy paths without replacing existing Cider data.
+- Serve the source installer at `https://ciderhq.org/install.sh`; update the
+  launcher, setup guide, desktop entries, website and colored vector branding.
+- Correct frozen mouse-lock positions for X11 multi-monitor desktop heights.
+  Match Roblox's first-screen coordinate conversion and reject off-window
+  targets before updating the logical cursor or overlay.
+- Restore public Darling builds that skip optional Swift LFS downloads and
+  never request GitHub credentials; retain live build output.
+- Add complete checksum/layout-verified GLSL compatibility for Roblox
+  **0.742.0.7421053** alongside 0.741; record shader status/hash in launch logs.
+- Retry initially failed native Wayland EGL drawables with bounded backoff;
+  log backend, EGL driver, drawable creation and exhausted recovery.
+  The reported blank window still needs confirmation on the affected system.
+- Clear the legacy GTK dark-theme preference in the launcher process before
+  initializing libadwaita; keep styling controlled by AdwStyleManager.
+- Rename Arch, Debian/Ubuntu and Fedora/openSUSE package recipes; generate
+  stable AUR metadata from the prepared archive. Local pre-release source
+  preparation excludes user reports, build output and the website.
+
 # Release notes
 
 ## 0.21patch1 — 2026-10-07

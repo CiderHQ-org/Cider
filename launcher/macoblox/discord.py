@@ -14,16 +14,13 @@ import time
 import urllib.request
 import uuid
 from pathlib import Path
+from . import core
 
 log = logging.getLogger("macoblox.discord")
 
 CLIENT_ID = "1468188794309050523"
 
-CACHE_FILE = (
-    Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
-    / "MacOBlox"
-    / "game_cache.json"
-)
+CACHE_FILE = core.DATA_DIR / "game_cache.json"
 
 _GAME_CACHE: dict[int, dict] = {}
 _CACHE_LOCK = threading.RLock()
@@ -569,7 +566,7 @@ class DiscordRPC:
         state: str | None = None,
         start_time: float | None = None,
         large_image: str = "macoblox",
-        large_text: str = "Mac O’ Blox",
+        large_text: str = "Cider",
         small_image: str | None = None,
         small_text: str | None = None,
     ) -> dict:

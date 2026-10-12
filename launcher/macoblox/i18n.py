@@ -65,20 +65,20 @@ RU = {
     "press play": "нажмите «Играть»",
     # Launcher update
     "Update available": "Доступно обновление",
-    "A new version of Mac O’ Blox ({version}) is available. Update now?":
-        "Доступна новая версия Mac O’ Blox ({version}). Обновить сейчас?",
+    "A new version of Cider ({version}) is available. Update now?":
+        "Доступна новая версия Cider ({version}). Обновить сейчас?",
     "Later": "Позже",
     "Update": "Обновить",
     "Launcher version": "Версия лаунчера",
     "Force update": "Принудительное обновление",
-    "Mac O’ Blox is up to date": "Установлена последняя версия Mac O’ Blox",
+    "Cider is up to date": "Установлена последняя версия Cider",
     "Update {version} available": "Доступно обновление {version}",
     "Pulling latest version…": "Загрузка последней версии…",
     "Building shim…": "Сборка шима…",
     "Updating launcher shortcuts…": "Обновление ярлыков лаунчера…",
-    "Mac O’ Blox updated successfully": "Mac O’ Blox успешно обновлён",
-    "Mac O’ Blox updated. Restart it to use the new version.":
-        "Mac O’ Blox обновлён. Перезапусти его, чтобы открыть новую версию.",
+    "Cider updated successfully": "Cider успешно обновлён",
+    "Cider updated. Restart it to use the new version.":
+        "Cider обновлён. Перезапусти его, чтобы открыть новую версию.",
     "Could not update the files in {path}:\n{output}": "Не удалось обновить файлы в {path}:\n{output}",
     # Play page
     "Roblox {version}": "Roblox {version}",
@@ -115,9 +115,9 @@ RU = {
     "Roblox Studio": "Roblox Studio",
     "Roblox Studio is already running": "Roblox Studio уже запущен",
     "Install Roblox Studio?": "Установить Roblox Studio?",
-    "Studio runs in its Windows version through Wine. Mac O’ Blox downloads Wine, "
+    "Studio runs in its Windows version through Wine. Cider downloads Wine, "
     "DXVK and Studio, about 800 MB.":
-        "Studio запускается в Windows-версии через Wine. Mac O’ Blox скачает Wine, "
+        "Studio запускается в Windows-версии через Wine. Cider скачает Wine, "
         "DXVK и Studio, это около 800 МБ.",
     "Install": "Установить",
     "Could not start Roblox Studio": "Не удалось запустить Roblox Studio",
@@ -194,8 +194,8 @@ RU = {
     "Display the title and creator of the place you are playing":
         "Отображать название и создателя плейса, в который вы играете",
     "Show experience thumbnail in Discord": "Показывать иконку плейса в Discord",
-    "Replace the Mac O’ Blox icon with the game's icon":
-        "Заменять иконку Mac O’ Blox на обложку игры",
+    "Replace the Cider icon with the game's icon":
+        "Заменять иконку Cider на обложку игры",
     "Show elapsed time in Discord": "Показывать прошедшее время в Discord",
     "Display how long you have been playing in your status":
         "Отображать время, прошедшее с момента запуска игры",
@@ -391,9 +391,9 @@ RU = {
     "Anisotropic filtering (16x)": "Анизотропная фильтрация (16x)",
     "Force maximum texture resolution": "Принудительное максимальное разрешение текстур",
     # Info
-    "Mac O’ Blox runs the real Roblox client for macOS on Linux through Darling. "
+    "Cider runs the real Roblox client for macOS on Linux through Darling. "
     "It is not made by Roblox and is not affiliated with it.":
-        "Mac O’ Blox запускает настоящий клиент Roblox для macOS на Linux через Darling. "
+        "Cider запускает настоящий клиент Roblox для macOS на Linux через Darling. "
         "Его делает не Roblox, и с Roblox он никак не связан.",
     "Community": "Сообщество",
     "Authors": "Авторы",

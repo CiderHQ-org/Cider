@@ -57,7 +57,7 @@ class SetupWizard(Adw.Bin):
         self.add_css_class("setup-wizard")
         toolbar = Adw.ToolbarView()
         header = Adw.HeaderBar()
-        header.set_title_widget(Gtk.Label(label="Mac O’ Blox", css_classes=["heading"]))
+        header.set_title_widget(Gtk.Label(label="Cider", css_classes=["heading"]))
         self.back = Gtk.Button(icon_name="go-previous-symbolic", tooltip_text=_("Back"), visible=False)
         self.back.add_css_class("flat")
         self.back.connect("clicked", lambda *_args: self.show("welcome"))
@@ -101,8 +101,8 @@ class SetupWizard(Adw.Bin):
         return actions, button
 
     def _welcome(self):
-        page, body = self._page("Welcome to Mac O’ Blox", "Play Roblox on your Linux desktop.")
-        logo = Gtk.Image.new_from_file(str(core.ICONS / "macoblox-128.png"))
+        page, body = self._page("Welcome to Cider", "Play Roblox on your Linux desktop.")
+        logo = Gtk.Image.new_from_file(str(core.ICONS / "ciderhq.svg"))
         logo.set_pixel_size(88)
         logo.set_halign(Gtk.Align.CENTER)
         body.prepend(logo)
@@ -130,7 +130,7 @@ class SetupWizard(Adw.Bin):
         steps = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         steps.append(self._step(1, "Download Roblox", "Get the official macOS client directly from Roblox."))
         steps.append(self._step(2, "Prepare Darling", "Darling runs macOS apps on Linux. "
-                                "Mac O’ Blox prepares the files Roblox needs."))
+                                "Cider prepares the files Roblox needs."))
         steps.append(self._step(3, "Make it yours", "Sign in to Roblox, then choose your graphics, "
                                 "mouse and launcher preferences in Settings."))
         body.append(steps)
@@ -157,7 +157,7 @@ class SetupWizard(Adw.Bin):
 
     def _progress_page(self):
         page, body = self._page("Getting Roblox ready", "This can take a few minutes. "
-                               "Keep Mac O’ Blox open while setup finishes.", "folder-download-symbolic")
+                               "Keep Cider open while setup finishes.", "folder-download-symbolic")
         self.spinner = Gtk.Spinner(spinning=False, halign=Gtk.Align.CENTER)
         body.append(self.spinner)
         self.progress = Gtk.ProgressBar(css_classes=["setup-progress"], margin_top=8)
@@ -218,7 +218,7 @@ class SetupWizard(Adw.Bin):
         missing = core.missing_tools()
         if missing:
             self._finished(RuntimeError(_("Required programs are missing: {programs}. "
-                                         "Run the Mac O’ Blox installer to finish installing them, then try again.",
+                                         "Run the Cider installer to finish installing them, then try again.",
                                          programs=", ".join(missing))))
             return
         accepted = self.window.settings_page.check_updates(

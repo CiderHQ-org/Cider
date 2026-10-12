@@ -1,8 +1,8 @@
-pkgbase = macoblox-git
+pkgbase = ciderhq-git
 	pkgdesc = Run the macOS Roblox client on Linux through Darling
-	pkgver = 0.21patch1.r0.gddcba98
+	pkgver = 0.22.r0
 	pkgrel = 1
-	url = https://github.com/aubree-lat/MacOBlox
+	url = https://ciderhq.org
 	arch = x86_64
 	license = MIT
 	license = OFL-1.1
@@ -36,9 +36,13 @@ pkgbase = macoblox-git
 	optdepends = vulkan-icd-loader: Vulkan renderer loader
 	optdepends = vulkan-driver: hardware Vulkan driver for the Vulkan renderer
 	optdepends = pipewire-audio: native PipeWire audio playback
+	provides = ciderhq
 	provides = macoblox
+	conflicts = ciderhq
 	conflicts = macoblox
+	conflicts = macoblox-git
+	replaces = macoblox-git
 	source = MacOBlox::git+https://github.com/aubree-lat/MacOBlox.git
 	sha256sums = SKIP
 
-pkgname = macoblox-git
+pkgname = ciderhq-git

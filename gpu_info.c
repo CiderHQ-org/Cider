@@ -69,7 +69,7 @@ static void trace(const char *what, const char *detail, unsigned long value) {
     if (!tracing())
         return;
     char line[200];
-    int length = snprintf(line, sizeof line, "[MacOBlox IOKit] %s %s -> 0x%lx\n", what, detail ? detail : "", value);
+    int length = snprintf(line, sizeof line, "[Cider IOKit] %s %s -> 0x%lx\n", what, detail ? detail : "", value);
     if (length > 0) write(2, line, (unsigned long)length < sizeof line ? (unsigned long)length : sizeof line - 1);
 }
 
@@ -118,7 +118,8 @@ static macoblox_rect macoblox_CGDisplayBounds(unsigned int display) {
             bounds = CGDisplayBounds(main_display);
         static int reported;
         if (!reported++)
-            write(2, "[MacOBlox] CGDisplayBounds: unknown display, using the main display\n", 68);
+            write(2, "[Cider] CGDisplayBounds: unknown display, using the main display\n",
+                  sizeof("[Cider] CGDisplayBounds: unknown display, using the main display\n") - 1);
     }
     return bounds;
 }
@@ -252,7 +253,7 @@ static void macoblox_glRenderbufferStorageMultisample(unsigned int target, int s
                                                       int width, int height) {
     char line[160];
     int length = snprintf(line, sizeof line,
-                          "[MacOBlox GL] multisample renderbuffer samples=%d format=0x%x %dx%d\n",
+                          "[Cider GL] multisample renderbuffer samples=%d format=0x%x %dx%d\n",
                           samples, format, width, height);
     if (length > 0) write(2, line, (unsigned long)length);
     glRenderbufferStorageMultisample(target, samples, format, width, height);
@@ -286,7 +287,8 @@ static void metal_off_once(void) {
     static int said;
     if (!__sync_bool_compare_and_swap(&said, 0, 1))
         return;
-    write(2, "[MacOBlox] Metal device hidden, Roblox renders with OpenGL\n", 59);
+    write(2, "[Cider] Metal device hidden, Roblox renders with OpenGL\n",
+          sizeof("[Cider] Metal device hidden, Roblox renders with OpenGL\n") - 1);
 }
 
 static macoblox_id macoblox_MTLCreateSystemDefaultDevice(void) {

@@ -1,9 +1,9 @@
 [Desktop Entry]
 Type=Application
-Name=Mac O’ Blox Roblox Link Handler
-Comment=Open Roblox links in Mac O’ Blox
-Exec=macoblox %u
-Icon=macoblox
+Name=Cider Roblox Link Handler
+Comment=Open Roblox links in Cider
+Exec=ciderhq %u
+Icon=ciderhq
 Terminal=false
 NoDisplay=true
 MimeType=x-scheme-handler/roblox;x-scheme-handler/roblox-player;

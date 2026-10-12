@@ -67,7 +67,7 @@ def _authenticated_install_command(command):
     run0 = _system_program("run0")
     if run0:
         # Default interactive polkit authentication enables the desktop prompt.
-        return [run0, "--description=Install Mac O' Blox Vulkan dependencies", "--", *command], {}
+        return [run0, "--description=Install Cider Vulkan dependencies", "--", *command], {}
     pkexec = _system_program("pkexec")
     if pkexec:
         return [pkexec, *command], {}

@@ -1,11 +1,12 @@
 # Maintainer: aubree.wtf <https://aubree.wtf/>
-pkgname=macoblox-git
+pkgname=ciderhq-git
 _name=MacOBlox
-pkgver=0.21patch1.r0.gddcba98
+pkgver=0.22.r0
 pkgrel=1
 pkgdesc="Run the macOS Roblox client on Linux through Darling"
 arch=('x86_64')
-url="https://github.com/aubree-lat/MacOBlox"
+url="https://ciderhq.org"
+_repo="https://github.com/aubree-lat/MacOBlox"
 license=('MIT' 'OFL-1.1')
 depends=('darling' 'unzip' 'python' 'python-gobject' 'python-cairo'
          'gtk4>=4.14' 'libadwaita>=1.5' 'webkitgtk-6.0' 'sdl2' 'wayland'
@@ -17,9 +18,10 @@ optdepends=('mangohud: performance overlay'
             'vulkan-icd-loader: Vulkan renderer loader'
             'vulkan-driver: hardware Vulkan driver for the Vulkan renderer'
             'pipewire-audio: native PipeWire audio playback')
-provides=('macoblox')
-conflicts=('macoblox')
-source=("$_name::git+$url.git")
+provides=('ciderhq' 'macoblox')
+conflicts=('ciderhq' 'macoblox' 'macoblox-git')
+replaces=('macoblox-git')
+source=("$_name::git+$_repo.git")
 sha256sums=('SKIP')
 
 pkgver() {
@@ -35,36 +37,6 @@ build() {
 
 package() {
   cd "$_name"
-  local share="$pkgdir/usr/share/macoblox"
-  install -d "$share/branding"
-  cp -r --no-preserve=ownership launcher "$share/"
-  cp -r --no-preserve=ownership branding/icons branding/contributors "$share/branding/"
-  install -m644 branding/*.png "$share/branding/"
-  install -m644 patch_startup_throttle.py README.md "$share/"
-  rm -f "$share/launcher/install.sh"
-  python -m compileall -q -d /usr/share/macoblox/launcher "$share/launcher"
-
-  install -d "$pkgdir/usr/bin"
-  cat > "$pkgdir/usr/bin/macoblox" <<'WRAPPER'
-#!/bin/sh
-export MACOBLOX_PREBUILT_SHIM=/usr/lib/macoblox/shim
-exec python3 /usr/share/macoblox/launcher/macoblox-launcher "$@"
-WRAPPER
-  chmod 755 "$pkgdir/usr/bin/macoblox"
-  install -d "$pkgdir/usr/lib/macoblox/shim"
-  cp -r --no-preserve=ownership "$srcdir/native-build/frameworks" \
-    "$srcdir/native-build/libMacOBloxShims.dylib" \
-    "$srcdir/native-build/libmacoblox-wayland.so" "$pkgdir/usr/lib/macoblox/shim/"
-
-  for size in 16 22 24 32 48 64 128 256 512; do
-    install -Dm644 "branding/icons/macoblox-$size.png" \
-      "$pkgdir/usr/share/icons/hicolor/${size}x${size}/apps/macoblox.png"
-  done
-  install -Dm644 packaging/wtf.aubree.MacOBlox.desktop -t "$pkgdir/usr/share/applications"
-  install -Dm644 packaging/wtf.aubree.MacOBlox.URI.desktop -t "$pkgdir/usr/share/applications"
-  install -Dm644 packaging/macoblox-roblox-window.desktop -t "$pkgdir/usr/share/applications"
-  install -Dm644 packaging/wtf.aubree.MacOBlox.Studio.desktop -t "$pkgdir/usr/share/applications"
-  install -Dm644 packaging/wtf.aubree.MacOBlox.xml -t "$pkgdir/usr/share/mime/packages"
-  install -Dm644 LICENSE -t "$pkgdir/usr/share/licenses/$pkgname"
-  install -m644 launcher/macoblox/assets/fonts/*-OFL.txt "$pkgdir/usr/share/licenses/$pkgname/"
+  bash packaging/install-payload.sh "$PWD" "$srcdir/native-build" "$pkgdir" /usr/lib
+  python -m compileall -q -d /usr/share/ciderhq/launcher "$pkgdir/usr/share/ciderhq/launcher"
 }

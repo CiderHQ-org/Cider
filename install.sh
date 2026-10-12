@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Mac O' Blox installer: Darling, the tools the launcher needs, and the
+# Cider installer: Darling, the tools the launcher needs, and the
 # launcher itself with its app menu entry. Run it again to update, or to
 # uninstall.
 #
-#   curl -fsSL https://raw.githubusercontent.com/aubree-lat/MacOBlox/main/install.sh | bash
+#   curl -fsSL https://ciderhq.org/install.sh | bash
 #
 # In a terminal it guides setup; without one it installs. The choices
 # also work as options (with curl: ... | bash -s -- --uninstall), see --help.
@@ -17,12 +17,13 @@ set -euo pipefail
 
 REPO=https://github.com/aubree-lat/MacOBlox.git
 DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
-DIR=$DATA_HOME/MacOBlox
+DIR=$DATA_HOME/CiderHQ
+LEGACY_DIR=$DATA_HOME/MacOBlox
 CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
 CACHE_HOME=${XDG_CACHE_HOME:-$HOME/.cache}
 PREFIX=${DPREFIX:-$HOME/.darling}
 # Darling's Debian packages, pinned to the release the Flatpak uses
-# (flatpak/wtf.aubree.MacOBlox.yml; change both together). The checksum makes
+# (flatpak/org.ciderhq.Cider.yml; change both together). The checksum makes
 # sure the download is that release, and a new Darling release cannot break
 # installs before the shim was tested with it.
 DARLING_TAG=v0.1.20260608
@@ -118,9 +119,9 @@ setup_plan() {
   [[ $dependencies != pacman ]] || dependencies='pacman and the AUR'
   printf '  %sSetup plan%s\n\n' "$BOLD" "$RESET"
   printf '    1. Prepare Darling and the system tools (%s).\n' "$dependencies"
-  printf '    2. %s the Mac O\047 Blox launcher.\n' "$operation"
+  printf '    2. %s the Cider launcher.\n' "$operation"
   printf '    3. Build its compatibility libraries.\n'
-  printf '    4. Add the app menu entry and macoblox command.\n\n'
+  printf '    4. Add the app menu entry and ciderhq command.\n\n'
   printf '  Computer    %s (%s)\n' "$(distribution_name)" "$(uname -m)"
   printf '  Destination %s\n' "${DIR/#$HOME/\~}"
   printf '  %sSystem packages may ask for your sudo password.%s\n' "$DIM" "$RESET"
@@ -144,8 +145,8 @@ backup_checkout_changes() {
     rm -rf -- "$list_dir"
     return
   fi
-  backup=$(umask 077; mkdir -p -- "$DATA_HOME/MacOBlox-backups";
-    mktemp -d "$DATA_HOME/MacOBlox-backups/update-$(date -u +%Y%m%d-%H%M%S)-XXXXXX")
+  backup=$(umask 077; mkdir -p -- "$DATA_HOME/CiderHQ-backups";
+    mktemp -d "$DATA_HOME/CiderHQ-backups/update-$(date -u +%Y%m%d-%H%M%S)-XXXXXX")
   git -C "$DIR" rev-parse HEAD > "$backup/revision"
   git -C "$DIR" diff --binary HEAD > "$backup/tracked.patch"
   cp -- "$list_dir/tracked" "$backup/tracked-paths"
@@ -180,9 +181,9 @@ setup_success() {
   local version
   version=$(installed_version)
   printf '\n%s%s Setup complete%s\n' "$GOOD" "$ON" "$RESET"
-  printf '  Mac O\047 Blox%s is ready in your app menu.\n' "${version:+ $version}"
+  printf '  Cider%s is ready in your app menu.\n' "${version:+ $version}"
   printf '\n  %sNext steps%s\n' "$BOLD" "$RESET"
-  printf '    1. Open Mac O\047 Blox from the app menu, or run macoblox.\n'
+  printf '    1. Open Cider from the app menu, or run ciderhq.\n'
   if [[ -d $DIR/RobloxPlayer.app ]]; then
     printf '    2. Launch Roblox from the launcher.\n'
     printf '    3. Sign in if needed, then choose a game.\n'
@@ -374,18 +375,31 @@ build_darling_source() {
   local manager=$1 build log jobs=${DARLING_BUILD_JOBS:-2}
   [[ $jobs =~ ^[1-9][0-9]*$ ]] || die "DARLING_BUILD_JOBS must be a positive integer."
   install_darling_build_dependencies "$manager" || die "Could not install Darling build dependencies. Check enabled repositories and package names for your distro, then rerun."
-  mkdir -p -- "$CACHE_HOME/macoblox/installer"
-  build=$(umask 077; mktemp -d "$CACHE_HOME/macoblox/installer/darling-source-XXXXXX")
+  mkdir -p -- "$CACHE_HOME/ciderhq/installer"
+  build=$(umask 077; mktemp -d "$CACHE_HOME/ciderhq/installer/darling-source-XXXXXX")
   log=$build/build.log
   say "Building Darling; sources and log: $build"
   
-  # Clone with live output
-  GIT_CLONE_PROTECTION_ACTIVE=false git clone --recursive --branch "$DARLING_TAG" \
+  # Public source does not need credentials. Swift's optional SDK binaries
+  # use a separate LFS service; Roblox uses the C/C++/Objective-C runtime.
+  GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/false SSH_ASKPASS=/bin/false \
+    GIT_LFS_SKIP_SMUDGE=1 GIT_CLONE_PROTECTION_ACTIVE=false \
+    git -c credential.helper= -c core.askPass=/bin/false clone --recursive --branch "$DARLING_TAG" \
     https://github.com/darlinghq/darling.git "$build/source" 2>&1 | tee "$log" ||
-    die "Darling source download failed. Log: $log"
+    die "Public Darling source download failed; no GitHub login is needed. Check the failed repository URL in: $log"
   
-  git -C "$build/source" lfs install --local 2>&1 | tee -a "$log" || die "Git LFS initialization failed. Log: $log"
-  git -C "$build/source" lfs pull 2>&1 | tee -a "$log" || die "Git LFS download failed. Log: $log"
+  git -C "$build/source" lfs install --local --skip-smudge 2>&1 | tee -a "$log" ||
+    die "Git LFS initialization failed. Log: $log"
+  local swift_library first_line
+  for swift_library in "$build/source/src/external/swift"/*.dylib; do
+    [[ -f $swift_library ]] || continue
+    first_line=''
+    IFS= read -r -n 80 first_line < "$swift_library" || true
+    if [[ $first_line == 'version https://git-lfs.github.com/spec/v1' ]]; then
+      rm -- "$swift_library"
+    fi
+  done
+  say "Optional Swift SDK LFS downloads skipped; Roblox's runtime is built from source."
   
   # Configure with live output
   say "Configuring Darling (this may take a few minutes)..."
@@ -463,16 +477,21 @@ PYTHON
 
 do_install() {
   [[ $(uname -m) == x86_64 ]] || die "Darling runs only on x86_64."
-  [[ ! -e $DIR || -d $DIR/.git ]] ||
+  if [[ ! -e $DIR && -d $LEGACY_DIR/.git && -f $LEGACY_DIR/launcher/macoblox/core.py ]]; then
+    say "Migrating the existing MacOBlox checkout to CiderHQ"
+    mv -T --no-clobber -- "$LEGACY_DIR" "$DIR"
+    [[ ! -e $LEGACY_DIR ]] || die "Cider's destination appeared during migration; no files were replaced."
+  fi
+  [[ ! -e $DIR || ( -d $DIR/.git && -f $DIR/launcher/macoblox/core.py ) ]] ||
     die "$DIR already exists without a Git checkout. Move it aside before installing."
   step 1 "Prepare the system tools"
   install_tools
   validate_tools
   ensure_darling
 
-  step 2 "Prepare Mac O' Blox"
+  step 2 "Prepare Cider"
   if [[ -d $DIR/.git ]]; then
-    say "Updating Mac O' Blox"
+    say "Updating Cider"
 
     # Checkouts from before the move to this fork still point at the original
     # repository, which does not have its fixes.
@@ -491,15 +510,15 @@ do_install() {
     git -C "$DIR" reset --hard origin/main
 
   else
-    say "Downloading Mac O' Blox"
+    say "Downloading Cider"
     git clone --filter=blob:none --no-checkout --depth 1 --single-branch --branch main "$REPO" "$DIR"
     configure_launcher_checkout
     git -C "$DIR" reset --hard HEAD
   fi
   step 3 "Build the compatibility libraries"
   say "This can take a few minutes."
-  mkdir -p -- "$CACHE_HOME/macoblox/installer"
-  INSTALL_LOG=$(umask 077; mktemp "$CACHE_HOME/macoblox/installer/build-$(date -u +%Y%m%d-%H%M%S)-XXXXXX.log")
+  mkdir -p -- "$CACHE_HOME/ciderhq/installer"
+  INSTALL_LOG=$(umask 077; mktemp "$CACHE_HOME/ciderhq/installer/build-$(date -u +%Y%m%d-%H%M%S)-XXXXXX.log")
   
   # IMPROVED: Show build output live with tee
   if ! "$DIR/build_debug_shim.sh" 2>&1 | tee "$INSTALL_LOG"; then
@@ -517,15 +536,24 @@ do_install() {
 # ---------------------------------------------------------------- uninstall
 
 # The checkout this script makes: nothing is deleted unless $DIR is one.
-is_installed() { [[ -f $DIR/launcher/macoblox-launcher && -f $DIR/build_debug_shim.sh ]]; }
-installed_version() { sed -n 's/^__version__ = "\(.*\)"/\1/p' "$DIR/launcher/macoblox/__init__.py" 2>/dev/null; }
+is_installed() {
+  [[ -f $DIR/launcher/ciderhq-launcher && -f $DIR/build_debug_shim.sh ]] ||
+    [[ -f $LEGACY_DIR/launcher/macoblox-launcher && -f $LEGACY_DIR/build_debug_shim.sh ]]
+}
+installed_version() {
+  local checkout=$DIR
+  [[ -f $checkout/launcher/macoblox/__init__.py ]] || checkout=$LEGACY_DIR
+  sed -n 's/^__version__ = "\(.*\)"/\1/p' "$checkout/launcher/macoblox/__init__.py" 2>/dev/null
+}
 
 # Removes what do_install and the launcher put on this computer; with an
 # argument, Darling's prefix as well. Darling and the other packages stay.
 do_uninstall() {
   local purge=${1:-}
-  if [[ -e $DIR ]] && ! is_installed; then
-    die "$DIR does not look like Mac O' Blox, so it is left alone."
+  [[ -e $DIR || ! -d $LEGACY_DIR/.git ]] || DIR=$LEGACY_DIR
+  if [[ -e $DIR ]] && ! [[ -f $DIR/build_debug_shim.sh &&
+      ( -f $DIR/launcher/ciderhq-launcher || -f $DIR/launcher/macoblox-launcher ) ]]; then
+    die "$DIR does not look like Cider, so it is left alone."
   fi
   # Nothing in the prefix may change under a running Darling (it keeps
   # showing deleted files), and nothing should run from the folder that goes.
@@ -540,8 +568,15 @@ do_uninstall() {
     say "Removing the launcher, Roblox and Studio (${DIR/#$HOME/\~})"
     rm -rf -- "$DIR"
   fi
-  say "Removing the app menu entries, icons and the macoblox command"
+  say "Removing the app menu entries, icons and the ciderhq command"
   local apps=$DATA_HOME/applications
+  rm -f -- "$apps/org.ciderhq.Cider.desktop" "$apps/org.ciderhq.Cider.URI.desktop" \
+    "$apps/org.ciderhq.Cider.Studio.desktop" "$apps/ciderhq-roblox-window.desktop" \
+    "$DATA_HOME/icons/hicolor/scalable/apps/ciderhq.svg" "$DATA_HOME/mime/packages/org.ciderhq.Cider.xml"
+  local cider_link=$HOME/.local/bin/ciderhq
+  if [[ -L $cider_link && $(readlink "$cider_link") == */ciderhq-launcher ]]; then
+    rm -f -- "$cider_link"
+  fi
   # The xyz.narez.* names are the app ID before 0.15.
   rm -f -- "$apps/wtf.aubree.MacOBlox.desktop" "$apps/wtf.aubree.MacOBlox.URI.desktop" \
     "$apps/wtf.aubree.MacOBlox.Studio.desktop" \
@@ -555,20 +590,22 @@ do_uninstall() {
   fi
   # Studio as the handler of roblox-studio: links and place files.
   if [[ -f $CONFIG_HOME/mimeapps.list ]]; then
-    sed -i -e 's/wtf\.aubree\.MacOBlox\.Studio\.desktop;\{0,1\}//g' \
+    sed -i -e 's/org\.ciderhq\.Cider\.Studio\.desktop;\{0,1\}//g' \
+      -e 's/org\.ciderhq\.Cider\.URI\.desktop;\{0,1\}//g' \
+      -e 's/wtf\.aubree\.MacOBlox\.Studio\.desktop;\{0,1\}//g' \
       -e 's/wtf\.aubree\.MacOBlox\.URI\.desktop;\{0,1\}//g' \
       -e 's/xyz\.narez\.MacOBlox\.Studio\.desktop;\{0,1\}//g' -e '/^[^=[]*=$/d' "$CONFIG_HOME/mimeapps.list"
   fi
   update-mime-database "$DATA_HOME/mime" >/dev/null 2>&1 || true
   update-desktop-database "$apps" >/dev/null 2>&1 || true
   say "Removing settings and cache"
-  rm -rf -- "$CONFIG_HOME/macoblox" "$CACHE_HOME/macoblox"
+  rm -rf -- "$CONFIG_HOME/ciderhq" "$CACHE_HOME/ciderhq" "$CONFIG_HOME/macoblox" "$CACHE_HOME/macoblox"
   if [[ -n $purge && -e $PREFIX ]]; then
     [[ $PREFIX == "$HOME"/?* ]] || die "Darling's prefix $PREFIX is not in your home folder, so it is left alone."
     say "Removing Darling's prefix (${PREFIX/#$HOME/\~}), with your Roblox sign-in"
     rm -rf -- "$PREFIX"
   fi
-  say "Mac O' Blox is uninstalled."
+  say "Cider is uninstalled."
   if command -v darling >/dev/null; then
     printf '    %sDarling stays installed; remove it with your package manager if nothing else uses it.%s\n' \
       "$DIM" "$RESET"
@@ -598,16 +635,7 @@ menu_close() {
 }
 
 banner() {
-  local line shade=0
-  while IFS= read -r line; do
-    printf '  %s%s%s\n' "${SHADES[shade]}" "$line" "$RESET"
-    shade=$((shade + 1))
-  done <<'ART'
- __  __          ___  _   ___ _
-|  \/  |__ _ __ / _  ( ) | _ ) |_____ __
-| |\/| / _` / _| (_) |/  | _ \ / _ \ \ /
-|_|  |_\__,_\__|\___/    |___/_\___/_\_\
-ART
+  printf '\n  %sCIDER%s\n  ciderhq.org\n' "$BOLD" "$RESET"
 }
 
 # choose TEXT ITEM...: a menu of "label|hint" items below TEXT (printf %b).
@@ -677,21 +705,21 @@ choose() {
 menu_main() {
   local text first="Start setup|Review what will be installed"
   if is_installed; then
-    text="  ${BOLD}Welcome back to Mac O' Blox${RESET}
+    text="  ${BOLD}Welcome back to Cider${RESET}
 
   ${GOOD}${ON}${RESET} Version $(installed_version) is installed.
   Keep your launcher and compatibility libraries up to date.
   ${DIM}${DIR/#$HOME/\~}${RESET}"
-    first="Update Mac O' Blox|Review the update plan"
+    first="Update Cider|Review the update plan"
   else
-    text="  ${BOLD}Welcome to Mac O' Blox${RESET}
+    text="  ${BOLD}Welcome to Cider${RESET}
   ${DIM}First setup · 1 of 3${RESET}
 
   Play the macOS Roblox client on your Linux desktop.
   We'll prepare the launcher, Darling and the system tools.
   The launcher will guide you through installing Roblox and signing in."
   fi
-  choose "$text" "$first" "Uninstall|Remove Mac O' Blox from this computer" "Quit|"
+  choose "$text" "$first" "Uninstall|Remove Cider from this computer" "Quit|"
 }
 
 menu_install() {
@@ -702,7 +730,7 @@ menu_install() {
 
 $(setup_plan)" "Continue|Confirm this setup plan" "Back|Return to the welcome screen"
     [[ $CHOICE == 0 ]] || return 1
-    choose "  ${BOLD}Ready to ${operation,,} Mac O' Blox${RESET}
+    choose "  ${BOLD}Ready to ${operation,,} Cider${RESET}
   ${DIM}Setup · 3 of 3${RESET}
 
   Destination: ${DIR/#$HOME/\~}
@@ -710,7 +738,7 @@ $(setup_plan)" "Continue|Confirm this setup plan" "Back|Return to the welcome sc
   You'll see progress for each step. System packages may request sudo.
 
   ${DIM}Begin when you're ready.${RESET}" \
-      "$operation Mac O' Blox|Begin setup" "Back|Review the plan again"
+      "$operation Cider|Begin setup" "Back|Review the plan again"
     case $CHOICE in
       0) return 0 ;;
       1) ;;
@@ -725,7 +753,7 @@ menu_uninstall() {
   local where=${DIR/#$HOME/\~} prefix=${PREFIX/#$HOME/\~}
   choose "  ${BOLD}Uninstall removes${RESET}
     ${BULLET} $where (the launcher, Roblox, Studio)
-    ${BULLET} the app menu entries, icons and the macoblox command
+    ${BULLET} the app menu entries, icons and the ciderhq command
     ${BULLET} settings and cache
 
   ${DIM}Darling stays installed. Its prefix, $prefix, holds your Roblox sign-in.${RESET}" \
@@ -749,19 +777,19 @@ menu_uninstall() {
 
 usage() {
   cat <<USAGE
-Mac O' Blox installer
+Cider installer
 
   install.sh               a menu in a terminal; without one, install or update
   install.sh --install     review the setup plan, then install or update
   install.sh --update      same as --install
   install.sh --install --yes
                            install or update without setup prompts
-  install.sh --uninstall   remove Mac O' Blox (asks first, unless --yes)
+  install.sh --uninstall   remove Cider (asks first, unless --yes)
   install.sh --uninstall --purge
                            also delete Darling's prefix, ${PREFIX/#$HOME/\~} (your Roblox sign-in)
 
 With curl, options go after "bash -s --":
-  curl -fsSL https://raw.githubusercontent.com/aubree-lat/MacOBlox/main/install.sh | bash -s -- --uninstall
+  curl -fsSL https://ciderhq.org/install.sh | bash -s -- --uninstall
 USAGE
 }
 
@@ -813,7 +841,7 @@ main() {
     banner
   elif [[ $action == uninstall && -z $assume_yes ]]; then
     [[ -n $terminal ]] || die "Not uninstalling without a terminal to ask in; add --yes."
-    local answer='' what="Mac O' Blox"
+    local answer='' what="Cider"
     [[ -n $PURGE ]] && what+=" and Darling's prefix ${PREFIX/#$HOME/\~}"
     printf 'Remove %s? [y/N] ' "$what"
     IFS= read -r answer || true

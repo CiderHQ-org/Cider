@@ -99,7 +99,7 @@ static Method macoblox_input_owned_method(Class cls, const char *name,
             }
     free(methods);
     if (!found) {
-        write_str("[MacOBlox] UI scale: unsupported InputCapture ");
+        write_str("[Cider] UI scale: unsupported InputCapture ");
         write_str(name);
         write_str(" method encoding\n");
     }
@@ -358,7 +358,7 @@ static const unsigned char *macoblox_input_find_wrapper(const MacOBloxInputImage
     }
     if (found) return found;
 unsupported:
-    write_str("[MacOBlox] UI scale: unsupported InputCapture ");
+    write_str("[Cider] UI scale: unsupported InputCapture ");
     write_str(name);
     write_str(" mouse handoff signature\n");
     return 0;
@@ -509,7 +509,7 @@ static int macoblox_install_input_scale_hooks(void) {
         macoblox_input_find_scroll_wrapper(&image, magnify) != scroll_wrapper ||
         !macoblox_input_scroll_wrapper(&image, scroll_wrapper, &scroll_source, &scroll_inner) ||
         scroll_source != move_source || !macoblox_input_override_abi(&image, override)) {
-        write_str("[MacOBlox] UI scale skipped: unsupported scroll or locked mouse position handoff\n");
+        write_str("[Cider] UI scale skipped: unsupported scroll or locked mouse position handoff\n");
         return -1;
     }
     int page_size = getpagesize();
@@ -530,7 +530,7 @@ static int macoblox_install_input_scale_hooks(void) {
         if (mprotect((void *)pages[index], page_size, 7)) {
             for (unsigned int previous = 0; previous < index; ++previous)
                 if (mprotect((void *)pages[previous], page_size, 5))
-                    write_str("[MacOBlox] UI scale: client text protection restore failed\n");
+                    write_str("[Cider] UI scale: client text protection restore failed\n");
             return -2;
         }
     macoblox_mouse_source = move_source;
@@ -551,7 +551,7 @@ static int macoblox_install_input_scale_hooks(void) {
     /* The adapters are safe passthroughs at 1x if permission restoration
      * fails. Keep synthetic UI scaling disabled in that failure case. */
     if (!restored)
-        write_str("[MacOBlox] UI scale disabled: client text protection restore failed; mouse adapters remain 1x\n");
+        write_str("[Cider] UI scale disabled: client text protection restore failed; mouse adapters remain 1x\n");
     if (restored)
         method_setImplementation(override, (IMP)macoblox_scaled_position_override);
     return restored ? 1 : -2;

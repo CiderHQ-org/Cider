@@ -4,16 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#000000">
-  <meta name="description" content="MacOBlox brings the macOS Roblox client to Linux through Darling. Free, open source">
-  <meta property="og:title" content="MacOBlox — Roblox on Linux">
+  <meta name="description" content="Cider brings the macOS Roblox client to Linux through Darling. Free, open source">
+  <meta property="og:title" content="Cider — Roblox on Linux">
   <meta property="og:description" content="it runs on darling, and ITS FREE!!! (like that roblox slogan)">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://macoblox.aubree.wtf/">
-  <link rel="canonical" href="https://macoblox.aubree.wtf/">
-  <link rel="icon" href="assets/favicon.png" type="image/png">
+  <meta property="og:url" content="https://ciderhq.org/">
+  <link rel="canonical" href="https://ciderhq.org/">
+  <link rel="icon" href="assets/cider.svg" type="image/svg+xml">
   <link rel="preload" href="assets/fonts/Archivo.ttf" as="font" type="font/ttf" crossorigin>
   <link rel="stylesheet" href="style.css">
-  <title>MacOBlox — Roblox on Linux</title>
+  <title>Cider — Roblox on Linux</title>
   <script src="assets/vendor/p5.min.js" defer></script>
   <script src="assets/vendor/vanta.topology.min.js" defer></script>
   <script src="background.js" defer></script>
@@ -25,7 +25,7 @@
     <section class="window" id="about" aria-labelledby="about-title">
       <header class="window-bar"><span>about</span><a href="https://github.com/aubree-lat/MacOBlox/releases/latest">latest release</a></header>
       <div class="window-body">
-        <img class="wordmark" src="assets/wordmark.png" width="1200" height="286" alt="Mac O’ Blox">
+        <img class="wordmark" src="assets/cider-wordmark.svg" width="620" height="150" alt="Cider">
         <h1 id="about-title">MacOS Roblox Client, but on Linux. :3</h1>
         <p>The macOS Roblox client, running on your Linux desktop through Darling.</p>
         <div class="tags"><span>free &amp; open source</span></div>
@@ -45,15 +45,15 @@
         <button class="preview-tab" id="tab-roblox" role="tab" aria-selected="true" aria-controls="preview-roblox" tabindex="0" type="button">Roblox</button>
         <button class="preview-tab" id="tab-launcher" role="tab" aria-selected="false" aria-controls="preview-launcher" tabindex="-1" type="button">Launcher</button>
       </div>
-      <div class="preview-image" id="preview-roblox" role="tabpanel" aria-labelledby="tab-roblox" tabindex="0"><img src="assets/roblox.png" width="1920" height="1080" alt="The Roblox home screen running through Mac O’ Blox on Linux" fetchpriority="high"></div>
-      <div class="preview-image" id="preview-launcher" role="tabpanel" aria-labelledby="tab-launcher" tabindex="0" hidden><img src="assets/launcher.png" width="1100" height="740" alt="The Mac O’ Blox launcher with install status and play controls" loading="lazy"></div>
+      <div class="preview-image" id="preview-roblox" role="tabpanel" aria-labelledby="tab-roblox" tabindex="0"><img src="assets/roblox.png" width="1920" height="1080" alt="The Roblox home screen running through Cider on Linux" fetchpriority="high"></div>
+      <div class="preview-image" id="preview-launcher" role="tabpanel" aria-labelledby="tab-launcher" tabindex="0" hidden><img src="assets/launcher.png" width="1100" height="740" alt="Launcher preview from before the Cider rebrand" loading="lazy"></div>
     </section>
 
     <section class="window" id="install" aria-labelledby="install-title">
       <header class="window-bar"><h2 id="install-title">install</h2><a href="https://github.com/aubree-lat/MacOBlox#install">guide</a></header>
       <div class="window-body">
         <p>you paste this in your terminal and you run it, so simple right?</p>
-        <div class="command-box"><code id="install-command">curl -fsSL https://raw.githubusercontent.com/aubree-lat/MacOBlox/main/install.sh | bash</code></div>
+        <div class="command-box"><code id="install-command">curl -fsSL https://ciderhq.org/install.sh | bash</code></div>
         <div class="install-actions">
           <button class="button" id="copy-command" type="button" aria-label="Copy installation command" hidden>copy</button>
         </div>

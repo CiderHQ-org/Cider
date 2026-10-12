@@ -243,7 +243,7 @@ void macoblox_wait_end(int slot) {
 
 static void report_wait(long tid, unsigned long long waited, const char *what, const char *where) {
     char line[1400];
-    int length = snprintf(line, sizeof line, "[MacOBlox Lock] thread %ld waiting %llu ms for a mutex, %s%s%s\n",
+    int length = snprintf(line, sizeof line, "[Cider Lock] thread %ld waiting %llu ms for a mutex, %s%s%s\n",
                           tid, waited / 1000000ULL, what, where ? "; at: " : "", where ? where : "");
     if (length > 0)
         write(2, line, (size_t)length < sizeof line ? (size_t)length : sizeof line - 1);

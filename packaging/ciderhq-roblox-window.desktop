@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
-Name=Roblox (Mac O’ Blox)
-Exec=macoblox
-Icon=macoblox
+Name=Roblox (Cider)
+Exec=ciderhq
+Icon=ciderhq
 NoDisplay=true
 StartupWMClass=RobloxPlayer

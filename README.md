@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="branding/wordmark-dark.png">
-    <img src="branding/wordmark-light.png" alt="Mac O’ Blox" width="520">
+    <source media="(prefers-color-scheme: dark)" srcset="branding/cider-wordmark.svg">
+    <img src="branding/cider-wordmark-light.svg" alt="Cider" width="520">
   </picture>
 </p>
 
@@ -20,33 +20,47 @@ Full graphics with antialiasing, sound, camera and mouse lock, a session that
 survives restarts, and a small launcher with fast flags. Roblox Studio too, in
 its Windows version through Wine. English and Russian.
 
+## Cider migration
+
+Cider is the new name for MacOBlox. The terminal command and native package
+name are **`ciderhq`**, the desktop ID is `org.ciderhq.Cider`, and the website
+is [ciderhq.org](https://ciderhq.org).
+
+The source installer moves its old `~/.local/share/MacOBlox` checkout to
+`~/.local/share/CiderHQ`. The launcher migrates `~/.config/macoblox` and
+`~/.cache/macoblox` to `ciderhq`, and its Darling session files from
+`Library/MacOBlox` to `Library/CiderHQ`. Existing Cider data is never replaced.
+Settings, Roblox/Studio files and saved sign-in stay available. Internal shim
+filenames and `MACOBLOX_*` environment variables retain their compatibility
+names; the GitHub repository currently remains `aubree-lat/MacOBlox`.
+
 ## Install
 
-Version **0.21patch1** is a source release. Use the installer below to install or update.
+Version **0.22** is a source release. Use the installer below to install or update.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/aubree-lat/MacOBlox/main/install.sh | bash
+curl -fsSL https://ciderhq.org/install.sh | bash
 ```
 
 The installer welcomes you and explains the packages, destination and setup
-steps before you begin. It prepares Darling and adds **Mac O’ Blox** to the
+steps before you begin. It prepares Darling and adds **Cider** to the
 app menu. Open it for a first-time guide that downloads Roblox, prepares its
 app environment, and explains how to sign in. Existing Roblox installations
 open the launcher directly; **Setup guide** in its menu reopens the guide.
 
 Run the same command again to update or uninstall. Updates save local source
-changes in `~/.local/share/MacOBlox-backups` (or your XDG data directory) and
+changes in `~/.local/share/CiderHQ-backups` (or your XDG data directory) and
 keep settings and sign-in. Without a terminal, or for scripts, the choices
 are options too:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/aubree-lat/MacOBlox/main/install.sh | bash -s -- --uninstall
+curl -fsSL https://ciderhq.org/install.sh | bash -s -- --uninstall
 ```
 
-Arch package recipes for the stable `macoblox` release and `macoblox-git` are
+Arch package recipes for the stable `ciderhq` release and `ciderhq-git` are
 in [packaging/aur](packaging/aur/README.md). They build the shim at package
-creation and install system menu entries. The stable recipe is prepared for
-AUR submission; `macoblox-git` already has an AUR listing.
+creation and install system menu entries. The stable recipe is generated from a checksum-verified source archive.
+The new package names still need submission to the AUR.
 
 [Native distro packaging](packaging/README.md) also includes a Debian/Ubuntu
 overlay and a Fedora/openSUSE RPM spec, with pinned source preparation and
@@ -75,7 +89,7 @@ sudo pacman -S clang lld unzip pipewire-audio python-gobject gtk4 libadwaita web
 
 Debian, Ubuntu, Mint: download `debs_20260608.zip` from the
 [Darling release v0.1.20260608](https://github.com/darlinghq/darling/releases/tag/v0.1.20260608)
-(the one Mac O’ Blox is tested with), then:
+(the one Cider is tested with), then:
 
 ```bash
 unzip debs_*.zip -d darling-debs
@@ -90,12 +104,12 @@ Fedora and others: build Darling with the
 sudo dnf install clang lld unzip pipewire-utils python3-gobject gtk4 libadwaita webkitgtk6.0
 ```
 
-**2. Mac O’ Blox**
+**2. Cider**
 
 ```bash
 git clone --filter=blob:none --no-checkout --depth 1 --single-branch --branch main \
-  https://github.com/aubree-lat/MacOBlox ~/.local/share/MacOBlox
-git -C ~/.local/share/MacOBlox sparse-checkout set --no-cone --stdin <<'PATTERNS'
+  https://github.com/aubree-lat/MacOBlox ~/.local/share/CiderHQ
+git -C ~/.local/share/CiderHQ sparse-checkout set --no-cone --stdin <<'PATTERNS'
 /*
 !/website/
 !/.github/
@@ -103,8 +117,8 @@ git -C ~/.local/share/MacOBlox sparse-checkout set --no-cone --stdin <<'PATTERNS
 !/.vercel/
 !/.vercelignore
 PATTERNS
-git -C ~/.local/share/MacOBlox reset --hard HEAD
-~/.local/share/MacOBlox/launcher/install.sh
+git -C ~/.local/share/CiderHQ reset --hard HEAD
+~/.local/share/CiderHQ/launcher/install.sh
 ```
 </details>
 
@@ -115,10 +129,10 @@ git -C ~/.local/share/MacOBlox reset --hard HEAD
 
 You sign in inside Roblox itself, the launcher never sees your password. The
 session is stored only on your computer, in
-`~/.darling/Users/$USER/Library/MacOBlox`. Do not share that folder, it works
+`~/.darling/Users/$USER/Library/CiderHQ`. Do not share that folder, it works
 like a password. **Sign out** in the settings deletes it.
 
-Mac O’ Blox is not made by Roblox, using it is at your own risk.
+Cider is not made by Roblox, using it is at your own risk.
 </details>
 
 <details>
@@ -126,17 +140,17 @@ Mac O’ Blox is not made by Roblox, using it is at your own risk.
 
 When Roblox does not start, the launcher shows the error with a **Copy**
 button. Send it to the [Discord](https://discord.gg/jCjHYYNq48). The last
-error is also saved in `~/.cache/macoblox/last-error.txt`.
+error is also saved in `~/.cache/ciderhq/last-error.txt`.
 </details>
 
 <details>
 <summary>How do I sign in?</summary>
 
 Signing up and signing in with a password show a captcha in a web page, which
-Darling cannot display; Mac O’ Blox opens it in a window of its own instead
+Darling cannot display; Cider opens it in a window of its own instead
 (it needs WebKitGTK 6.0, which the installer brings along). Without that
 window, create the account on [roblox.com](https://www.roblox.com) first and
-sign in in Mac O’ Blox with **Quick Login**: Roblox shows a code, enter it on a
+sign in in Cider with **Quick Login**: Roblox shows a code, enter it on a
 phone or in a browser where you are already signed in.
 </details>
 
@@ -151,7 +165,7 @@ Quad9 or Cloudflare. Only Roblox uses it, the rest of the system keeps its DNS.
 <summary>OpenGL and Vulkan rendering</summary>
 
 **OpenGL** is the default and uses Roblox's own OpenGL renderer with the host
-OpenGL driver. Mac O’ Blox hides the Metal device so Roblox selects this path.
+OpenGL driver. Cider hides the Metal device so Roblox selects this path.
 Client startup was verified on NVIDIA OpenGL 4.1 using the client's GLSL shader
 pack.
 
@@ -179,7 +193,7 @@ backends.
 With [MangoHud](https://github.com/flightlessmango/MangoHud) installed, enable
 **Settings → Environment → Game → MangoHud overlay** and restart Roblox.
 It works with both OpenGL and Vulkan (Zink) and is off by default. You can also
-start the source launcher with `MANGOHUD=1 ./launcher/macoblox-launcher`.
+start the source launcher with `MANGOHUD=1 ./launcher/ciderhq-launcher`.
 The launcher also forwards `MANGOHUD_CONFIG` and `MANGOHUD_CONFIGFILE` to Roblox.
 For the Flatpak, install the matching MangoHud extension with
 `flatpak install flathub org.freedesktop.Platform.VulkanLayer.MangoHud//26.08`
@@ -209,7 +223,7 @@ Set **Settings → Environment → Game → Roblox UI scale** to **200%** for a
 display's rendering resolution. Adjust it to suit your monitor.
 
 For a manual settings edit, `"dpi_scale": 2.0` in
-`~/.config/macoblox/settings.json` selects 200%. The `resolution` key is not
+`~/.config/ciderhq/settings.json` selects 200%. The `resolution` key is not
 supported. If you previously added `DFFlagDisableDPIScale`, remove it from your
 custom fast flags before testing scaling.
 
@@ -223,7 +237,7 @@ original relative deltas.
 <details>
 <summary>Error 256 or an unknown connection error when joining a server</summary>
 
-Update MacOBlox and restart Roblox. The launcher applies verified RakNet
+Update Cider and restart Roblox. The launcher applies verified RakNet
 compatibility patches for Roblox **0.741.0.7411056** and **0.742.0.7421053**.
 The launch log includes **RakNet compatibility** and **Roblox version**.
 If compatibility says **unsupported client**, share those lines and the full
@@ -248,11 +262,11 @@ the log. It cannot capture an external kill or every Darling server failure.
 For source installations, the same switch is available as:
 
 ```bash
-MACOBLOX_DIAGNOSTIC_SIGNALS=1 ./launcher/macoblox-launcher
+MACOBLOX_DIAGNOSTIC_SIGNALS=1 ./launcher/ciderhq-launcher
 ```
 
 Source checkouts write launch logs to their `logs/` directory; read-only
-packages use `~/.local/share/macoblox/logs/` by default. For Flatpak,
+packages use `~/.local/share/ciderhq/logs/` by default. For Flatpak,
 use `~/.var/app/wtf.aubree.MacOBlox/data/macoblox/logs/`. Also collect
 `private/var/log/dserver.log` inside the selected Darling prefix: normally
 `~/.darling/`, or `~/.var/app/wtf.aubree.MacOBlox/data/darling/` for Flatpak.
@@ -274,7 +288,7 @@ account enrollment.
 <summary>No sound with older PipeWire</summary>
 
 PipeWire 1.0.5's `pw-cat` cannot play the launcher's raw audio stream.
-Mac O’ Blox uses `pacat` through PipeWire's PulseAudio compatibility server on
+Cider uses `pacat` through PipeWire's PulseAudio compatibility server on
 these versions. On Mint/Ubuntu/Debian, install it with
 `sudo apt install pulseaudio-utils`, then restart Roblox. The source installer
 includes this package. The launch log records the playback helper and its
@@ -298,7 +312,7 @@ For a source installation, close the launcher and start it with optional
 selection diagnostics:
 
 ```bash
-MACOBLOX_TRACE_TEXT_INPUT=1 ./launcher/macoblox-launcher
+MACOBLOX_TRACE_TEXT_INPUT=1 ./launcher/ciderhq-launcher
 ```
 
 The trace records text lengths, selection ranges and composition state in
@@ -320,7 +334,7 @@ presentation is still unfinished. Use X11 / Xwayland for normal gameplay.
 Press **Roblox Studio** in the launcher. The first time it downloads Wine, DXVK
 and Studio (about 800 MB) into its own folder, nothing is installed system-wide.
 To sign in, Studio opens the Roblox login in your browser; when the browser asks
-how to open the `roblox-studio-auth` link, choose **Roblox Studio (Mac O’ Blox)**.
+how to open the `roblox-studio-auth` link, choose **Roblox Studio (Cider)**.
 </details>
 
 <details>
@@ -328,7 +342,7 @@ how to open the `roblox-studio-auth` link, choose **Roblox Studio (Mac O’ Blox
 
 The Flatpak brings Darling along and runs it without root (see
 [flatpak/darling-noroot.c](flatpak/darling-noroot.c)), so nothing has to be
-installed on the system. Version 0.21patch1 does not include a Flatpak bundle.
+installed on the system. Version 0.22 does not include a Flatpak bundle.
 The last testing bundle is available in
 [release 0.19](https://github.com/aubree-lat/MacOBlox/releases/tag/v0.19):
 
@@ -347,7 +361,7 @@ than the previous GNOME runtime recipe. To build it yourself:
 ```bash
 flatpak install --user flathub org.flatpak.Builder org.freedesktop.Platform//26.08 org.freedesktop.Sdk//26.08 org.freedesktop.Sdk.Extension.llvm22//26.08
 cd MacOBlox/flatpak
-flatpak run --env=FLATPAK_USER_DIR=$HOME/.local/share/flatpak --command=flatpak-builder org.flatpak.Builder --user --install --force-clean build-dir wtf.aubree.MacOBlox.yml
+flatpak run --env=FLATPAK_USER_DIR=$HOME/.local/share/flatpak --command=flatpak-builder org.flatpak.Builder --user --install --force-clean build-dir org.ciderhq.Cider.yml
 ```
 </details>
 
@@ -355,7 +369,7 @@ flatpak run --env=FLATPAK_USER_DIR=$HOME/.local/share/flatpak --command=flatpak-
 <summary>How does it work?</summary>
 
 Darling runs macOS programs on Linux. Roblox needs a few things Darling does not
-have yet, so Mac O’ Blox adds a small library to the game: it connects the mouse,
+have yet, so Cider adds a small library to the game: it connects the mouse,
 sound, OpenGL and network to Linux and fixes bugs along the way. Details are in
 [docs/NOTES.md](docs/NOTES.md).
 </details>
@@ -371,4 +385,4 @@ Made by [Narezany](https://github.com/narezy). This version is maintained by
 [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) fonts in the launcher (SIL OFL) ·
 icons from [Simple Icons](https://simpleicons.org)
 
-Mac O’ Blox is MIT licensed. Not affiliated with Roblox Corporation.
+Cider is MIT licensed. Not affiliated with Roblox Corporation.

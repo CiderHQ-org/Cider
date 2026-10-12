@@ -31,3 +31,4 @@ __pycache__/
 
 # Local Vercel project settings
 /.vercel/
+/website/dist/install.sh

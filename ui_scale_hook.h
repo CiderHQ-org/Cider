@@ -28,13 +28,13 @@ static MacOBloxSurfaceSettings macoblox_scaled_surface_settings(id self, SEL cmd
     macoblox_input_scale_set(changed > 0 ? (double)settings.scale / before : 1.0);
     if (!allowed) {
         if (!__atomic_exchange_n(&macoblox_surface_scale_override_warned, 1, __ATOMIC_RELAXED))
-            write_str("[MacOBlox] UI scale skipped: client DebugOverrideDPIScale is enabled\n");
+            write_str("[Cider] UI scale skipped: client DebugOverrideDPIScale is enabled\n");
     } else if (changed < 0) {
         if (!__atomic_exchange_n(&macoblox_surface_scale_invalid_warned, 1, __ATOMIC_RELAXED))
-            write_str("[MacOBlox] UI scale: invalid original surface scale preserved\n");
+            write_str("[Cider] UI scale: invalid original surface scale preserved\n");
     } else if (changed > 0 &&
                !__atomic_exchange_n(&macoblox_surface_scale_applied_logged, 1, __ATOMIC_RELAXED)) {
-        write_str("[MacOBlox] Roblox UI scale and mouse position compensation applied\n");
+        write_str("[Cider] Roblox UI scale and mouse position compensation applied\n");
     }
     return settings;
 }
@@ -71,7 +71,7 @@ static void macoblox_install_surface_scale_hook(void) {
     IMP original = method && macoblox_surface_settings_abi_matches(method_getTypeEncoding(method))
         ? method_getImplementation(method) : 0;
     if (!original || original == (IMP)macoblox_scaled_surface_settings) {
-        write_str("[MacOBlox] UI scale skipped: unsupported client surface-settings method\n");
+        write_str("[Cider] UI scale skipped: unsupported client surface-settings method\n");
         __atomic_store_n(&macoblox_surface_scale_install_state, 2, __ATOMIC_RELEASE);
         return;
     }
@@ -79,8 +79,8 @@ static void macoblox_install_surface_scale_hook(void) {
     if (input_hooks <= 0) {
         if (input_hooks < 0)
             write_str(input_hooks == -2
-                ? "[MacOBlox] UI scale skipped: client mouse text protection unavailable\n"
-                : "[MacOBlox] UI scale skipped: unsupported client mouse input ABI\n");
+                ? "[Cider] UI scale skipped: client mouse text protection unavailable\n"
+                : "[Cider] UI scale skipped: unsupported client mouse input ABI\n");
         __atomic_store_n(&macoblox_surface_scale_install_state,
                          input_hooks == 0 ? 0 : 2, __ATOMIC_RELEASE);
         return;
@@ -90,6 +90,6 @@ static void macoblox_install_surface_scale_hook(void) {
                      (MacOBloxSurfaceSettings (*)(id, SEL))original, __ATOMIC_RELEASE);
     method_setImplementation(method, (IMP)macoblox_scaled_surface_settings);
     __atomic_store_n(&macoblox_surface_scale_install_state, 2, __ATOMIC_RELEASE);
-    write_str("[MacOBlox] UI scale: guarded client mouse adapters installed\n");
+    write_str("[Cider] UI scale: guarded client mouse adapters installed\n");
 }
 #endif

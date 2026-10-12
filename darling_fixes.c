@@ -424,9 +424,9 @@ __attribute__((constructor)) static void macoblox_reset_workqueue_stacks(void) {
         if (matches == 1) {
             macoblox_wqthread_original = entry;
             __atomic_store_n(found, (void *)macoblox_start_wqthread, __ATOMIC_RELEASE);
-            macoblox_log("[MacOBlox] GCD worker threads restart on a fresh stack\n");
+            macoblox_log("[Cider] GCD worker threads restart on a fresh stack\n");
         } else {
-            macoblox_log("[MacOBlox] Darling's workqueue entry not found, GCD worker stacks unchanged\n");
+            macoblox_log("[Cider] Darling's workqueue entry not found, GCD worker stacks unchanged\n");
         }
         return;
     }

@@ -45,7 +45,19 @@ RELEASES = (Release(
                "9d13523b7b5076b2949bad827db313204a074e27720e978332227721e261b4bd",
                (2541,), (0x52C, 0x54B)),
     ),
-),)
+), Release(
+    # Official 0.742.0.7421053 pack: identical affected sources, moved tables.
+    4558808,
+    "70c10f51c054748e409e7e8bca3ed894052c08718f34ba37c9dbc482358216df",
+    (
+        Source(0x3A4036, 21402,
+               "9f113af818c8b2df6a584edc16f323326878cf9d20ef5e034790c9a69d2573df",
+               (2568, 2569, 2570), (0x52C, 0x54B)),
+        Source(0x3A93D0, 21572,
+               "9d13523b7b5076b2949bad827db313204a074e27720e978332227721e261b4bd",
+               (2571,), (0x52C, 0x54B)),
+    ),
+))
 
 
 def _validate_layout(data, sources):

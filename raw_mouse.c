@@ -85,7 +85,7 @@ static int resolve(void) {
     struct elf_calls_head **table = dlsym(RTLD_DEFAULT, "_elfcalls");
     void *xi = table && *table && (*table)->dlopen ? (*table)->dlopen("libXi.so.6") : 0;
     if (!xi) {
-        log_line("[MacOBlox Input] host libXi.so.6 not found, no raw mouse motion\n");
+        log_line("[Cider Input] host libXi.so.6 not found, no raw mouse motion\n");
         return 0;
     }
     xi_query_version = (*table)->dlsym(xi, "XIQueryVersion");
@@ -101,7 +101,7 @@ static int resolve(void) {
     x_flush = (*table)->dlsym(x11, "XFlush");
     if (!xi_query_version || !xi_select_events || !x_query_extension || !x_default_root_window ||
         !x_get_event_data || !x_free_event_data) {
-        log_line("[MacOBlox Input] XInput 2 functions missing, no raw mouse motion\n");
+        log_line("[Cider Input] XInput 2 functions missing, no raw mouse motion\n");
         return 0;
     }
     resolved = 1;
@@ -119,7 +119,7 @@ int macoblox_raw_mouse_select(void *display, int enabled) {
         if (!x_query_extension(display, "XInputExtension", &xi_opcode, &event, &error) ||
             xi_query_version(display, &major, &minor) != 0 || major < 2 || (major == 2 && minor < 1)) {
             xi_opcode = -1;
-            log_line("[MacOBlox Input] the X server has no XInput 2.1, no raw mouse motion\n");
+            log_line("[Cider Input] the X server has no XInput 2.1, no raw mouse motion\n");
             return 0;
         }
         xi_display = display;
@@ -147,7 +147,7 @@ int macoblox_raw_mouse_event(void *display, void *event, double *dx, double *dy)
     if (!cookie->data && !x_get_event_data(display, cookie)) {
         static unsigned int failures;
         if (failures++ < 3)
-            log_line("[MacOBlox Input] XI2 event cookie unavailable; waiting for motion or pointer fallback\n");
+            log_line("[Cider Input] XI2 event cookie unavailable; waiting for motion or pointer fallback\n");
         return 1;
     }
     struct raw_event *raw = cookie->data;

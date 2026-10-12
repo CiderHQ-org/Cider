@@ -1,34 +1,5 @@
 #!/usr/bin/env python3
-"""Mac O’ Blox launcher entry point."""
-import sys
+"""Compatibility entry point for existing MacOBlox shortcuts."""
+import runpy
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-# `macoblox --studio [link or file]` opens Roblox Studio directly; the system
-# calls it for roblox-studio: and roblox-studio-auth: links (sign in).
-if sys.argv[1:2] == ["--studio"]:
-    from macoblox import studio  # noqa: E402
-    if not studio.needs_install():
-        studio.launch(sys.argv[2:])
-        sys.exit(0)
-
-# Linux has no LaunchServices. Keep the browser's Roblox argument opaque and
-# let the normal launcher process consume it once Darling is ready. Writing it
-# before starting GTK also covers a second protocol click while the first
-# launch is still preparing the prefix. Desktop entries pass the URI directly;
-# retain --uri as a compatibility spelling for older local entries.
-if len(sys.argv) == 2 and not sys.argv[1].startswith("-"):
-    from macoblox import uri  # noqa: E402
-    uri.receive(sys.argv[1])
-
-if sys.argv[1:2] == ["--uri"]:
-    if len(sys.argv) != 3:
-        print("macoblox --uri requires one URI", file=sys.stderr)
-        sys.exit(2)
-    from macoblox import uri  # noqa: E402
-    uri.receive(sys.argv[2])
-
-from macoblox.app import main  # noqa: E402
-
-sys.exit(main())
+runpy.run_path(str(Path(__file__).with_name("ciderhq-launcher")), run_name="__main__")

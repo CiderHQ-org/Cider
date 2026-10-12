@@ -1,4 +1,4 @@
-"""Backend of the Mac O’ Blox launcher: paths, settings, fast flags, Roblox
+"""Backend of the Cider launcher: paths, settings, fast flags, Roblox
 updates and running the macOS client through Darling. No GTK here."""
 
 import csv
@@ -28,12 +28,12 @@ from . import __version__
 from .gpus import GPU_ENVIRONMENT
 from .i18n import _
 from .rootless_scope import rootless_process_in_prefix
+from .paths import migrate_directory, user_directory
 
 PROJECT = Path(__file__).resolve().parents[2]
 # Everything the launcher writes: the project folder for a git checkout, the
 # user's data folder when the sources are installed read-only (a package).
-DATA_DIR = (PROJECT if os.access(PROJECT, os.W_OK) else
-            Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "macoblox")
+DATA_DIR = PROJECT if os.access(PROJECT, os.W_OK) else user_directory("DATA")
 APP_BUNDLE = DATA_DIR / "RobloxPlayer.app"
 BUILD_DIR = DATA_DIR / "build"
 # A package may ship the shim built already (the Flatpak has no compiler).
@@ -65,8 +65,8 @@ DOWNLOADS = DATA_DIR / "downloads"
 ICONS = PROJECT / "branding" / "icons"
 FAST_FLAGS = APP_BUNDLE / "Contents" / "MacOS" / "ClientSettings" / "ClientAppSettings.json"
 
-CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "macoblox"
-CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "macoblox"
+CONFIG_DIR = user_directory("CONFIG")
+CACHE_DIR = user_directory("CACHE")
 # Written by the shim when Roblox starts terminating; see RobloxSession.poll.
 QUIT_SENTINEL = CACHE_DIR / "game-closing"
 SETTINGS_FILE = CONFIG_DIR / "settings.json"
@@ -74,9 +74,11 @@ SETTINGS_FILE = CONFIG_DIR / "settings.json"
 WEB_DATA_DIR = CONFIG_DIR / "web"
 
 DARLING_HOME = DARLING_PREFIX / "Users" / os.environ.get("USER", "user")
+SESSION_DIR = migrate_directory(DARLING_HOME / "Library" / "MacOBlox",
+                                DARLING_HOME / "Library" / "CiderHQ")
 SESSION_FILES = [
-    DARLING_HOME / "Library" / "MacOBlox" / "Cookies.plist",
-    DARLING_HOME / "Library" / "MacOBlox" / "Keychain",
+    SESSION_DIR / "Cookies.plist",
+    SESSION_DIR / "Keychain",
 ]
 
 VERSION_URL = "https://clientsettingscdn.roblox.com/v2/client-version/MacPlayer"
@@ -292,7 +294,7 @@ def parse_version_tuple(ver):
 
 
 def check_launcher_update():
-    """Checks GitHub for a newer release of Mac O’ Blox.
+    """Checks GitHub for a newer release of Cider.
     Returns (has_update, latest_version_string, release_url); raises when
     GitHub cannot be reached, so a failed check is not reported as up to date."""
     req = urllib.request.Request(LAUNCHER_RELEASE_URL, headers={"User-Agent": "MacOBlox"})
@@ -310,7 +312,7 @@ def _git(*args, input=None):
 
 
 def update_launcher(progress=None):
-    """Updates Mac O’ Blox the way install.sh does: pulls the checkout
+    """Updates Cider the way install.sh does: pulls the checkout
     (fast-forward only, so a failed update never leaves a half merge),
     rebuilds the shim and reinstalls the menu entries. Returns (True,
     message), or (False, release page) when this is not a git checkout
@@ -350,9 +352,9 @@ def update_launcher(progress=None):
                        capture_output=True)
 
     if progress:
-        progress(1.0, _("Mac O’ Blox updated successfully"))
+        progress(1.0, _("Cider updated successfully"))
     # This process keeps running the code it started with.
-    return True, _("Mac O’ Blox updated. Restart it to use the new version.")
+    return True, _("Cider updated. Restart it to use the new version.")
 
 
 def update_roblox(upload, progress=None, expected_version=None):
@@ -567,16 +569,20 @@ def ensure_shader_compatibility():
     """Repair the verified GLSL pack's HeightmapDebugPS parser failure."""
     pack = APP_BUNDLE / "Contents" / "Resources" / "shaders" / "shaders_glsl3.pack"
     if not pack.is_file():
-        return
+        return "shader pack not installed"
     try:
         from .shader_patches import apply_shader_patch
         status = apply_shader_patch(pack)
         if status.startswith("unsupported"):
+            data = pack.read_bytes()
+            status += f"; size={len(data)}; sha256={hashlib.sha256(data).hexdigest()}"
             logging.getLogger("macoblox").warning("GLSL compatibility: %s", status)
         elif status == "patched":
             logging.getLogger("macoblox").info("Verified HeightmapDebugPS shader compatibility repair applied")
+        return status
     except Exception as e:
         logging.getLogger("macoblox").warning("Failed to ensure GLSL compatibility: %s", e)
+        return f"compatibility preparation failed: {e}"
 
 
 def delete_roblox():
@@ -1496,16 +1502,17 @@ def restart_darling():
 def icon_argb_file():
     """Write the logo in _NET_WM_ICON layout for the shim (see MACOBLOX_ICON_ARGB)."""
     target = CACHE_DIR / "icon.argb"
-    sources = [ICONS / f"macoblox-{size}.png" for size in (32, 64, 128)]
-    if target.exists() and all(target.stat().st_mtime >= s.stat().st_mtime for s in sources if s.exists()):
+    source = ICONS / "ciderhq.svg"
+    sources = [(source, size) for size in (32, 64, 128)]
+    if target.exists() and source.exists() and target.stat().st_mtime >= source.stat().st_mtime:
         return target
     from gi.repository import GdkPixbuf  # only needed here
 
     words = bytearray()
-    for source in sources:
+    for source, size in sources:
         if not source.exists():
             continue
-        pixbuf = GdkPixbuf.Pixbuf.new_from_file(str(source))
+        pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(str(source), size, size, True)
         if not pixbuf.get_has_alpha():
             pixbuf = pixbuf.add_alpha(False, 0, 0, 0)
         width, height, stride = pixbuf.get_width(), pixbuf.get_height(), pixbuf.get_rowstride()
@@ -1652,7 +1659,7 @@ class HostAudio:
     keeps the FIFO open read/write for the whole session, so pw-cat never
     sees end of file and the game can reopen it any time."""
 
-    NAME = "Roblox (Mac O’ Blox)"
+    NAME = "Roblox (Cider)"
 
     def __init__(self, fifo, keep=None, player=None):
         self.fifo, self.keep, self.player = fifo, keep, player
@@ -1727,13 +1734,13 @@ class HostAudio:
         if pipewire and _pwcat_raw_supported(shutil.which("pw-cat")):
             return ["pw-cat", "--record", "--raw", "--format", "f32", "--rate", str(rate),
                     "--channels", str(channels), "--latency", "20ms", "--media-role", "Communication",
-                    "-P", '{ application.name = "Roblox" application.icon-name = "macoblox" '
-                          f'media.name = "Roblox microphone (Mac O’ Blox)" }}',
+                    "-P", '{ application.name = "Roblox" application.icon-name = "ciderhq" '
+                          f'media.name = "Roblox microphone (Cider)" }}',
                     str(fifo)]
         if shutil.which("pacat"):
             return ["pacat", "--record", "--raw", "--format=float32le", f"--rate={rate}",
                     f"--channels={channels}", "--latency-msec=20", "--client-name=Roblox",
-                    "--stream-name=Roblox microphone (Mac O’ Blox)", "--property=media.role=phone", str(fifo)]
+                    "--stream-name=Roblox microphone (Cider)", "--property=media.role=phone", str(fifo)]
         return None
 
     @classmethod
@@ -1762,7 +1769,7 @@ class HostAudio:
         if self.log_path:
             try:
                 with open(self.log_path, "ab") as log:
-                    log.write(f"[MacOBlox Audio] Playback helper exited with code {status}; {detail or 'no error output'}\n".encode())
+                    log.write(f"[Cider Audio] Playback helper exited with code {status}; {detail or 'no error output'}\n".encode())
             except OSError:
                 pass
 
@@ -1795,7 +1802,7 @@ class HostAudio:
         if not force_pulse and pipewire and _pwcat_raw_supported(shutil.which("pw-cat")):
             return ["pw-cat", "--playback", "--raw", "--format", "f32", "--rate", "44100",
                     "--channels", "2", "--latency", "40ms", "--media-role", "Game",
-                    "-P", '{ application.name = "Roblox" application.icon-name = "macoblox" '
+                    "-P", '{ application.name = "Roblox" application.icon-name = "ciderhq" '
                           f'media.name = "{cls.NAME}" }}',
                     str(fifo)]
         if shutil.which("pacat"):
@@ -1919,6 +1926,7 @@ class RobloxSession:
 
     def shim_variables(self):
         variables = [
+            f"MACOBLOX_SESSION_DIRECTORY=Library/{SESSION_DIR.name}",
             f"MACOBLOX_MOUSE_SENSITIVITY={self.settings['mouse_sensitivity']:.2f}",
             f"MACOBLOX_SCROLL_SENSITIVITY={self.settings.get('scroll_sensitivity', 1.5):.2f}",
             # Mesa is the host's library and sees the host's file system,
@@ -2037,7 +2045,7 @@ class RobloxSession:
             logging.getLogger("macoblox").warning("Failed to apply mods: %s", e)
         apply_throttle_patch()
         transport_status = ensure_raknet_transport()
-        ensure_shader_compatibility()
+        shader_status = ensure_shader_compatibility()
         provider = self.settings.get("dns", "system")
         if provider != "system" and (provider != "custom" or self.settings.get("dns_custom")):
             from .dns import DnsForwarder
@@ -2058,9 +2066,10 @@ class RobloxSession:
         # description: guest output must not overwrite a host lifecycle record.
         with open(self.log_path, "wb", opener=lambda path, flags:
                   os.open(path, flags | os.O_APPEND)) as log:
-            log.write(f"Mac O’ Blox {__version__}\n".encode())
+            log.write(f"Cider {__version__}\n".encode())
             log.write(f"Darling: {darling_version(env)}\n".encode())
             log.write(f"Renderer requested: {renderer_name}\n".encode())
+            log.write(f"Window backend: {'Native Wayland (experimental)' if env.get('MACOBLOX_WAYLAND') == '1' else 'X11 / Xwayland'}\n".encode())
             if self.gpu_adapter:
                 name = self.gpu_adapter["name"].replace("\n", " ").replace("\r", " ")[:200]
                 log.write(f"Graphics card requested: {name}; PCI {self.gpu_adapter['pci']}\n".encode())
@@ -2071,6 +2080,7 @@ class RobloxSession:
             version = re.sub(r"[^A-Za-z0-9._+-]", "?", (installed_version() or "unknown")[:80])
             log.write(f"Packaging: {packaging}; Roblox version: {version}\n".encode())
             log.write(f"RakNet compatibility: {transport_status}\n".encode())
+            log.write(f"GLSL compatibility: {shader_status}\n".encode())
             channel = self.settings.get("roblox_channel", "")
             channel = re.sub(r"[^A-Za-z0-9_-]", "?", channel[:64]) if isinstance(channel, str) else "invalid"
             log.write(f"Launcher update channel: {channel or 'Production (default)'}\n".encode())
@@ -2087,12 +2097,12 @@ class RobloxSession:
                 # The first process can fail to check in while the server
                 # starts. Keep this warmup's output: a server failure must not
                 # vanish before the client log begins.
-                log.write(b"[MacOBlox Startup] Darling warmup starting\n")
+                log.write(b"[Cider Startup] Darling warmup starting\n")
                 log.flush()
                 warmup = subprocess.run(["darling", "shell", "true"], env=env,
                                         stdin=subprocess.DEVNULL, stdout=log,
                                         stderr=subprocess.STDOUT, timeout=120)
-                log.write(f"[MacOBlox Startup] Darling warmup status={warmup.returncode}\n".encode())
+                log.write(f"[Cider Startup] Darling warmup status={warmup.returncode}\n".encode())
             changed = raise_darling_priority()
             if changed:
                 log.write(f"Priority: {changed} Darling processes raised to nice {_nice_target(SERVER_NICE)}\n".encode())
@@ -2179,7 +2189,7 @@ class RobloxSession:
                                   "startup_failure", "explicit_cleanup"):
                     reason = "explicit_cleanup"
                 stamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-                record = (f"\n[MacOBlox Lifecycle] time={stamp} reason={reason} "
+                record = (f"\n[Cider Lifecycle] time={stamp} reason={reason} "
                           f"frontend_status={frontend} selected_prefix_games={game_count} "
                           "guest_exit=unknown before_cleanup=1\n")
                 with open(self.log_path, "ab", buffering=0) as log:

@@ -12,9 +12,10 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import fcntl
+from .paths import user_directory
 
 
-CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "macoblox"
+CACHE_DIR = user_directory("CACHE")
 PENDING_URI = CACHE_DIR / "pending-uri"
 LAST_URI = CACHE_DIR / "last-uri.txt"
 PENDING_LOCK = CACHE_DIR / "pending-uri.lock"

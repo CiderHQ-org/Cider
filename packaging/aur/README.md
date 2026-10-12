@@ -1,11 +1,11 @@
 # AUR packaging
 
-Two independent recipes are ready for AUR repositories:
+Cider uses two package names for AUR repositories:
 
 | Package | Recipe | Source |
 | --- | --- | --- |
-| `macoblox` | `macoblox/PKGBUILD` and `macoblox/.SRCINFO` | Checked release archive, currently 0.21patch1 |
-| `macoblox-git` | `PKGBUILD` and `.SRCINFO` | Current GitHub checkout |
+| `ciderhq` | Generated from `ciderhq/PKGBUILD.in` | Verified Cider release or local source archive |
+| `ciderhq-git` | `PKGBUILD` and `.SRCINFO` | Current GitHub checkout |
 
 The recipes build the Darling shim and native Wayland helper during package
 creation. They install the launcher, icons, desktop entries, MIME definition
@@ -22,7 +22,8 @@ Darling installation is insufficient. Install the provider with an AUR helper,
 then build the stable package from this checkout:
 
 ```bash
-cd packaging/aur/macoblox
+./packaging/prepare-source.sh "$PWD/work/ciderhq-packages" --local
+cd work/ciderhq-packages/aur/ciderhq
 makepkg -si
 ```
 
@@ -32,9 +33,10 @@ playback. PulseAudio-compatible playback is included through `libpulse`.
 
 ## Submit or update
 
-The stable `macoblox` name was available when these recipes were prepared.
-`macoblox-git` already has an AUR listing; its existing maintainer controls that
-repository. An AUR account and SSH key are required to submit a package.
+The names are `ciderhq` and `ciderhq-git`; they still need AUR submission.
+The recipes replace/conflict with the old MacOBlox packages. An AUR account
+and SSH key are required to submit a package. Do not upload the `.in` template
+as a finished PKGBUILD; source preparation fills its verified SHA256.
 
 In a separate AUR checkout, copy only the selected recipe's `PKGBUILD` and
 `.SRCINFO`. Regenerate metadata after editing a recipe:
@@ -42,7 +44,7 @@ In a separate AUR checkout, copy only the selected recipe's `PKGBUILD` and
 ```bash
 makepkg --printsrcinfo > .SRCINFO
 git add PKGBUILD .SRCINFO
-git commit -m 'Update MacOBlox package'
+git commit -m 'Update Cider package'
 git push
 ```
 

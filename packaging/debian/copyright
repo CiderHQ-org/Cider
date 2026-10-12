@@ -1,5 +1,5 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: MacOBlox
+Upstream-Name: Cider
 Source: https://github.com/aubree-lat/MacOBlox
 
 Files: *
