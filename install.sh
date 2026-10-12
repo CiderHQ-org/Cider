@@ -34,6 +34,13 @@ CIDER_DARLING_REPO=https://github.com/CiderHQ-org/CiderDarling.git
 CIDER_DARLING_REVISION=a8dae5f8e6daf6ec0245f94a9ba97c0d0cc4aeb7
 CIDER_DARLING_MANIFEST=009cf8db2cfc409ceaafb602dac3ee0744e987396eb544e1361bc86910e03e44
 CIDER_DARLING_INSTALL=/opt/ciderdarling/$CIDER_DARLING_REVISION
+# SHA-256 of the pinned revision's prebuilt archives (CiderDarling's CI release
+# bin-<12 hex digits>), by distribution family; empty: build from source.
+# packaging/pin-ciderdarling.py sets these lines with the two above.
+CIDER_DARLING_PREBUILT_ARCH=''
+CIDER_DARLING_PREBUILT_UBUNTU2404=''
+CIDER_DARLING_RELEASES=https://github.com/CiderHQ-org/CiderDarling/releases/download
+CIDER_DARLING_FROM_SOURCE=${CIDER_DARLING_FROM_SOURCE:-}
 DARLING_RUNTIME=''
 DARLING_CHOICE_EXPLICIT=''
 DARLING_EXECUTABLE=''
@@ -819,6 +826,155 @@ try_darling_debs() {
   command -v darling >/dev/null
 }
 
+# Prebuilt CiderDarling. Darling's bridges to host libraries name the build
+# host's exact library versions, so an archive suits one distribution family:
+# arch, or ubuntu24.04 (Debian family with glibc 2.39 or newer). Prints the
+# family, or nothing.
+ciderdarling_prebuilt_flavor() {
+  local ID='' ID_LIKE='' glibc='' release=${CIDER_OS_RELEASE:-/etc/os-release}
+  [[ ! -r $release ]] || . "$release"
+  if command -v pacman >/dev/null && [[ " $ID $ID_LIKE " == *" arch "* ]]; then
+    printf arch
+  elif command -v apt-get >/dev/null && [[ " $ID $ID_LIKE " == *" ubuntu "* || " $ID $ID_LIKE " == *" debian "* ]]; then
+    glibc=$(getconf GNU_LIBC_VERSION 2>/dev/null || true)
+    glibc=${glibc##* }
+    [[ -n $glibc ]] && printf '%s\n2.39\n' "$glibc" | sort -CV -r && printf ubuntu24.04
+  fi
+  return 0
+}
+
+ciderdarling_prebuilt_sha256() {
+  case $1 in
+    arch) printf '%s' "$CIDER_DARLING_PREBUILT_ARCH" ;;
+    ubuntu24.04) printf '%s' "$CIDER_DARLING_PREBUILT_UBUNTU2404" ;;
+  esac
+}
+
+# The host libraries a prebuilt build loads, by package manager. A failure
+# (packages of another release) leaves the source build.
+install_ciderdarling_libraries() {
+  case $1 in
+    pacman) sudo pacman -S --needed --noconfirm cairo dbus ffmpeg fontconfig freetype2 fuse2 giflib \
+      libjpeg-turbo libpng libpulse libtiff libx11 libxcursor libxext libxkbfile libxrandr libglvnd \
+      vulkan-icd-loader ;;
+    apt-get) sudo apt-get install -y --no-install-recommends libcairo2 libdbus-1-3 libfontconfig1 \
+      libfreetype6 libfuse2t64 libgif7 libjpeg-turbo8 libpng16-16t64 libpulse0 libtiff6 libx11-6 \
+      libxcursor1 libxext6 libxkbfile1 libxrandr2 libegl1 libgl1 libvulkan1 libavcodec60 libavformat60 \
+      libavutil58 libswresample4 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Libraries the manifest's build needs that this host lacks. FFmpeg's are
+# left out: the launcher repairs those bridges for other FFmpeg versions.
+ciderdarling_missing_libraries() {
+  python3 - "$1" <<'PY'
+import json
+import shutil
+import subprocess
+import sys
+manifest = json.load(open(sys.argv[1]))
+ldconfig = shutil.which("ldconfig") or "/sbin/ldconfig"
+listing = subprocess.run([ldconfig, "-p"], capture_output=True, text=True).stdout.splitlines()[1:]
+present = {line.split()[0] for line in listing if line.split() and "x86-64" in line}
+needed = manifest.get("shared_libraries", []) + manifest.get("native_libraries", [])
+ffmpeg = ("libavcodec.", "libavformat.", "libavutil.", "libswresample.")
+print(" ".join(name for name in needed if name not in present and not name.startswith(ffmpeg)))
+PY
+}
+
+# The manifest describes the pinned revision's archive with the pinned
+# checksum, for a glibc this host has.
+ciderdarling_manifest_matches() {
+  python3 - "$1" "$2" "$3" "$CIDER_DARLING_REVISION" "$CIDER_DARLING_MANIFEST" <<'PY'
+import json
+import os
+import sys
+path, archive, digest, revision, series = sys.argv[1:]
+try:
+    data = json.load(open(path))
+    glibc = os.confstr("CS_GNU_LIBC_VERSION").split()[-1]
+    key = lambda text: tuple(int(part) for part in text.split("."))
+    valid = (data.get("schema_version") == 1 and data.get("name") == "CiderDarling"
+             and data.get("source_revision") == revision and data.get("patch_manifest_sha256") == series
+             and data.get("archive") == archive and data.get("archive_sha256") == digest
+             and data.get("install_prefix") == f"/opt/ciderdarling/{revision}"
+             and key(data.get("min_glibc", "0")) <= key(glibc))
+except (OSError, ValueError, AttributeError, TypeError, IndexError):
+    valid = False
+sys.exit(0 if valid else 1)
+PY
+}
+
+# Ownership survives only an unpack by root: bin/darling must stay setuid root.
+ciderdarling_client_is_setuid_root() {
+  [[ $(stat -c '%u %a' -- "$1" 2>/dev/null) == '0 4755' ]]
+}
+
+# Install the pinned revision's prebuilt archive into CIDER_DARLING_INSTALL.
+# Returns 1 (to build from source instead) when there is none for this host.
+try_ciderdarling_prebuilt() {
+  local manager=$1 flavor digest name url work missing staging unpacked
+  if [[ -n $CIDER_DARLING_FROM_SOURCE ]]; then
+    say "Building CiderDarling from source as requested."
+    return 1
+  fi
+  flavor=$(ciderdarling_prebuilt_flavor)
+  digest=$(ciderdarling_prebuilt_sha256 "$flavor")
+  if [[ -z $flavor || -z $digest ]]; then
+    say "No prebuilt CiderDarling ${CIDER_DARLING_REVISION:0:12} for $(distribution_name); building from source."
+    return 1
+  fi
+  name=ciderdarling-$CIDER_DARLING_REVISION-x86_64-$flavor
+  url=$CIDER_DARLING_RELEASES/bin-${CIDER_DARLING_REVISION:0:12}
+  mkdir -p -- "$CACHE_HOME/ciderhq/installer"
+  work=$(umask 077; mktemp -d "$CACHE_HOME/ciderhq/installer/prebuilt-XXXXXX")
+  say "Downloading prebuilt CiderDarling ${CIDER_DARLING_REVISION:0:12} ($flavor)"
+  if ! curl -fL --progress-bar -o "$work/$name.tar.xz" "$url/$name.tar.xz" ||
+     ! curl -fsSL -o "$work/$name.json" "$url/$name.json"; then
+    rm -rf -- "$work"
+    say "The prebuilt download is unavailable; building from source."
+    return 1
+  fi
+  if ! printf '%s  %s\n' "$digest" "$work/$name.tar.xz" | sha256sum -c --quiet -; then
+    rm -rf -- "$work"
+    die "The prebuilt CiderDarling download does not match its pinned checksum. Setup stopped."
+  fi
+  if ! ciderdarling_manifest_matches "$work/$name.json" "$name.tar.xz" "$digest"; then
+    rm -rf -- "$work"
+    say "The prebuilt build does not suit this system (revision, patch series or glibc); building from source."
+    return 1
+  fi
+  say "Installing the libraries CiderDarling uses"
+  install_ciderdarling_libraries "$manager" || say "Some libraries could not be installed; checking what is present."
+  missing=$(ciderdarling_missing_libraries "$work/$name.json")
+  if [[ -n $missing ]]; then
+    rm -rf -- "$work"
+    say "This system lacks libraries the prebuilt build was made with ($missing); building from source."
+    return 1
+  fi
+  staging=${CIDER_DARLING_INSTALL%/*}/.partial-$CIDER_DARLING_REVISION
+  unpacked=$staging/$CIDER_DARLING_REVISION
+  say "Installing CiderDarling into $CIDER_DARLING_INSTALL"
+  sudo rm -rf -- "$staging" && sudo mkdir -p -- "$staging" &&
+    sudo tar -xpJf "$work/$name.tar.xz" --numeric-owner --same-owner -C "$staging" ||
+    { sudo rm -rf -- "$staging"; rm -rf -- "$work"; die "Could not unpack CiderDarling into ${staging%/*}."; }
+  rm -rf -- "$work"
+  if ! ciderdarling_client_is_setuid_root "$unpacked/bin/darling" ||
+     ! CIDER_DARLING_INSTALL=$unpacked ciderdarling_matches; then
+    sudo rm -rf -- "$staging"
+    die "The unpacked CiderDarling is incomplete or not setuid root. Setup stopped."
+  fi
+  sudo mv --no-target-directory -- "$unpacked" "$CIDER_DARLING_INSTALL" ||
+    { sudo rm -rf -- "$staging"; die "Could not move CiderDarling into $CIDER_DARLING_INSTALL."; }
+  sudo rm -rf -- "$staging"
+  # File capabilities are not in the archive; `cmake --install` sets this one.
+  sudo setcap cap_sys_admin=ep "$CIDER_DARLING_INSTALL/libexec/darling/usr/sbin/fseventsd" 2>/dev/null ||
+    say "Could not set fseventsd's capability (file change notifications may be limited)."
+  hash -r
+  say "Installed prebuilt CiderDarling ${CIDER_DARLING_REVISION:0:12}."
+}
+
 # An interrupted sudo install leaves the pinned version directory without
 # matching metadata. Only that exact directory is removed, after asking (or
 # with --replace-incomplete-runtime when there is no terminal to ask in).
@@ -853,9 +1009,11 @@ ensure_darling() {
         remove_incomplete_ciderdarling
       fi
       manager=$(detect_package_manager)
-      [[ $manager != manual ]] || die "CiderDarling source installation needs your host's supported build method on this system."
-      confirm_darling_build || die "CiderDarling compilation declined. Setup stopped."
-      build_darling_source "$manager"
+      if ! try_ciderdarling_prebuilt "$manager"; then
+        [[ $manager != manual ]] || die "CiderDarling source installation needs your host's supported build method on this system."
+        confirm_darling_build || die "CiderDarling compilation declined. Setup stopped."
+        build_darling_source "$manager"
+      fi
     fi
     DARLING_EXECUTABLE=$CIDER_DARLING_INSTALL/bin/darling
     export DARLING_SYSROOT=$CIDER_DARLING_INSTALL/libexec/darling
@@ -1248,6 +1406,9 @@ Cider installer
   install.sh --install-runtime --darling ciderdarling
                            install only the runtime, keeping the current selection
                            (an update of the selected runtime switches to it)
+  install.sh --darling ciderdarling --from-source
+                           compile CiderDarling instead of downloading its
+                           prebuilt build
   install.sh --replace-incomplete-runtime
                            remove an interrupted CiderDarling installation without
                            asking, then build it again
@@ -1275,6 +1436,7 @@ main() {
       --purge) PURGE=1 ;;
       -y | --yes) assume_yes=1 ;;
       --replace-incomplete-runtime) REPLACE_INCOMPLETE_RUNTIME=1 ;;
+      --from-source) CIDER_DARLING_FROM_SOURCE=1 ;;
       --darling)
         (($# >= 2)) || die "--darling needs regular or ciderdarling."
         DARLING_RUNTIME=$2

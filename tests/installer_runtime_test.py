@@ -266,6 +266,95 @@ FAKE_CHOICE='''
             metadata.write_text(json.dumps(changed))
             self.assertNotEqual(self.shell(body).returncode, 0)
 
+    def prebuilt_fixture(self):
+        """A release archive and manifest like CiderDarling's CI publishes."""
+        import hashlib
+        source = (ROOT / 'install.sh').read_text()
+        def constant(name):
+            return next(line.split('=', 1)[1] for line in source.splitlines() if line.startswith(name + '='))
+        revision, series = constant('CIDER_DARLING_REVISION'), constant('CIDER_DARLING_MANIFEST')
+        tree = self.base / 'tree' / revision
+        (tree / 'bin').mkdir(parents=True)
+        (tree / 'bin/darling').write_text('#!/bin/sh\nexit 0\n')
+        (tree / 'bin/darling').chmod(0o4755)
+        metadata = tree / 'libexec/darling/usr/share/ciderdarling/runtime.json'
+        metadata.parent.mkdir(parents=True)
+        metadata.write_text(json.dumps({'schema_version': 1, 'name': 'CiderDarling', 'architecture': 'x86_64',
+                                        'source_revision': revision, 'patch_manifest_sha256': series}))
+        release = self.base / 'release'
+        release.mkdir()
+        name = f'ciderdarling-{revision}-x86_64-arch'
+        subprocess.run(['tar', '-cJf', release / f'{name}.tar.xz', '-C', self.base / 'tree', revision], check=True)
+        digest = hashlib.sha256((release / f'{name}.tar.xz').read_bytes()).hexdigest()
+        (release / f'{name}.json').write_text(json.dumps({
+            'schema_version': 1, 'name': 'CiderDarling', 'source_revision': revision,
+            'patch_manifest_sha256': series, 'archive': f'{name}.tar.xz', 'archive_sha256': digest,
+            'install_prefix': f'/opt/ciderdarling/{revision}', 'min_glibc': '2.17',
+            'shared_libraries': ['libc.so.6'], 'native_libraries': ['libavcodec.so.99']}))
+        return revision, digest
+
+    PREBUILT_STUBS = '''
+CIDER_DARLING_INSTALL="$FIXTURE/versions/$CIDER_DARLING_REVISION"
+ciderdarling_prebuilt_flavor() { printf arch; }
+install_ciderdarling_libraries() { printf 'libraries:%s\\n' "$1"; }
+curl() { local output=''; while (($#)); do [[ $1 == -o ]] && { output=$2; shift; }; local url=$1; shift; done
+  printf '%s\\n' "$url" >> "$FIXTURE/downloads"; cp -- "$FIXTURE/release/${url##*/}" "$output"; }
+sudo() { local argument arguments=(); for argument in "$@"; do [[ $argument == --same-owner ]] || arguments+=("$argument"); done; "${arguments[@]}"; }
+ciderdarling_client_is_setuid_root() { [[ -u $1 ]]; }
+setcap() { printf 'setcap %s\\n' "$*" >> "$FIXTURE/commands"; }
+'''
+
+    def test_prebuilt_runtime_is_downloaded_verified_and_installed(self):
+        revision, digest = self.prebuilt_fixture()
+        output = self.checked(self.PREBUILT_STUBS + f'CIDER_DARLING_PREBUILT_ARCH={digest}\n'
+                              'try_ciderdarling_prebuilt pacman && CIDER_DARLING_INSTALL="$CIDER_DARLING_INSTALL" ciderdarling_matches')
+        self.assertIn('libraries:pacman', output)
+        target = self.base / 'versions' / revision
+        self.assertTrue((target / 'bin/darling').is_file())
+        self.assertFalse((self.base / 'versions' / f'.partial-{revision}').exists())
+        self.assertEqual(list((self.base / 'cache/ciderhq/installer').glob('prebuilt-*')), [])
+        downloads = (self.base / 'downloads').read_text().split()
+        self.assertEqual(downloads, [
+            f'https://github.com/CiderHQ-org/CiderDarling/releases/download/bin-{revision[:12]}/'
+            f'ciderdarling-{revision}-x86_64-arch.{suffix}' for suffix in ('tar.xz', 'json')])
+        self.assertIn('cap_sys_admin=ep', (self.base / 'commands').read_text())
+
+    def test_prebuilt_runtime_falls_back_or_stops_safely(self):
+        revision, digest = self.prebuilt_fixture()
+        # No pinned archive for this family, or compiling asked for: no download.
+        for setup in ('CIDER_DARLING_PREBUILT_ARCH=', f'CIDER_DARLING_PREBUILT_ARCH={digest}; CIDER_DARLING_FROM_SOURCE=1'):
+            result = self.shell(self.PREBUILT_STUBS + setup + '\ntry_ciderdarling_prebuilt pacman')
+            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+            self.assertFalse((self.base / 'downloads').exists())
+        # A missing release builds from source; a wrong checksum stops setup.
+        result = self.shell(self.PREBUILT_STUBS + f'CIDER_DARLING_PREBUILT_ARCH={digest}\n'
+                            'curl() { return 22; }\ntry_ciderdarling_prebuilt pacman')
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        result = self.shell(self.PREBUILT_STUBS + f'CIDER_DARLING_PREBUILT_ARCH={"0" * 64}\n'
+                            'try_ciderdarling_prebuilt pacman || echo fell-back-to-source')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn('fell-back-to-source', result.stdout)  # setup stops instead
+        self.assertIn('does not match its pinned checksum', result.stdout + result.stderr)
+        # Libraries of another generation: compile instead.
+        result = self.shell(self.PREBUILT_STUBS + f'CIDER_DARLING_PREBUILT_ARCH={digest}\n'
+                            'ciderdarling_missing_libraries() { printf libjpeg.so.8; }\ntry_ciderdarling_prebuilt pacman')
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn('libjpeg.so.8', result.stdout)
+        self.assertFalse((self.base / 'versions' / revision).exists())
+
+    def test_prebuilt_family_and_library_checks(self):
+        release = self.base / 'os-release'
+        cases = {'ID=cachyos\nID_LIKE=arch\n': 'arch', 'ID=fedora\n': ''}
+        for text, expected in cases.items():
+            release.write_text(text)
+            output = self.checked('command() { [[ $2 == pacman ]]; }; ciderdarling_prebuilt_flavor',
+                                  CIDER_OS_RELEASE=str(release))
+            self.assertEqual(output, expected)
+        manifest = self.base / 'manifest.json'
+        manifest.write_text(json.dumps({'shared_libraries': ['libc.so.6'],
+                                        'native_libraries': ['libavcodec.so.99', 'libnot-here.so.4']}))
+        self.assertEqual(self.checked(f'ciderdarling_missing_libraries "{manifest}"').strip(), 'libnot-here.so.4')
+
     def test_cider_build_passes_correct_prefix_flags_and_job_count(self):
         self.checked('''
 DARLING_RUNTIME=ciderdarling

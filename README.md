@@ -70,10 +70,16 @@ curl -fsSL https://ciderhq.org/install.sh | bash -s -- --darling regular
 ```
 
 Regular Darling keeps the installed-runtime, distro package and pinned upstream
-download paths. [CiderDarling](https://github.com/CiderHQ-org/CiderDarling) currently
-builds from pinned source into `/opt/ciderdarling/<revision>`, using sudo for
-dependencies and installation. The source build asks for confirmation even
-with `--yes`. Its x86_64 build includes OpenGL and Metal API stubs.
+download paths. [CiderDarling](https://github.com/CiderHQ-org/CiderDarling) installs
+into `/opt/ciderdarling/<revision>` using sudo. On Arch-based systems, and on
+Debian/Ubuntu-based ones with glibc 2.39 or newer (Ubuntu 24.04, Mint 22), the
+installer downloads the pinned revision's prebuilt build from CiderDarling's
+CI releases, checks it against a pinned SHA-256 and installs the libraries it
+uses, in minutes. Elsewhere, when the build does not suit the system's
+libraries, or with `--from-source`, it compiles the pinned source instead; the
+source build asks for confirmation even with `--yes`. Arch users can also
+install `ciderdarling-bin` from the AUR. Its x86_64 build includes OpenGL and
+Metal API stubs.
 Compilation uses the available CPU threads, capped by memory headroom;
 `DARLING_BUILD_JOBS=8` overrides the automatic job count.
 

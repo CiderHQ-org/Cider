@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Install CiderDarling from its CI's prebuilt build when one suits the
+  system (Arch-based, or Debian/Ubuntu-based with glibc 2.39+): download,
+  check the pinned SHA-256, install its libraries and unpack setuid root, in
+  minutes instead of an hour of compiling. `--from-source` (or
+  `CIDER_DARLING_FROM_SOURCE=1`) compiles as before, which also remains the
+  fallback. `packaging/pin-ciderdarling.py <revision>` pins a revision with
+  its archive checksums.
+
 - Prefer the CiderDarling revision pinned in `install.sh` over a remembered
   older one, offer **Update CiderDarling** in Settings, and save the updated
   installation (same prefix) from both the launcher and
