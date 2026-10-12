@@ -149,7 +149,7 @@ def _macho_names(path, offsets, nm):
         return {}
     symbols = []
     for line in output.splitlines():
-        fields = line.split()
+        fields = line.split(None, 2)
         if len(fields) >= 3 and fields[1] in "TtSs":
             try:
                 symbols.append((int(fields[0], 16), fields[2]))
@@ -175,7 +175,17 @@ def _host_path(path, roots):
     appear by their path inside its container, whose root is the prefix over
     the runtime's root; the host's own files are under /Volumes/SystemRoot."""
     candidates = [path.removeprefix("/Volumes/SystemRoot")] if path.startswith("/Volumes/SystemRoot/") else []
-    candidates += [str(Path(root) / path.lstrip("/")) for root in roots] + [path]
+    relative = Path(path.lstrip("/"))
+    # Overlay-backed mappings can name the host prefix even for a file
+    # supplied by the runtime's lower layer, absent from that prefix on the
+    # host. Translate it back to its guest path before searching both layers.
+    for root in roots:
+        try:
+            relative = Path(path).relative_to(root)
+            break
+        except ValueError:
+            pass
+    candidates += [str(Path(root) / relative) for root in roots] + [path]
     return next((candidate for candidate in candidates if os.path.isfile(candidate)), None)
 
 

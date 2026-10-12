@@ -88,6 +88,15 @@ metadata declares `workqueue_stack_reset_x86_64`. Other compatibility shims
 remain active. Changing the selected sysroot or runtime revision invalidates
 the launcher's shim build stamp. Restart the launcher after switching.
 
+The Cider shim also repairs `__exp10`/`__exp10f` for existing Darling builds.
+Clang can rewrite `pow(10, x)` inside the builtin implementation into an
+endless call to that same implementation; a live freeze captured a Roblox
+worker spinning there during a game join. The shim uses an indirect power
+call to prevent that rewrite, and the CiderDarling build disables builtin
+rewriting for both `exp10.c` and `sincos.c`. This shim repair also covers a
+copied math library in the prefix. Updating Cider rebuilds the source shim
+on the next launch; native packages need a package containing the new shim.
+
 ## Validation on October 12, 2026
 
 Installer decision tests cover both menu and CLI choices, saved selections,

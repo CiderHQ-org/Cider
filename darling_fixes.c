@@ -35,6 +35,10 @@ extern void macoblox_wait_end(int);
     _interpose_##_replacee __attribute__((section("__DATA,__interpose"))) = \
         {(const void *)(unsigned long)&_replacement, (const void *)(unsigned long)&_replacee};
 
+#include "math_compat.h"
+DYLD_INTERPOSE(macoblox_exp10, __exp10)
+DYLD_INTERPOSE(macoblox_exp10f, __exp10f)
+
 /* Sleep without darlingserver: a direct Linux nanosleep, where usleep and
  * nanosleep cost two darlingserver requests each (see above). Same interface:
  * -1 with EINTR and the remaining time when a signal comes (Linux and Darwin

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Fix joining a game freezing in older Darling's `__exp10`/`__exp10f`:
+  use a compiler-safe power call in the shim, including when a copied math
+  library hides the runtime's library. Existing runtimes can use the repair
+  after rebuilding the Cider shim.
+- Diagnostics resolve overlay library paths against the selected runtime
+  and preserve full Objective-C method names in stack symbols.
+
 - Install CiderDarling from its CI's prebuilt build when one suits the
   system (Arch-based, or Debian/Ubuntu-based with glibc 2.39+): download,
   check the pinned SHA-256, install its libraries and unpack setuid root, in
