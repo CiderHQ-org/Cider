@@ -1,6 +1,5 @@
 # CLI deployments include the website and its hosting configuration.
-*
-!website/
-!website/**
+/*
+!website
 !vercel.json
 !install.sh

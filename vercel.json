@@ -1,9 +1,13 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "buildCommand": "bash website/build.sh",
+  "buildCommand": "",
   "installCommand": "",
   "outputDirectory": "website/dist",
+  "rewrites": [{
+    "source": "/install.sh",
+    "destination": "https://raw.githubusercontent.com/aubree-lat/MacOBlox/main/install.sh"
+  }],
   "headers": [{
     "source": "/install.sh",
     "headers": [

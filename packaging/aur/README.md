@@ -4,9 +4,10 @@ Cider uses two package names for AUR repositories:
 
 | Package | Recipe | Source |
 | --- | --- | --- |
-| `ciderhq` | Generated from `ciderhq/PKGBUILD.in` | Verified Cider release or local source archive |
+| `ciderhq` | `ciderhq/PKGBUILD` and `.SRCINFO` | Verified Cider release |
 | `ciderhq-git` | `PKGBUILD` and `.SRCINFO` | Current GitHub checkout |
 
+Source preparation can also generate a local recipe from `ciderhq/PKGBUILD.in`.
 The recipes build the Darling shim and native Wayland helper during package
 creation. They install the launcher, icons, desktop entries, MIME definition
 and startup-patch helper. Roblox itself is downloaded by the launcher on first
