@@ -1,11 +1,4 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="branding/cider-wordmark.svg">
-    <img src="branding/cider-wordmark-light.svg" alt="Cider" width="520">
-  </picture>
-</p>
-
-<p align="center">
   The real macOS Roblox client, running on Linux through <a href="https://www.darlinghq.org">Darling</a>.
   improved by aubree.wtf with patches and more, originally created by narizy, credits to them.
 </p>
