@@ -37,7 +37,7 @@ Any derivatives must be also under the GPL v3 license, and cannot remove any cop
 <h1 align="center">
   Migration from Mac O' Blox to Cider
 </h1>
-Cider is the new, and preferred name for MacOBlox. The terminal command and native package
+Cider is the new, and preferred name for Mac O' Blox. The terminal command and native package
 name are **`ciderhq`**, the desktop ID is `org.ciderhq.Cider`, and the website
 is [ciderhq.org](https://ciderhq.org).
 
