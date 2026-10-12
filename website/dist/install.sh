@@ -68,7 +68,7 @@ load_darling_selection() {
   local saved='' file=$CONFIG_HOME/ciderhq/runtime.json
   if [[ -f $file ]]; then
     command -v python3 >/dev/null || die "Python 3 is needed to read the saved Darling selection."
-    saved=$(python3 - "$file" <<'PY'
+    saved=$(python3 - "$file" "$DARLING_RUNTIME" <<'PY'
 import json
 from pathlib import Path
 import sys
@@ -82,6 +82,14 @@ try:
         value = data.get(key)
         if not isinstance(value, str) or not Path(value).is_absolute() or any(c in value for c in '\n\r\0'):
             raise ValueError(f'invalid {key}')
+    history = data.get('runtimes', {})
+    entry = history.get(sys.argv[2]) if isinstance(history, dict) else None
+    if isinstance(entry, dict) and entry.get('schema_version') == 1 and entry.get('runtime') == sys.argv[2]:
+        for key in ('executable', 'sysroot', 'prefix'):
+            value = entry.get(key)
+            if not isinstance(value, str) or not Path(value).is_absolute() or any(c in value for c in '\n\r\0'):
+                raise ValueError(f'invalid remembered {key}')
+        data = entry
     print('\n'.join(data[key] for key in ('runtime', 'executable', 'sysroot', 'prefix')))
 except (OSError, ValueError) as error:
     sys.exit(f'Cannot read {path}: {error}')
@@ -130,6 +138,20 @@ data = dict(zip(('runtime', 'executable', 'sysroot', 'prefix'), sys.argv[2:]))
 data['schema_version'] = 1
 for key in ('executable', 'sysroot', 'prefix'):
     data[key] = str(Path(data[key]).absolute())
+history = {}
+if path.exists():
+    if path.stat().st_size > 16384: raise ValueError('saved runtime file is too large')
+    old = json.loads(path.read_text())
+    entries = old.get('runtimes', {}) if isinstance(old, dict) else {}
+    candidates = [*entries.values(), old] if isinstance(entries, dict) else [old]
+    for entry in candidates:
+        if not isinstance(entry, dict) or entry.get('schema_version') != 1 or entry.get('runtime') not in ('regular', 'ciderdarling'):
+            continue
+        if all(isinstance(entry.get(key), str) and Path(entry[key]).is_absolute() and not any(c in entry[key] for c in '\n\r\0')
+               for key in ('executable', 'sysroot', 'prefix')):
+            history[entry['runtime']] = {key: entry[key] for key in ('schema_version', 'runtime', 'executable', 'sysroot', 'prefix')}
+history[data['runtime']] = dict(data)
+data['runtimes'] = history
 path.parent.mkdir(parents=True, exist_ok=True)
 temporary = None
 try:
@@ -1081,7 +1103,7 @@ menu_install() {
       choose "$text" "Regular Darling|Default; use the upstream runtime" "CiderHQ's CiderDarling|Build CiderHQ's runtime" "Back|"
       case $CHOICE in 0) DARLING_RUNTIME=regular ;; 1) DARLING_RUNTIME=ciderdarling ;; *) return 1 ;; esac
     fi
-    select_darling_prefix
+    load_darling_selection
   fi
   while :; do
     choose "  ${BOLD}Setup · 3 of 4${RESET}

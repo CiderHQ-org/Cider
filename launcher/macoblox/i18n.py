@@ -6,6 +6,22 @@ LANGUAGES = {"en": "English", "ru": "Русский"}
 _language = "en"
 
 RU = {
+    "Darling runtime": "Среда Darling",
+    "DarlingHQ's Darling": "Darling от DarlingHQ",
+    "CiderHQ's CiderDarling": "CiderDarling от CiderHQ",
+    "Each runtime keeps its own Roblox sign-in.": "Каждая среда сохраняет свой вход в Roblox.",
+    "{runtime} (not installed)": "{runtime} (не установлена)",
+    "Active runtime": "Активная среда",
+    "Apply and restart Cider": "Применить и перезапустить Cider",
+    "Refresh installed runtimes": "Обновить список установленных сред",
+    "Flatpak uses its bundled Darling runtime.": "Flatpak использует встроенную среду Darling.",
+    "Install this runtime with Cider's installer before switching.":
+        "Перед переключением установите эту среду через установщик Cider.",
+    "Could not inspect installed runtimes": "Не удалось проверить установленные среды",
+    "Runtime saved. Close and reopen Cider to apply it.": "Среда сохранена. Закройте и снова откройте Cider, чтобы применить её.",
+    "Could not switch Darling runtime": "Не удалось переключить среду Darling",
+    "Cider's launcher files are missing. Reinstall Cider before restarting.":
+        "Файлы лаунчера Cider отсутствуют. Перед перезапуском установите Cider заново.",
     "MangoHud overlay": "Оверлей MangoHud",
     "Show FPS, frametimes and CPU/GPU usage. Requires MangoHud; applies on next launch.":
         "FPS, время кадра и загрузка CPU/GPU. Требуется MangoHud; применяется при следующем запуске.",

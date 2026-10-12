@@ -6,6 +6,8 @@ import subprocess
 import tempfile
 import unittest
 
+from macoblox import runtime
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -77,6 +79,27 @@ ensure_darling
 printf '%s|%s|%s' "$DARLING_EXECUTABLE" "$DARLING_SYSROOT" "$DPREFIX"
 ''')
         self.assertEqual(output, f'{self.base}/runtime/bin/darling|{self.base}/runtime/libexec/darling|{self.base}/.ciderdarling')
+
+    def test_gui_and_installer_preserve_both_runtime_profiles(self):
+        file = self.base / 'config/ciderhq/runtime.json'
+        def entry(variant):
+            return {'schema_version': 1, 'runtime': variant,
+                    'executable': str(self.base / variant / 'bin/darling'),
+                    'sysroot': str(self.base / variant / 'libexec/darling'),
+                    'prefix': str(self.base / (variant + ' custom prefix'))}
+        regular, cider = entry('regular'), entry('ciderdarling')
+        runtime.save_selection(cider, file, current=regular)
+        output = self.checked('''
+DARLING_RUNTIME=regular
+load_darling_selection
+printf '%s|%s' "$PREFIX" "$DARLING_EXECUTABLE"
+DARLING_SYSROOT=${DARLING_SELECTION[2]}
+save_darling_selection
+''')
+        self.assertEqual(output, f"{regular['prefix']}|{regular['executable']}")
+        history = runtime.remembered_runtimes(runtime.read_selection(file))
+        self.assertEqual(history['ciderdarling']['prefix'], cider['prefix'])
+        self.assertEqual(self.checked('DARLING_RUNTIME=ciderdarling; load_darling_selection; printf "%s" "$PREFIX"'), cider['prefix'])
 
     def test_declined_cider_build_never_installs_regular_darling(self):
         result = self.shell('''

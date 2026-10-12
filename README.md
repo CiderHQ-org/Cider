@@ -81,6 +81,14 @@ in `~/.config/ciderhq/runtime.json` (or your XDG config directory) after setup
 succeeds. Restart the launcher after switching. Flatpak continues to use its
 bundled runtime.
 
+Installed runtimes can also be switched in **Settings → Environment → Darling**.
+Choose **DarlingHQ's Darling** or **CiderHQ's CiderDarling**, then press
+**Apply and restart Cider**. Close Roblox and wait for launcher operations to
+finish first. The refresh button detects runtimes installed while Cider was
+open. Custom prefixes are remembered for both choices; missing runtimes are
+labelled and must be installed before switching. Flatpak keeps this selector
+read-only because its runtime is bundled.
+
 Run the same command again to update or uninstall. Updates save local source
 changes in `~/.local/share/CiderHQ-backups` (or your XDG data directory) and
 keep settings and sign-in. Without a terminal, or for scripts, the choices

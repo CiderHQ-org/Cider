@@ -5,6 +5,20 @@ The source installer offers Regular Darling and CiderHQ's CiderDarling.
 setup offers the same choices. First installation defaults to regular Darling.
 Updates retain the saved choice, including an existing custom prefix.
 
+The launcher also offers **Settings → Environment → Darling → Darling runtime**
+with **DarlingHQ's Darling** and **CiderHQ's CiderDarling**. Selecting a row
+previews the choice; **Apply and restart Cider** validates the installed runtime,
+saves it atomically and restarts through the normal launcher entry point.
+The restart does not replay an original Roblox link. It reloads all client,
+sysroot, prefix and session paths together, avoiding mixed runtime state.
+
+Switching is blocked while the launcher owns a Roblox session or is busy, and
+also checks for Roblox running externally in the currently selected prefix.
+No Darling server is stopped and no runtime or sign-in data is deleted.
+Missing runtimes are labelled and cannot be applied. The refresh button
+detects runtimes added or removed since Settings was opened. Flatpak presents
+the bundled runtime as read-only.
+
 Regular Darling reuses a matching installed client and sysroot, then tries the
 existing distro and checksum-verified upstream packages before offering a
 source build. CiderDarling always uses CiderHQ's pinned source or a matching
@@ -40,6 +54,13 @@ choice. Switching does not remove either installation or either prefix.
 `--purge` affects only the selected prefix. Flatpak ignores the host selection
 and keeps its bundled client, root and rootless helper.
 
+The optional `runtimes` map in the same schema-1 configuration remembers each
+runtime's client, root and custom prefix. The UI and installer both preserve
+these records when switching, including an existing runtime used before any
+installer configuration was saved. Installed CiderDarling discovery prefers
+the saved version, then other complete versions in `/opt/ciderdarling`.
+An incomplete version with missing metadata cannot appear as regular Darling.
+
 Only the existing workqueue trampoline workaround is bypassed automatically:
 the launcher supplies `MACOBLOX_NATIVE_WORKQUEUE=1` when the selected runtime's
 metadata declares `workqueue_stack_reset_x86_64`. Other compatibility shims
@@ -64,10 +85,18 @@ the expected revision and manifest metadata.
 ```bash
 PYTHONPATH=launcher python3 -m unittest discover -s tests -p 'installer_runtime_test.py'
 PYTHONPATH=launcher python3 -m unittest discover -s tests -p 'runtime_selection_test.py'
+GSETTINGS_BACKEND=memory GDK_BACKEND=x11 GSK_RENDERER=cairo xvfb-run -a python3 tests/runtime_settings_ui.py
 bash -n install.sh build_debug_shim.sh run_debug.sh
 bash website/build.sh
 cmp install.sh website/dist/install.sh
 ```
+
+The real GTK fixture passes switches in both directions, custom-prefix
+retention, busy and external-game protection, configuration-write and restart
+failures, missing/removed runtime checks, refresh after installation, Flatpak
+read-only behavior and restart arguments without replaying a Roblox URI. It
+uses temporary configuration, fake runtime clients and mocked restarts; it
+does not install or execute Darling or alter the live launcher.
 
 The actual Cider shim and framework replacements built against the staged
 CiderDarling root. Real Mach-O threading, condition-variable, ulock, datagram

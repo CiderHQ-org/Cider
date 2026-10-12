@@ -3,6 +3,7 @@
 import json
 import os
 import re
+import sys
 import threading
 import time
 
@@ -13,7 +14,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 from pathlib import Path  # noqa: E402
 
-from . import __version__, author, core, discord, dns, i18n, mods, studio, uri as uri_handoff  # noqa: E402
+from . import __version__, author, core, discord, dns, i18n, mods, runtime, studio, uri as uri_handoff  # noqa: E402
 from .i18n import _  # noqa: E402
 from .setup import SetupWizard  # noqa: E402
 
@@ -65,6 +66,16 @@ def _toast(overlay, text):
     # would turn the toast empty.
     toast.set_use_markup(False)
     overlay.add_toast(toast)
+
+
+def _restart_launcher():
+    # Start the normal entry point without replaying an original Roblox URI.
+    # A fresh process loads the selected client, sysroot and prefix together.
+    environment = dict(os.environ, MACOBLOX_PAGE="settings")
+    entry = core.PROJECT / "launcher/ciderhq-launcher"
+    if not entry.is_file():
+        raise FileNotFoundError(_("Cider's launcher files are missing. Reinstall Cider before restarting."))
+    os.execve(sys.executable, [sys.executable, str(entry)], environment)
 
 
 def _button_row(title):
@@ -1134,7 +1145,7 @@ class SettingsPage(Adw.Bin):
         toolbar_view = Adw.ToolbarView()
         self.stack = Adw.ViewStack()
 
-        # 1. Environment page (Interface, Game, DNS, Diagnostics)
+        # 1. Environment page (Darling, Interface, Game, DNS, Diagnostics)
         self.env_page = Adw.PreferencesPage()
 
         launcher_group = Adw.PreferencesGroup(title="Cider")
@@ -1157,6 +1168,37 @@ class SettingsPage(Adw.Bin):
                                                  margin_start=12, margin_end=12, visible=False)
         launcher_group.add(Gtk.ListBoxRow(activatable=False, selectable=False, child=self.launcher_progress))
         self.env_page.add(launcher_group)
+
+        self._runtime_codes = runtime.VARIANTS
+        self._runtime_labels = {"regular": _("DarlingHQ's Darling"),
+                                "ciderdarling": _("CiderHQ's CiderDarling")}
+        self._runtime_choices = runtime.installed_runtimes(core.DARLING_RUNTIME)
+        bundled = bool(os.environ.get("FLATPAK_ID"))
+        darling_group = Adw.PreferencesGroup(
+            title="Darling", description=_("Each runtime keeps its own Roblox sign-in."))
+        self.runtime_group = darling_group
+        labels = [self._runtime_labels[variant] if variant in self._runtime_choices or bundled
+                  else _("{runtime} (not installed)", runtime=self._runtime_labels[variant])
+                  for variant in self._runtime_codes]
+        self.runtime_row = Adw.ComboRow(title=_("Darling runtime"),
+                                       model=Gtk.StringList.new(labels), sensitive=not bundled, use_subtitle=True)
+        active = core.DARLING_RUNTIME["runtime"]
+        self.runtime_row.set_selected(self._runtime_codes.index(active))
+        darling_group.add(self.runtime_row)
+        self.runtime_active_row = Adw.ActionRow(title=_("Active runtime"), subtitle=self._runtime_labels[active])
+        self.runtime_apply_button = Gtk.Button(label=_("Apply and restart Cider"),
+                                               valign=Gtk.Align.CENTER, visible=not bundled)
+        self.runtime_apply_button.add_css_class("suggested-action")
+        self.runtime_apply_button.connect("clicked", lambda *_args: self.apply_runtime())
+        self.runtime_refresh_button = Gtk.Button(icon_name="view-refresh-symbolic", valign=Gtk.Align.CENTER,
+                                                 tooltip_text=_("Refresh installed runtimes"), visible=not bundled)
+        self.runtime_refresh_button.connect("clicked", lambda *_args: self.refresh_runtime_choices())
+        self.runtime_active_row.add_suffix(self.runtime_refresh_button)
+        self.runtime_active_row.add_suffix(self.runtime_apply_button)
+        darling_group.add(self.runtime_active_row)
+        self._runtime_handler = self.runtime_row.connect("notify::selected", lambda *_args: self._runtime_selection_changed())
+        self._runtime_selection_changed()
+        self.env_page.add(darling_group)
 
         interface = Adw.PreferencesGroup(title=_("Interface"))
         codes = list(i18n.LANGUAGES)
@@ -1497,6 +1539,72 @@ class SettingsPage(Adw.Bin):
     def refresh_raw_mouse(self):
         if hasattr(self, "raw_mouse_row"):
             self.raw_mouse_row.set_active(self.window.settings.get("raw_mouse", True))
+
+    def _runtime_selection_changed(self):
+        index = self.runtime_row.get_selected()
+        choice = self._runtime_choices.get(self._runtime_codes[index]) if index < len(self._runtime_codes) else None
+        bundled = bool(os.environ.get("FLATPAK_ID"))
+        changed = choice is not None and any(choice[key] != core.DARLING_RUNTIME[key]
+                                             for key in runtime.SELECTION_KEYS)
+        self.runtime_apply_button.set_sensitive(changed and not bundled)
+        if bundled:
+            subtitle = _("Flatpak uses its bundled Darling runtime.")
+        elif choice is None:
+            subtitle = _("Install this runtime with Cider's installer before switching.")
+        else:
+            subtitle = _("Each runtime keeps its own Roblox sign-in.")
+        self.runtime_group.set_description(subtitle)
+
+    def refresh_runtime_choices(self):
+        try:
+            choices = runtime.installed_runtimes(core.DARLING_RUNTIME)
+        except (OSError, RuntimeError, ValueError) as error:
+            _error_dialog(self.window, _("Could not inspect installed runtimes"), str(error))
+            return
+        selected = self.runtime_row.get_selected()
+        labels = [self._runtime_labels[variant] if variant in choices or os.environ.get("FLATPAK_ID")
+                  else _("{runtime} (not installed)", runtime=self._runtime_labels[variant])
+                  for variant in self._runtime_codes]
+        self._runtime_choices = choices
+        self.runtime_row.handler_block(self._runtime_handler)
+        try:
+            self.runtime_row.set_model(Gtk.StringList.new(labels))
+            self.runtime_row.set_selected(selected)
+        finally:
+            self.runtime_row.handler_unblock(self._runtime_handler)
+        self._runtime_selection_changed()
+
+    def apply_runtime(self):
+        if os.environ.get("FLATPAK_ID") or not self.runtime_apply_button.get_sensitive():
+            return
+        if not self.window.begin("switching runtime"):
+            return
+        selected = self._runtime_codes[self.runtime_row.get_selected()]
+        saved = False
+        try:
+            # Also protect Roblox launched outside this window but using the
+            # same prefix. Never shut down another Darling installation.
+            if core.roblox_pids():
+                self.window.end(resume_pending=False)
+                _toast(self.window.toasts, _("Close Roblox first"))
+                return
+            choice = runtime.installed_runtimes(core.DARLING_RUNTIME).get(selected)
+            if choice is None:
+                self.refresh_runtime_choices()
+                raise RuntimeError(_("Install this runtime with Cider's installer before switching."))
+            self.flush()
+            core.save_settings(self.window.settings)
+            runtime.save_selection(choice, current=core.DARLING_RUNTIME)
+            saved = True
+            self.window._stop_web()
+            self.window._stop_rpc()
+            _restart_launcher()
+        except (OSError, RuntimeError, ValueError) as error:
+            self.window.end(resume_pending=False)
+            details = str(error)
+            if saved:
+                details = _("Runtime saved. Close and reopen Cider to apply it.") + "\n\n" + details
+            _error_dialog(self.window, _("Could not switch Darling runtime"), details)
 
     def _select_gpu(self, row, _pspec):
         selected = row.get_selected()

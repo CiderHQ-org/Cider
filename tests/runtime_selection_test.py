@@ -117,3 +117,93 @@ class RuntimeSelectionTests(unittest.TestCase):
             original = core._shim_sources_hash()
         with patch.object(core, "DARLING_SYSROOT", self.cider / "libexec/darling"):
             self.assertNotEqual(original, core._shim_sources_hash())
+
+    def install_cider_metadata(self):
+        path = self.cider / "libexec/darling/usr/share/ciderdarling/runtime.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"schema_version": 1, "name": "CiderDarling",
+                                    "architecture": "x86_64", "source_revision": "fixture"}))
+        return path
+
+    def discover(self, current=None, **environment):
+        return runtime.installed_runtimes(current, dict(self.environment, **environment),
+                                          self.selection, regular_clients=[self.cider / "bin/darling", self.stock / "bin/darling"],
+                                          cider_directory=self.base / "versions")
+
+    def test_discovery_keeps_client_root_and_provider_together(self):
+        self.install_cider_metadata()
+        choices = self.discover()
+        self.assertEqual(set(choices), {"regular", "ciderdarling"})
+        self.assertEqual(choices["regular"]["executable"], str(self.stock / "bin/darling"))
+        self.assertEqual(choices["ciderdarling"]["sysroot"], str(self.cider / "libexec/darling"))
+
+    def test_discovery_rejects_missing_clients_and_damaged_cider_metadata(self):
+        path = self.install_cider_metadata()
+        path.write_text("invalid")
+        self.assertEqual(set(self.discover()), {"regular"})
+        (self.stock / "bin/darling").unlink()
+        self.assertEqual(self.discover(), {})
+
+    def test_flatpak_has_no_host_runtime_switches(self):
+        self.install_cider_metadata()
+        self.assertEqual(self.discover(FLATPAK_ID="org.ciderhq.Cider"), {})
+
+    def test_roundtrip_switch_preserves_both_custom_prefixes(self):
+        self.install_cider_metadata()
+        original = self.select("regular")
+        original["prefix"] = str(self.base / "custom regular prefix")
+        self.selection.write_text(json.dumps(original))
+        cider = self.discover(original)["ciderdarling"]
+        cider["prefix"] = str(self.base / "custom cider prefix")
+        runtime.save_selection(cider, self.selection, current=original)
+        regular = self.discover(cider)["regular"]
+        self.assertEqual(regular["prefix"], original["prefix"])
+        runtime.save_selection(regular, self.selection, current=cider)
+        self.assertEqual(self.discover(regular)["ciderdarling"]["prefix"], cider["prefix"])
+        self.assertEqual(runtime.read_selection(self.selection)["runtime"], "regular")
+        self.assertEqual(self.selection.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(list(self.selection.parent.glob(".runtime-*")), [])
+
+    def test_failed_atomic_switch_preserves_previous_selection(self):
+        original = self.select()
+        before = self.selection.read_bytes()
+        target = dict(original, runtime="regular", executable=str(self.stock / "bin/darling"),
+                      sysroot=str(self.stock / "libexec/darling"))
+        with patch.object(runtime.os, "replace", side_effect=OSError("read-only directory")):
+            with self.assertRaises(OSError):
+                runtime.save_selection(target, self.selection, current=original)
+        self.assertEqual(self.selection.read_bytes(), before)
+        self.assertEqual(list(self.selection.parent.glob(".runtime-*")), [])
+
+    def test_switch_remembers_initial_runtime_without_installer_config(self):
+        self.install_cider_metadata()
+        original = self.resolve()
+        original["prefix"] = str(self.base / "legacy custom prefix")
+        target = self.discover(original)["ciderdarling"]
+        runtime.save_selection(target, self.selection, current=original)
+        self.assertEqual(self.discover(target)["regular"]["prefix"], original["prefix"])
+
+    def test_version_directory_discovery_prefers_saved_version(self):
+        self.install_cider_metadata()
+        current = self.select()
+        newer = self.base / "versions/new-version"
+        (newer / "bin").mkdir(parents=True)
+        client = newer / "bin/darling"
+        client.write_text("#!/bin/sh\nexit 0\n"); client.chmod(0o755)
+        metadata = newer / "libexec/darling/usr/share/ciderdarling/runtime.json"
+        metadata.parent.mkdir(parents=True)
+        metadata.write_text((self.cider / "libexec/darling/usr/share/ciderdarling/runtime.json").read_text())
+        choices = self.discover(current)
+        self.assertEqual(choices["ciderdarling"]["executable"], current["executable"])
+        (self.cider / "bin/darling").unlink()
+        self.assertEqual(self.discover(current)["ciderdarling"]["executable"], str(client))
+
+    def test_incomplete_cider_version_is_never_regular_darling(self):
+        version = self.base / "versions/incomplete"
+        client = version / "bin/darling"
+        client.parent.mkdir(parents=True)
+        client.write_text("#!/bin/sh\nexit 0\n"); client.chmod(0o755)
+        (version / "libexec/darling").mkdir(parents=True)
+        choices = runtime.installed_runtimes(environment=self.environment, selection_file=self.selection,
+                                            regular_clients=[client], cider_directory=self.base / "versions")
+        self.assertEqual(choices, {})
