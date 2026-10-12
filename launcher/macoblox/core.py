@@ -13,6 +13,7 @@ import resource
 import shutil
 import signal
 import socket
+import stat
 import struct
 import subprocess
 import tempfile
@@ -70,6 +71,8 @@ CONFIG_DIR = user_directory("CONFIG")
 CACHE_DIR = user_directory("CACHE")
 # Written by the shim when Roblox starts terminating; see RobloxSession.poll.
 QUIT_SENTINEL = CACHE_DIR / "game-closing"
+# The last error shown in a dialog, for reports; cleared after a success.
+LAST_ERROR = CACHE_DIR / "last-error.txt"
 SETTINGS_FILE = CONFIG_DIR / "settings.json"
 # Cookies and site data of Roblox's embedded web pages (web.py): sign-in state.
 WEB_DATA_DIR = CONFIG_DIR / "web"
@@ -114,7 +117,9 @@ DEFAULT_SETTINGS = {
     "framerate_cap": 0,
     "hide_launcher_on_launch": True,
     "show_playtime": True,
-    "show_server_location": True,
+    # Sends the game server's IP address to RoValra, so it is opt-in. (The
+    # former show_server_location key was saved as true for everyone.)
+    "server_location_lookup": False,
     "playtime_seconds": 0,
     "discord_rpc": True,
     "discord_rpc_game": True,
@@ -128,6 +133,12 @@ DEFAULT_SETTINGS = {
     "mod_custom_cursor": "",
     "mod_custom_font": "",
     "enable_custom_mods": True,
+    # Lets diagnostics read the game's thread stacks under Yama ptrace_scope=1.
+    "allow_debugger": False,
+    # CiderDarling only (Settings -> CiderDarling); see ciderdarling_variables.
+    "cider_trace": False,
+    "cider_verbose_server_log": False,
+    "cider_thread_kicks": False,
 }
 
 # Settings -> environment variables understood by the shim.
@@ -139,7 +150,10 @@ TRACE_ENV = {
     "trace_gl": "MACOBLOX_TRACE_GL",
     "fps_log": "MACOBLOX_FPS_LOG",
     "trace_keys": "MACOBLOX_TRACE_KEYS",
+    "allow_debugger": "MACOBLOX_ALLOW_DEBUGGER",
 }
+# These also apply when set in the launcher's own environment.
+TRACE_ENV_INHERITED = ("diagnostic_signals", "allow_debugger")
 
 
 def load_settings():
@@ -181,6 +195,14 @@ def _write_atomically(path, text):
 
 def save_settings(settings):
     _write_atomically(SETTINGS_FILE, json.dumps(settings, indent=2, ensure_ascii=False))
+
+
+def clear_last_error():
+    """Forget the last error once an install or launch has succeeded."""
+    try:
+        LAST_ERROR.unlink(missing_ok=True)
+    except OSError:
+        pass
 
 
 # ---------------------------------------------------------------- fast flags
@@ -365,6 +387,72 @@ def update_launcher(progress=None):
         progress(1.0, _("Cider updated successfully"))
     # This process keeps running the code it started with.
     return True, _("Cider updated. Restart it to use the new version.")
+
+
+# A shortcut to Settings -> CiderDarling while CiderDarling is installed; the
+# same entry as packaging/org.ciderhq.Cider.CiderDarling.desktop and the one
+# launcher/install.sh writes. The marker line identifies a copy we may remove.
+CIDERDARLING_SHORTCUT = "org.ciderhq.Cider.CiderDarling.desktop"
+SHORTCUT_MARKER = "X-CiderHQ-Managed=true"
+CIDERDARLING_DESKTOP = """[Desktop Entry]
+Type=Application
+Name=CiderDarling Settings
+Name[ru]=Настройки CiderDarling
+Comment=Graphics card, runtime and diagnostics settings for CiderDarling
+Comment[ru]=Видеокарта, среда и диагностика для CiderDarling
+Exec={command} --ciderdarling-settings
+Icon=ciderhq
+Terminal=false
+Categories=Game;
+Keywords=ciderdarling;darling;gpu;
+StartupNotify=true
+{marker}
+"""
+
+
+def _desktop_command():
+    """How desktop entries start this launcher: the packages' wrapper (it sets
+    the prebuilt shim path), or this checkout's script as a quoted argument."""
+    if PREBUILT_SHIM:
+        return "ciderhq"
+    text = str(PROJECT / "launcher" / "ciderhq-launcher").replace("\\", "\\\\\\\\")
+    for character in '"`$':
+        text = text.replace(character, "\\\\" + character)
+    return '"' + text.replace("%", "%%") + '"'
+
+
+def sync_ciderdarling_shortcut(installed, applications=None):
+    """Add the CiderDarling settings shortcut when CiderDarling is installed
+    and the entry is missing, and remove our copy when it is not installed;
+    True when the entry changed. An existing entry is left as it is: its
+    command is launcher/install.sh's to update (another checkout may run)."""
+    if os.environ.get("FLATPAK_ID"):
+        return False
+    if applications is None:
+        data = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
+        applications = Path(data) / "applications"
+    entry = Path(applications) / CIDERDARLING_SHORTCUT
+    try:
+        existing = entry.read_text() if entry.is_file() and not entry.is_symlink() else None
+        ours = existing is not None and SHORTCUT_MARKER in existing.splitlines()
+        if installed:
+            if entry.exists() or entry.is_symlink():
+                return False
+            _write_atomically(entry, CIDERDARLING_DESKTOP.format(command=_desktop_command(),
+                                                                 marker=SHORTCUT_MARKER))
+        elif ours:
+            entry.unlink()
+        else:
+            return False
+    except OSError as error:
+        logging.getLogger("macoblox").warning("Could not update the CiderDarling shortcut: %s", error)
+        return False
+    try:
+        subprocess.run(["update-desktop-database", str(applications)], stdin=subprocess.DEVNULL,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=20)
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return True
 
 
 def update_roblox(upload, progress=None, expected_version=None):
@@ -640,6 +728,29 @@ def roblox_pids(names=("RobloxPlayer", "RobloxCrashHandler")):
 def _darlingservers():
     """darlingserver processes of our prefix."""
     return [pid for pid, argv in _user_commands() if _server_for_prefix(pid, argv)]
+
+
+def _foreign_darlingservers():
+    """Our prefix's darlingservers started by another runtime installation.
+    An update installs a new CiderDarling revision for the same prefix, and
+    the old revision's server would go on serving its own libraries.
+    darling execs INSTALL_PREFIX/bin/darlingserver next to itself."""
+    try:
+        expected = (Path(shutil.which(DARLING_EXECUTABLE) or DARLING_EXECUTABLE).resolve().parent
+                    / "darlingserver")
+    except (OSError, RuntimeError):
+        return []
+    if not expected.is_file():
+        return []  # another layout (a wrapper): nothing to compare with
+    foreign = []
+    for pid in _darlingservers():
+        try:
+            running = os.readlink(f"/proc/{pid}/exe").removesuffix(" (deleted)")
+        except OSError:
+            continue  # unknown: leave it
+        if Path(running) != expected:
+            foreign.append(pid)
+    return foreign
 
 
 def _server_for_prefix(pid, argv):
@@ -1000,14 +1111,34 @@ def darlingserver_running():
     return bool(_darlingservers())
 
 
-def darling_environment():
-    """Environment for every `darling` command the launcher runs."""
+def darling_environment(settings=None, notes=None):
+    """Environment for every `darling` command the launcher runs.
+
+    darlingserver keeps the environment of the command that started it. An
+    inherited DSERVER_LOG_STDERR copied every server message into the launch
+    log (one grew to 143 MB), so DSERVER_LOG_* is only kept on request:
+    CIDER_KEEP_DSERVER_LOG=1, or CiderDarling's verbose server log setting.
+    `notes` collects a line for the launch log about what was dropped.
+    """
     env = dict(os.environ)
     env["DPREFIX"] = str(DARLING_PREFIX)
     # Darling's Mesa receives X11 displays; a Wayland session may say otherwise.
     env["EGL_PLATFORM"] = "x11"
     if NOROOT_LIB:
         env["LD_PRELOAD"] = NOROOT_LIB
+    if env.get("CIDER_KEEP_DSERVER_LOG") != "1":
+        dropped = sorted(name for name in env if name.startswith("DSERVER_LOG_"))
+        for name in dropped:
+            del env[name]
+        if dropped:
+            note = (f"Ignoring inherited {', '.join(dropped)} for darlingserver "
+                    "(CIDER_KEEP_DSERVER_LOG=1 keeps them)")
+            logging.getLogger("macoblox").info(note)
+            if notes is not None:
+                notes.append(note)
+    if (settings and settings.get("cider_verbose_server_log")
+            and DARLING_RUNTIME["runtime"] == "ciderdarling"):
+        env["DSERVER_LOG_LEVEL"] = "debug"
     return env
 
 
@@ -1208,17 +1339,54 @@ def logout():
     return not any(path.exists() for path in SESSION_FILES)
 
 
-def cleanup_logs(keep):
-    """Remove old logs written by the launcher itself (launch-YYYYmmdd-HHMMSS.log);
+# Launch logs past this total are removed oldest first (count is `keep_logs`).
+LOGS_MAX_BYTES = 200 * 1024 * 1024
+
+
+def cleanup_logs(keep, current=None, max_bytes=LOGS_MAX_BYTES):
+    """Remove old files written by the launcher itself: launch logs
+    (launch-YYYYmmdd-HHMMSS.log) beyond `keep` or beyond `max_bytes` in
+    total, and CiderDarling traces likewise. `current` is never removed;
     logs from run_debug.sh and other tools are left alone."""
-    pattern = re.compile(r"launch-\d{8}-\d{6}\.log")
-    logs = sorted((p for p in LOGS.glob("launch-*.log") if pattern.fullmatch(p.name)),
-                  key=lambda p: p.stat().st_mtime, reverse=True)
-    for old in logs[keep:]:
-        try:
-            old.unlink()
-        except OSError:
-            pass
+    for glob, pattern in (("launch-*.log", r"launch-\d{8}-\d{6}\.log"),
+                          ("ciderdarling-trace-*.jsonl", r"ciderdarling-trace-\d{8}-\d{6}\.jsonl")):
+        logs = []
+        for path in LOGS.glob(glob):
+            try:
+                if re.fullmatch(pattern, path.name) and path != current and not path.is_symlink():
+                    info = path.stat()
+                    logs.append((info.st_mtime, info.st_size, path))
+            except OSError:
+                pass
+        logs.sort(key=lambda entry: entry[0], reverse=True)
+        total = 0
+        for index, (_mtime, size, path) in enumerate(logs):
+            total += size
+            if index < max(0, keep) and total <= max_bytes:
+                continue
+            try:
+                path.unlink()
+            except OSError:
+                pass
+
+
+# darlingserver appends to this for as long as the prefix exists.
+DSERVER_LOG_MAX_BYTES = 32 * 1024 * 1024
+
+
+def rotate_dserver_log(limit=DSERVER_LOG_MAX_BYTES):
+    """Keep one older dserver.log (dserver.log.old) when it grew past `limit`.
+    Only while Darling is stopped: the server holds the file open."""
+    log = DARLING_PREFIX / "private" / "var" / "log" / "dserver.log"
+    try:
+        if log.is_symlink() or not log.is_file() or log.stat().st_size <= limit:
+            return False
+        if darlingserver_running():
+            return False
+        log.replace(log.with_name("dserver.log.old"))
+        return True
+    except OSError:
+        return False
 
 
 SHIM_STAMP = BUILD_DIR / "sources.sha256"
@@ -1319,12 +1487,22 @@ def prepare_prefix(env):
     Darling prefix. Its system folders belong to root, so programs inside
     Darling cannot write there; the files go straight into the prefix's
     upper layer (~/.darling) while Darling is stopped, then Darling sees them
-    on its next start."""
+    on its next start. Returns lines for the launch log."""
     frameworks = _missing_frameworks()
     bridges = _patched_ffmpeg_bridges()
     kqueue_libraries = _patched_kqueue_runtime()
-    if not frameworks and not bridges and not kqueue_libraries:
-        return
+    if frameworks or bridges or kqueue_libraries:
+        _install_prefix_files(env, frameworks, bridges, kqueue_libraries)
+    unknown = _unknown_prefix_overrides()
+    if not unknown:
+        return []
+    note = ("Prefix libraries not made by Cider hide the selected runtime's own and were left "
+            f"unchanged (remove them if they came from an older Darling): {', '.join(unknown)}")
+    logging.getLogger("macoblox").warning(note)
+    return [note]
+
+
+def _install_prefix_files(env, frameworks, bridges, kqueue_libraries):
     if not DARLING_PREFIX.is_dir():
         # Let Darling create the prefix first.
         try:
@@ -1338,54 +1516,208 @@ def prepare_prefix(env):
         restart_darling()
     for name in frameworks:
         _install_framework(name)
-    for relative, path in bridges:
-        target = DARLING_PREFIX / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(path, target)
     from . import darling_patches
-    for relative, path in kqueue_libraries:
-        status = darling_patches.install_sparse_map_copy(path, DARLING_PREFIX / relative,
-                                                       library=relative.as_posix())
-        logging.getLogger("macoblox").info("Darling kqueue map: %s", status)
+    stamps = {}
+    for relative, path in [*bridges, *kqueue_libraries]:
+        target = DARLING_PREFIX / relative
+        if target.is_symlink():
+            continue
+        if path is None:
+            _restore_runtime_library(relative)
+        elif not target.exists() and (relative, path) in kqueue_libraries:
+            status = darling_patches.install_sparse_map_copy(path, target, library=relative.as_posix())
+            logging.getLogger("macoblox").info("Darling kqueue map: %s", status)
+        else:
+            # Planning found no file there or a copy this launcher made.
+            _replace_prefix_file(path, target)
+        stamps[relative.as_posix()] = _prefix_stamp(relative)
+    _record_prefix_stamps(stamps)
+
+
+# Copies the launcher put into a prefix, by prefix and macOS path: the sha256
+# of the selected runtime's file each was made from and of the copy itself.
+# A runtime update changes the first, so the copy is made again from the new
+# file instead of hiding it; a prefix file without a record is someone else's.
+PREFIX_STAMPS = CACHE_DIR / "prefix-libraries.json"
+
+
+def _sha256(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def _prefix_stamps():
+    try:
+        if PREFIX_STAMPS.stat().st_size > 1 << 20:
+            return {}
+        entries = json.loads(PREFIX_STAMPS.read_text()).get(str(DARLING_PREFIX.resolve()))
+        return entries if isinstance(entries, dict) else {}
+    except (OSError, ValueError, AttributeError, RuntimeError):
+        return {}
+
+
+def _prefix_stamp(relative):
+    """The record for a prefix file now in place, or None when there is none."""
+    try:
+        return {"source": _sha256((DARLING_SYSROOT / relative).read_bytes()),
+                "installed": _sha256((DARLING_PREFIX / relative).read_bytes())}
+    except OSError:
+        return None
+
+
+def _record_prefix_stamps(changes):
+    """Update records ({macOS path: record or None}); unchanged ones stay."""
+    try:
+        data = json.loads(PREFIX_STAMPS.read_text())
+        data = data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        data = {}
+    try:
+        key = str(DARLING_PREFIX.resolve())
+    except (OSError, RuntimeError):
+        return
+    entries = data.get(key) if isinstance(data.get(key), dict) else {}
+    updated = dict(entries)
+    for relative, record in changes.items():
+        if record is None:
+            updated.pop(relative, None)
+        else:
+            updated[relative] = record
+    if updated == entries:
+        return
+    data[key] = updated
+    try:
+        _write_atomically(PREFIX_STAMPS, json.dumps(data, indent=2) + "\n")
+    except OSError as error:
+        logging.getLogger("macoblox").warning("Could not record prefix libraries: %s", error)
+
+
+def _owned_prefix_copy(relative, data, source_data, stamps, recognized):
+    """Whether the prefix file holding `data` may be replaced: a copy this
+    launcher recorded, an unchanged copy of the runtime's own file (as in a
+    rootless prefix), or a repair only this launcher makes (copies from
+    releases before the records). Anything else is a custom override."""
+    record = stamps.get(relative)
+    if isinstance(record, dict) and record.get("installed") == _sha256(data):
+        return True
+    return data == source_data or recognized(data)
+
+
+def _replace_prefix_file(source, target):
+    """Atomically put a copy of `source` at `target` (Darling is stopped)."""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    data = Path(source).read_bytes()
+    fd, temporary = tempfile.mkstemp(prefix=f".{target.name}.", dir=target.parent)
+    try:
+        with os.fdopen(fd, "wb") as output:
+            os.fchmod(output.fileno(), stat.S_IMODE(Path(source).stat().st_mode))
+            output.write(data)
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, target)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
+
+
+def _restore_runtime_library(relative):
+    """Undo this launcher's copy of a library the runtime now provides as is."""
+    target = DARLING_PREFIX / relative
+    if NOROOT_LIB:
+        # A rootless prefix is a full copy of the macOS root: copy it back.
+        _replace_prefix_file(DARLING_SYSROOT / relative, target)
+    else:
+        target.unlink(missing_ok=True)  # the overlay shows the runtime's file again
+
+
+def _unknown_prefix_overrides(limit=4096):
+    """Prefix libraries that hide one of the selected runtime's and that this
+    launcher did not make (macOS paths), e.g. a hand-copied libsystem_m."""
+    if NOROOT_LIB:
+        return []  # a rootless prefix is a full copy of the macOS root
+    try:
+        prefix = DARLING_PREFIX.resolve()
+    except (OSError, RuntimeError):
+        return []
+    stamps = _prefix_stamps()
+    found, seen = [], 0
+    for top in ("usr/lib", "System/Library/Frameworks/OpenGL.framework"):
+        for directory, _directories, names in os.walk(DARLING_PREFIX / top):
+            for name in names:
+                seen += 1
+                if seen > limit:
+                    return sorted(found)
+                path = Path(directory) / name
+                if not name.endswith(".dylib"):
+                    continue
+                try:
+                    relative = path.relative_to(DARLING_PREFIX)
+                    if (path.is_symlink() or not path.is_file()
+                            or not path.resolve().is_relative_to(prefix)
+                            or not (DARLING_SYSROOT / relative).is_file()):
+                        continue
+                    record = stamps.get(relative.as_posix())
+                    if isinstance(record, dict) and record.get("installed") == _sha256(path.read_bytes()):
+                        continue
+                except (OSError, ValueError, RuntimeError):
+                    continue
+                found.append(relative.as_posix())
+    return sorted(found)
 
 
 def _patched_kqueue_runtime():
-    """Stage a known library repair for this prefix; preserve custom overrides."""
+    """Stage the known library repair for this prefix from the selected
+    runtime's own file, again when that changed; preserve custom overrides.
+    Returns (macOS path, staged file) pairs; None restores the runtime's file."""
     from . import darling_patches
     libraries = []
+    stamps, current = _prefix_stamps(), {}
     # Darling builds contain independent copies of libkqueue. Its active
     # close path lives in libSystem.B; libc also has a private copy.
     for relative in (Path("usr/lib/libSystem.B.dylib"),
                      Path("usr/lib/system/libsystem_c.dylib")):
+        library = relative.as_posix()
         installed = DARLING_PREFIX / relative
         if (installed.is_symlink()
                 or not installed.resolve().is_relative_to(DARLING_PREFIX.resolve())):
             continue
-        stock = installed if installed.exists() else DARLING_SYSROOT / relative
-        if not stock.exists():
-            continue
+        # A rootless prefix holds its own copy of every system library: repair
+        # that copy, or these two would come from a newer runtime than the rest.
+        source = installed if NOROOT_LIB and installed.is_file() else DARLING_SYSROOT / relative
+
+        def recognized(value, library=library):
+            status = darling_patches.plan_sparse_map_patch(value, library=library)[0]
+            # A rootless prefix starts as a copy of a (possibly older) root.
+            return status == "already patched" or (bool(NOROOT_LIB) and status == "patched")
+
         try:
-            stock_data = stock.read_bytes()
-            status, expected = darling_patches.plan_sparse_map_patch(stock_data,
-                                                                     library=relative.as_posix())
-            if status == "already patched" and installed.exists():
+            source_data = source.read_bytes() if source.is_file() else None
+            data = installed.read_bytes() if installed.exists() else None
+            if data is not None and not _owned_prefix_copy(library, data, source_data, stamps, recognized):
+                continue  # a custom override: reported by _unknown_prefix_overrides
+            if source_data is None:
                 continue
-            if status not in ("patched", "already patched"):
-                logging.getLogger("macoblox").debug("Darling kqueue map: %s", status)
+            status, expected = darling_patches.plan_sparse_map_patch(source_data, library=library)
+            if status != "patched":
+                if status != "already patched":
+                    logging.getLogger("macoblox").debug("Darling kqueue map: %s", status)
+                if data is not None and data != source_data:
+                    libraries.append((relative, None))  # our copy of an older runtime file
+                continue
+            if data == expected:
+                current[library] = {"source": _sha256(source_data), "installed": _sha256(data)}
                 continue
             staged = NATIVE_BUILD / relative.name
-            staged_status = darling_patches.install_sparse_map_copy(stock, staged,
-                                                                   library=relative.as_posix())
+            staged_status = darling_patches.install_sparse_map_copy(source, staged, library=library)
             if staged_status not in ("patched", "already patched"):
                 continue
             staged_data = staged.read_bytes()
-            if (staged_data != (stock_data if expected is None else expected)
+            if (staged_data != expected
                     or darling_patches.plan_sparse_map_patch(staged_data,
-                        library=relative.as_posix())[0] != "already patched"):
+                        library=library)[0] != "already patched"):
                 continue
             libraries.append((relative, staged))
         except OSError as error:
             logging.getLogger("macoblox").warning("Could not stage Darling kqueue repair: %s", error)
+    _record_prefix_stamps(current)
     return libraries
 
 
@@ -1441,31 +1773,64 @@ def _patched_ffmpeg_bridges():
     exits when it is missing ("Cannot load libavformat.so.60"). Roblox does
     not need these, so when the host has another version (or none, as in the
     Flatpak), the prefix gets copies whose initializer returns right away.
-    Returns (path in the macOS root, patched file) pairs to install."""
+    Copies are made from the selected runtime's file, and made again when it
+    changed. Returns (path in the macOS root, patched file) pairs to install;
+    None restores the runtime's own file."""
     host = None
     patched = []
-    for relative in NATIVE_LIBS:
-        # A rootless prefix is a full copy of the macOS root, so the stock
-        # bridge may already be in it; patch whichever copy Darling uses.
-        installed = DARLING_PREFIX / relative
-        stock = installed if installed.exists() else DARLING_SYSROOT / relative
-        name = Path(relative).stem
+    stamps, current = _prefix_stamps(), {}
+
+    def initializer(data):
         try:
-            data = bytearray(stock.read_bytes())
-        except OSError:
+            offset = _initializer_offset(data)
+        except (ValueError, IndexError, struct.error):
+            return None
+        return data[offset] if offset is not None and offset < len(data) else None
+
+    def recognized(data):
+        # 0xC3 (ret) is this launcher's patch; a rootless prefix starts as a
+        # copy of a (possibly older) root with the stock 0x55 (push %rbp).
+        return initializer(data) == 0xC3 or (bool(NOROOT_LIB) and initializer(data) == 0x55)
+
+    for relative in map(Path, NATIVE_LIBS):
+        installed = DARLING_PREFIX / relative
+        name = relative.stem
+        try:
+            if (installed.is_symlink()
+                    or not installed.resolve().is_relative_to(DARLING_PREFIX.resolve())):
+                continue
+            source_data = (DARLING_SYSROOT / relative).read_bytes()
+            data = installed.read_bytes() if installed.exists() else None
+        except (OSError, RuntimeError):
             continue
-        wanted = re.search(rb"%s\.so\.\d+" % name.encode(), data)
+        if (data is not None and
+                not _owned_prefix_copy(relative.as_posix(), data, source_data, stamps, recognized)):
+            continue  # a custom override: reported by _unknown_prefix_overrides
+        wanted = source_data
+        library = re.search(rb"%s\.so\.\d+" % name.encode(), source_data)
         host = _host_libraries() if host is None else host
-        if not wanted or wanted.group().decode() in host:
+        if library and library.group().decode() not in host and initializer(source_data) == 0x55:
+            data_patched = bytearray(source_data)
+            data_patched[_initializer_offset(source_data)] = 0xC3  # ret
+            wanted = bytes(data_patched)
+        if data == wanted:
+            if wanted != source_data:
+                current[relative.as_posix()] = {"source": _sha256(source_data),
+                                                "installed": _sha256(data)}
             continue
-        offset = _initializer_offset(data)
-        if offset is None or data[offset] != 0x55:  # push %rbp; 0xC3 = already patched
+        if wanted == source_data:
+            if data is not None:
+                patched.append((relative, None))  # our copy of an older runtime file
             continue
-        data[offset] = 0xC3  # ret
-        NATIVE_BUILD.mkdir(parents=True, exist_ok=True)
-        (NATIVE_BUILD / f"{name}.dylib").write_bytes(data)
-        (NATIVE_BUILD / f"{name}.dylib").chmod(0o755)
+        try:
+            NATIVE_BUILD.mkdir(parents=True, exist_ok=True)
+            (NATIVE_BUILD / f"{name}.dylib").write_bytes(wanted)
+            (NATIVE_BUILD / f"{name}.dylib").chmod(0o755)
+        except OSError as error:
+            logging.getLogger("macoblox").warning("Could not stage %s: %s", relative, error)
+            continue
         patched.append((relative, NATIVE_BUILD / f"{name}.dylib"))
+    _record_prefix_stamps(current)
     return patched
 
 
@@ -1887,6 +2252,71 @@ class HostAudio:
             self._owned_paths.clear()
 
 
+def _pid_alive(pid):
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except OSError:
+        return True  # another user's process (EPERM) is alive
+    return True
+
+
+def sweep_audio_fifos(directory=None):
+    """Remove audio FIFOs left by launchers that were killed (HostAudio.stop
+    never ran): only this user's FIFOs named audio-<pid>.fifo or
+    audio-in-<pid>.fifo whose process is gone. Returns how many went."""
+    directory = CACHE_DIR if directory is None else Path(directory)
+    removed = 0
+    try:
+        entries = list(directory.iterdir())
+    except OSError:
+        return 0
+    for path in entries:
+        match = re.fullmatch(r"audio-(?:in-)?([1-9]\d{0,9})\.fifo", path.name)
+        if not match:
+            continue
+        pid = int(match.group(1))
+        try:
+            info = path.lstat()
+            if (not stat.S_ISFIFO(info.st_mode) or info.st_uid != os.getuid()
+                    or pid == os.getpid() or _pid_alive(pid)):
+                continue
+            path.unlink()
+            removed += 1
+        except OSError:
+            pass
+    return removed
+
+
+# Time Roblox gets to finish its own quit (see RobloxSession.finish).
+QUIT_GRACE_SECONDS = 6
+# darlingserver's inherited stdout and stderr (see RobloxSession._start).
+WARMUP_OUTPUT_LIMIT = 16384
+
+
+def _warmup_output_path():
+    return LOGS / f"darlingserver-{DARLING_RUNTIME['runtime']}.out"
+
+
+def _darling_warmup(env):
+    """Start the prefix's darlingserver with `darling shell true`; its exit
+    status. The server keeps this command's stdout and stderr for its whole
+    life, so they go to a file of its own (replaced per warmup: the previous
+    server of this runtime is gone by then)."""
+    LOGS.mkdir(parents=True, exist_ok=True)
+    with open(_warmup_output_path(), "wb") as output:
+        return subprocess.run([DARLING_EXECUTABLE, "shell", "true"], env=env,
+                              stdin=subprocess.DEVNULL, stdout=output,
+                              stderr=subprocess.STDOUT, timeout=120).returncode
+
+
+def _warmup_output():
+    """The warmup's output so far, for the launch log ("" when empty)."""
+    text = _log_tail(_warmup_output_path(), WARMUP_OUTPUT_LIMIT)
+    return text if not text or text.endswith("\n") else text + "\n"
+
+
 class RobloxSession:
     """One run of the client. poll() returns None while it is running."""
 
@@ -1911,6 +2341,9 @@ class RobloxSession:
         self.web_user_agent = None
         self.gpu_adapter = None
         self._gpu_environment = None
+        self.trace_path = None
+        # Launch log lines collected before the log exists.
+        self.notes = []
         # A sentinel left over from a quit that outlived the launcher must not
         # end this session before it starts.
         QUIT_SENTINEL.unlink(missing_ok=True)
@@ -1930,7 +2363,7 @@ class RobloxSession:
         }
 
     def environment(self):
-        env = darling_environment()
+        env = darling_environment(self.settings, getattr(self, "notes", None))
         # Rebuild the allowlisted selectors, including intentional removals
         # (a PCI choice must not compete with an inherited vendor-ID choice).
         for name in GPU_ENVIRONMENT:
@@ -1990,9 +2423,10 @@ class RobloxSession:
             # Darling's own audio path crashes the game (see HostAudio).
             variables.append("MACOBLOX_AUDIO=0")
         for key, name in TRACE_ENV.items():
-            if self.settings.get(key) or (key == "diagnostic_signals" and
+            if self.settings.get(key) or (key in TRACE_ENV_INHERITED and
                                          os.environ.get(name) == "1"):
                 variables.append(f"{name}=1")
+        variables.extend(self.ciderdarling_variables())
         # Selection diagnostics record lengths/ranges only and are enabled
         # explicitly for a reported typing issue, without changing settings.
         if os.environ.get("MACOBLOX_TRACE_TEXT_INPUT") == "1":
@@ -2015,6 +2449,37 @@ class RobloxSession:
         except Exception:
             pass
         return variables
+
+    def ciderdarling_variables(self):
+        """Guest settings from Settings -> CiderDarling, for that runtime only.
+        Watchdog kicks are a shim feature: MACOBLOX_KICK/MACOBLOX_NO_KICK from
+        the launcher's environment also reach the game with regular Darling."""
+        variables = [f"{name}=1" for name in ("MACOBLOX_KICK", "MACOBLOX_NO_KICK")
+                     if os.environ.get(name) == "1"]
+        if DARLING_RUNTIME["runtime"] != "ciderdarling":
+            return variables
+        if self.settings.get("cider_thread_kicks") and "MACOBLOX_KICK=1" not in variables:
+            variables.append("MACOBLOX_KICK=1")
+        trace = getattr(self, "trace_path", None)
+        if trace:
+            # A guest path: CiderDarling opens it inside Darling.
+            variables.append(f"CIDER_TRACE_FILE=/Volumes/SystemRoot{trace}")
+        return variables
+
+    def _create_trace_file(self, log_path):
+        """CiderDarling writes traces only to a private regular file."""
+        if not (self.settings.get("cider_trace") and DARLING_RUNTIME["runtime"] == "ciderdarling"):
+            return None
+        path = log_path.with_name(log_path.name.replace("launch-", "ciderdarling-trace-", 1)
+                                  .removesuffix(".log") + ".jsonl")
+        try:
+            os.close(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+                             | os.O_CLOEXEC, 0o600))
+            os.chmod(path, 0o600)
+        except OSError as error:
+            self.notes.append(f"CiderDarling trace unavailable: {error}")
+            return None
+        return path
 
     def start(self):
         """Start the client; on failure nothing started is left running."""
@@ -2053,7 +2518,13 @@ class RobloxSession:
         if leftover:
             _terminate_roblox(leftover, wait=3)
         orphans = clear_orphaned_darling()
-        prepare_prefix(env)
+        if _foreign_darlingservers():
+            restart_darling()
+            self.notes.append("Restarted Darling: its server came from another runtime installation")
+        self.notes.extend(prepare_prefix(env) or [])
+        # The shim reads the pending file as a fallback: never an old click.
+        from . import uri
+        uri.expire_pending()
         try:
             from . import mods
             mods.apply_mods(self.settings)
@@ -2068,14 +2539,17 @@ class RobloxSession:
             self.dns = DnsForwarder(provider, self.settings.get("dns_custom", ""))
         self.audio = HostAudio.start()
         clear_stale_darling()
+        if rotate_dserver_log():
+            self.notes.append("Rotated dserver.log (over 32 MB) to dserver.log.old")
         LOGS.mkdir(parents=True, exist_ok=True)
         # The Mesa shader cache dir must exist before the game opens it.
         (CACHE_DIR / "mesa-shader-cache").mkdir(parents=True, exist_ok=True)
         (CACHE_DIR / "nvidia-shader-cache").mkdir(parents=True, exist_ok=True)
         # The guest TMPDIR (Roblox's flag and thumbnail caches) likewise.
         (CACHE_DIR / "roblox-tmp").mkdir(parents=True, exist_ok=True)
-        cleanup_logs(int(self.settings.get("keep_logs", 30)) - 1)
         self.log_path = LOGS / time.strftime("launch-%Y%m%d-%H%M%S.log")
+        cleanup_logs(int(self.settings.get("keep_logs", 30)) - 1, current=self.log_path)
+        self.trace_path = self._create_trace_file(self.log_path)
         if self.audio:
             self.audio.log_path = self.log_path
         # Truncate for this launch, but keep O_APPEND on the inherited file
@@ -2111,16 +2585,23 @@ class RobloxSession:
                 log.write(f"Requested cleanup of {len(leftover)} selected-prefix Roblox process(es) of an earlier game\n".encode())
             if orphans:
                 log.write(f"Requested cleanup of {orphans} selected-prefix Darling process(es) left without their darlingserver\n".encode())
-            if not darlingserver_running():
+            if self.trace_path:
+                log.write(f"CiderDarling trace: {self.trace_path}\n".encode())
+            for note in self.notes:
+                log.write(f"[Cider Startup] {note}\n".encode(errors="replace"))
+            for _attempt in range(2):
                 # The first process can fail to check in while the server
-                # starts. Keep this warmup's output: a server failure must not
-                # vanish before the client log begins.
+                # starts. The game's own `darling shell` must not start the
+                # server either (it would keep this log open), hence a second
+                # try. The warmup's output is copied here so a server failure
+                # stays visible.
+                if darlingserver_running():
+                    break
                 log.write(b"[Cider Startup] Darling warmup starting\n")
                 log.flush()
-                warmup = subprocess.run([DARLING_EXECUTABLE, "shell", "true"], env=env,
-                                        stdin=subprocess.DEVNULL, stdout=log,
-                                        stderr=subprocess.STDOUT, timeout=120)
-                log.write(f"[Cider Startup] Darling warmup status={warmup.returncode}\n".encode())
+                status = _darling_warmup(env)
+                log.write(_warmup_output().encode(errors="replace"))
+                log.write(f"[Cider Startup] Darling warmup status={status}\n".encode())
             changed = raise_darling_priority()
             if changed:
                 log.write(f"Priority: {changed} Darling processes raised to nice {_nice_target(SERVER_NICE)}\n".encode())
@@ -2219,6 +2700,13 @@ class RobloxSession:
     def finish(self, reason="explicit_cleanup", frontend_status=None):
         leftover = roblox_pids()
         self._record_lifecycle(reason, frontend_status)
+        if leftover and reason == "quit_sentinel":
+            # Roblox is quitting by itself and saves GlobalBasicSettings while
+            # it does; a signal now would lose them. Audio and DNS stay up too.
+            deadline = time.monotonic() + QUIT_GRACE_SECONDS
+            while roblox_pids(("RobloxPlayer",)) and time.monotonic() < deadline:
+                time.sleep(0.2)
+            leftover = roblox_pids()
         if leftover:
             _terminate_roblox(leftover, wait=1)
         if self.process and self.process.poll() is None:
@@ -2234,67 +2722,85 @@ class RobloxSession:
 SERVER_IP_PATTERN = re.compile(
     r'Connection accepted from\s+(\d{1,3}(?:\.\d{1,3}){3})'
 )
+# The connection line comes from the current game; its log grows for hours.
+SERVER_LOG_TAIL = 256 * 1024
+# Failed lookups are not repeated for this long (successes are kept).
+SERVER_LOCATION_RETRY = 300
 
 _server_location_cache = {}
+_server_location_lock = threading.Lock()
 
 
 def _latest_roblox_log():
-    """Return the newest Roblox Player log file inside the Darling prefix."""
+    """Return the newest Roblox Player log file inside the selected Darling
+    prefix, or in the launcher's logs folder."""
     candidates_dirs = [
-        Path.home() / ".darling" / "Users" / os.environ.get("USER", "") / "Library" / "Logs" / "Roblox",
+        DARLING_HOME / "Library" / "Logs" / "Roblox",
         LOGS,
     ]
     for log_dir in candidates_dirs:
-        if not log_dir.is_dir():
+        newest, newest_time = None, None
+        try:
+            for path in log_dir.glob("*_Player_*.log"):
+                if "CrashHandler" in path.name:
+                    continue
+                try:
+                    modified = path.stat().st_mtime
+                except OSError:
+                    continue
+                if newest_time is None or modified > newest_time:
+                    newest, newest_time = path, modified
+        except OSError:
             continue
-        logs = sorted(
-            [p for p in log_dir.glob("*_Player_*.log") if "CrashHandler" not in p.name],
-            key=lambda p: p.stat().st_mtime,
-            reverse=True,
-        )
-        if logs:
-            return logs[0]
+        if newest:
+            return newest
     return None
 
 
 def extract_server_ip(log_path=None):
-    """Read the latest Roblox log and extract the connected server IP."""
+    """Read the end of the latest Roblox log and extract the connected server IP."""
     if log_path is None:
         log_path = _latest_roblox_log()
     if not log_path or not Path(log_path).is_file():
         return None
-    try:
-        text = Path(log_path).read_text(errors="replace")
-    except OSError:
-        return None
-    matches = SERVER_IP_PATTERN.findall(text)
+    matches = SERVER_IP_PATTERN.findall(_log_tail(log_path, SERVER_LOG_TAIL))
     return matches[-1] if matches else None
 
 
 def query_server_location(ip_address):
-    """Query the RoValra API for the geolocation of a server IP."""
-    if not ip_address:
+    """Query the RoValra API for the geolocation of a server IP. Blocks for
+    up to a few seconds: call it off the GTK thread."""
+    import ipaddress
+    try:
+        address = ipaddress.IPv4Address(ip_address)
+    except ValueError:
         return None
-    if ip_address in _server_location_cache:
-        return _server_location_cache[ip_address]
-    url = f"https://apis.rovalra.com/v1/geolocation?ip={ip_address}"
+    if not address.is_global:
+        return None  # nothing to look up, and nothing to send to anyone
+    with _server_location_lock:
+        cached = _server_location_cache.get(str(address))
+    if cached and (cached[0] is not None or time.monotonic() - cached[1] < SERVER_LOCATION_RETRY):
+        return cached[0]
+    url = f"https://apis.rovalra.com/v1/geolocation?ip={address}"
+    result = None
     try:
         request = urllib.request.Request(url, headers={"User-Agent": "MacOBlox"})
-        with urllib.request.urlopen(request, timeout=10) as response:
-            data = json.loads(response.read().decode())
+        with urllib.request.urlopen(request, timeout=5) as response:
+            data = json.loads(response.read(65536).decode())
+        location = data.get("location", {}) if isinstance(data, dict) else {}
+        location = location if isinstance(location, dict) else {}
+        parts = [location.get("city"), location.get("region"), location.get("country")]
+        parts = [str(part)[:64] for part in parts if part]
+        result = ", ".join(parts) if parts else None
     except Exception as e:
         logging.getLogger("macoblox").warning("RoValra query failed: %s", e)
-        return None
-    location = data.get("location", {})
-    parts = [location.get("city"), location.get("region"), location.get("country")]
-    parts = [p for p in parts if p]
-    result = ", ".join(parts) if parts else None
-    _server_location_cache[ip_address] = result
+    with _server_location_lock:
+        _server_location_cache[str(address)] = (result, time.monotonic())
     return result
 
 
 def detect_server_location():
-    """Extract the current server IP and query its geolocation."""
+    """Extract the current server IP and query its geolocation (blocking)."""
     ip = extract_server_ip()
     if not ip:
         return None, None

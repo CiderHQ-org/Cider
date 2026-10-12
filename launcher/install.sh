@@ -32,7 +32,7 @@ exec_path=${launcher_dir//\\/\\\\\\\\}
 exec_path=${exec_path//\"/\\\\\"}
 exec_path=${exec_path//\`/\\\\\`}
 exec_path=${exec_path//\$/\\\\\$}
-exec_path=\"${exec_path//%/%%}/ciderhq-launcher\"
+exec_path=\"${exec_path//\%/%%}/ciderhq-launcher\"
 
 install -d "$data_home/applications"
 cat > "$data_home/applications/org.ciderhq.Cider.desktop" <<DESKTOP
@@ -81,6 +81,44 @@ Categories=Development;
 MimeType=x-scheme-handler/roblox-studio;x-scheme-handler/roblox-studio-auth;application/x-roblox-place;
 StartupWMClass=robloxstudiobeta.exe
 DESKTOP
+
+# A shortcut to CiderDarling's settings, only while CiderDarling is installed
+# (packaging/org.ciderhq.Cider.CiderDarling.desktop; the launcher keeps it in
+# step when runtimes change later). Its marker line identifies our copy.
+ciderdarling_entry=$data_home/applications/org.ciderhq.Cider.CiderDarling.desktop
+ciderdarling_state=0
+PYTHONPATH=$launcher_dir python3 -c '
+import sys
+from macoblox import runtime
+try:
+    installed = "ciderdarling" in runtime.installed_runtimes()
+except Exception:
+    sys.exit(2)
+sys.exit(0 if installed else 1)' 2>/dev/null || ciderdarling_state=$?
+ciderdarling_ours=''
+if [[ ! -e $ciderdarling_entry && ! -L $ciderdarling_entry ]] ||
+    { [[ ! -L $ciderdarling_entry ]] && grep -qsx 'X-CiderHQ-Managed=true' "$ciderdarling_entry"; }; then
+  ciderdarling_ours=1  # absent, or ours: a user's own entry of that name stays
+fi
+if [[ $ciderdarling_state == 0 && -n $ciderdarling_ours ]]; then
+  cat > "$ciderdarling_entry" <<DESKTOP
+[Desktop Entry]
+Type=Application
+Name=CiderDarling Settings
+Name[ru]=Настройки CiderDarling
+Comment=Graphics card, runtime and diagnostics settings for CiderDarling
+Comment[ru]=Видеокарта, среда и диагностика для CiderDarling
+Exec=$exec_path --ciderdarling-settings
+Icon=ciderhq
+Terminal=false
+Categories=Game;
+Keywords=ciderdarling;darling;gpu;
+StartupNotify=true
+X-CiderHQ-Managed=true
+DESKTOP
+elif [[ $ciderdarling_state == 1 && -n $ciderdarling_ours && -e $ciderdarling_entry ]]; then
+  rm -f -- "$ciderdarling_entry"
+fi
 # Place files (.rbxl, .rbxlx) as their own type, so file managers open them
 # with Studio: no MIME database defines one.
 install -Dm644 "$project_dir/packaging/org.ciderhq.Cider.xml" "$data_home/mime/packages/org.ciderhq.Cider.xml"

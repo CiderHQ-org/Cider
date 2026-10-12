@@ -2,6 +2,7 @@
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import tempfile
 
@@ -9,6 +10,11 @@ from .paths import user_directory
 
 VARIANTS = ("regular", "ciderdarling")
 SELECTION_KEYS = ("runtime", "executable", "sysroot", "prefix")
+CIDER_DIRECTORY = Path("/opt/ciderdarling")
+# install.sh is the single source of the pinned CiderDarling build: it runs
+# standalone (curl | bash), so it cannot read a separate file. Packages ship it
+# next to the launcher too, and it is what "Update CiderDarling" runs.
+INSTALLER = Path(__file__).resolve().parents[2] / "install.sh"
 
 
 def _validate_selection(data):
@@ -58,6 +64,22 @@ def read_selection(path):
         raise RuntimeError(f"Cannot read Darling selection {path}: {error}. Rerun Cider's installer.") from error
 
 
+def pinned_ciderdarling(installer=None):
+    """{"revision", "manifest"} pinned by Cider's installer, or None."""
+    try:
+        path = Path(installer) if installer is not None else INSTALLER
+        if path.stat().st_size > 1 << 20:
+            return None
+        text = path.read_text(errors="replace")
+    except OSError:
+        return None
+    revision = re.search(r"^CIDER_DARLING_REVISION=([0-9a-f]{40})$", text, re.MULTILINE)
+    manifest = re.search(r"^CIDER_DARLING_MANIFEST=([0-9a-f]{64})$", text, re.MULTILINE)
+    if not revision or not manifest:
+        return None
+    return {"revision": revision[1], "manifest": manifest[1]}
+
+
 def save_selection(selection, path=None, current=None):
     """Atomically select a runtime and remember both runtimes' custom paths."""
     data = {key: selection[key] for key in SELECTION_KEYS}
@@ -90,6 +112,25 @@ def save_selection(selection, path=None, current=None):
             temporary.unlink(missing_ok=True)
 
 
+def remember_runtime(entry, path=None):
+    """Record a newly installed runtime without switching to another variant.
+
+    It replaces the active selection only when that already uses the same
+    variant (an update of the active runtime); otherwise only the remembered
+    entry changes. Without a saved selection nothing is written: discovery
+    finds installed runtimes, and switching stays an explicit choice.
+    """
+    path = Path(path) if path is not None else selection_path()
+    saved = read_selection(path)
+    if saved is None:
+        return False
+    if saved["runtime"] == entry["runtime"]:
+        save_selection(entry, path)
+    else:
+        save_selection(saved, path, current=entry)
+    return True
+
+
 def metadata(sysroot):
     try:
         path = Path(sysroot) / "usr/share/ciderdarling/runtime.json"
@@ -105,8 +146,14 @@ def metadata(sysroot):
 
 
 def installed_runtimes(current=None, environment=None, selection_file=None,
-                       regular_clients=None, cider_directory=Path("/opt/ciderdarling")):
-    """Find usable installed clients; do not start Darling or install anything."""
+                       regular_clients=None, cider_directory=CIDER_DIRECTORY, pinned=...):
+    """Find usable installed clients; do not start Darling or install anything.
+
+    The installer's pinned CiderDarling directory wins when it is complete, so
+    a remembered older revision does not hide an update; then remembered
+    runtimes, PATH clients and other version directories, newest first.
+    `pinned` is a revision; the default reads it from install.sh.
+    """
     env = os.environ if environment is None else environment
     if env.get("FLATPAK_ID"):
         return {}
@@ -116,7 +163,10 @@ def installed_runtimes(current=None, environment=None, selection_file=None,
         remembered[current["runtime"]] = {key: current[key] for key in SELECTION_KEYS}
     found = {}
 
-    def consider(executable, preferred=None, expected_variant=None):
+    if pinned is ...:
+        pinned = (pinned_ciderdarling() or {}).get("revision")
+
+    def consider(executable, preferred=None, expected_variant=None, revision=None):
         client = Path(executable)
         try:
             if not client.is_file() or not os.access(client, os.X_OK):
@@ -127,6 +177,8 @@ def installed_runtimes(current=None, environment=None, selection_file=None,
             data = metadata(root)
             if data:
                 if data.get("architecture") != "x86_64":
+                    return
+                if revision is not None and data.get("source_revision") != revision:
                     return
                 variant = "ciderdarling"
             elif ((root / "usr/share/ciderdarling/runtime.json").exists()
@@ -154,6 +206,9 @@ def installed_runtimes(current=None, environment=None, selection_file=None,
         except (OSError, ValueError):
             return
 
+    if pinned:
+        consider(Path(cider_directory) / pinned / "bin/darling", expected_variant="ciderdarling",
+                 revision=pinned)
     for entry in remembered.values():
         consider(entry["executable"], entry)
     if regular_clients is None:

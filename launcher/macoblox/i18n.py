@@ -436,6 +436,67 @@ RU = {
         "Поддерживает эту версию: стабильность и скорость",
     "Made with Claude Opus 5.5": "Сделано с Claude Opus 5.5",
     "Anthropic's AI wrote the code together with the authors": "ИИ от Anthropic писал код вместе с авторами",
+    # CiderDarling settings and updates
+    "CiderDarling settings": "Настройки CiderDarling",
+    "Graphics card, watchdog, tracing and diagnostics": "Видеокарта, сторожевой таймер, трассировка и диагностика",
+    "Update CiderDarling": "Обновить CiderDarling",
+    "Update in terminal": "Обновить в терминале",
+    "Installed {installed}, Cider uses {pinned}. Opens a separate terminal for the build and sudo prompts.":
+        "Установлена {installed}, Cider использует {pinned}. Откроет отдельный терминал для сборки и запросов sudo.",
+    "These settings apply while CiderDarling is the active runtime. The renderer "
+    "and graphics card are shared with Environment → Game.":
+        "Эти настройки действуют, пока CiderDarling — активная среда. Рендерер и видеокарта "
+        "общие с разделом «Окружение → Игра».",
+    "Installed revision": "Установленная ревизия",
+    "{installed}; Cider uses {pinned}": "{installed}; Cider использует {pinned}",
+    "unknown": "неизвестно",
+    "{runtime}. Switch in Environment → Darling to use these settings.":
+        "{runtime}. Переключите среду в разделе «Окружение → Darling», чтобы применить эти настройки.",
+    "Graphics": "Графика",
+    "Threads": "Потоки",
+    "Watchdog thread kicks": "Пробуждение зависших потоков",
+    "MACOBLOX_KICK. Interrupts threads stuck in long waits. Off by default: "
+    "each kick costs time. Applies on next launch.":
+        "MACOBLOX_KICK. Прерывает потоки, надолго застрявшие в ожидании. По умолчанию выключено: "
+        "каждое прерывание стоит времени. Применяется при следующем запуске.",
+    "Record runtime trace": "Записывать трассировку среды",
+    "CIDER_TRACE_FILE. Numeric timings, no game text, in a private file in the logs "
+    "folder (up to 32 MB per launch). Applies on next launch.":
+        "CIDER_TRACE_FILE. Только числовые замеры, без текста игры, в личном файле в папке логов "
+        "(до 32 МБ за запуск). Применяется при следующем запуске.",
+    "Verbose darlingserver log": "Подробный лог darlingserver",
+    "DSERVER_LOG_LEVEL=debug. dserver.log grows quickly; applies the next time "
+    "Darling starts.":
+        "DSERVER_LOG_LEVEL=debug. dserver.log быстро растёт; применяется при следующем запуске Darling.",
+    "Open prefix folder": "Открыть папку префикса",
+    "Could not open the prefix folder: {error}": "Не удалось открыть папку префикса: {error}",
+    "CiderDarling is not installed": "CiderDarling не установлена",
+    "End of the build log:": "Конец лога сборки:",
+    "CiderDarling updated. Apply and restart Cider to use it.":
+        "CiderDarling обновлена. Примените выбор и перезапустите Cider, чтобы использовать её.",
+    # Diagnostics archive
+    "Collect diagnostics": "Собрать диагностику",
+    "Allow freeze diagnostics": "Разрешить диагностику зависаний",
+    "MACOBLOX_ALLOW_DEBUGGER. Lets Collect diagnostics read the game's thread stacks; "
+    "turn on before starting the game.":
+        "MACOBLOX_ALLOW_DEBUGGER. Позволяет сбору диагностики читать стеки потоков игры; "
+        "включите до запуска игры.",
+    "Diagnostics are being collected…": "Диагностика уже собирается…",
+    "Collecting diagnostics… This can take up to a minute.": "Сбор диагностики… Это может занять до минуты.",
+    "Could not collect diagnostics": "Не удалось собрать диагностику",
+    "Diagnostics collected": "Диагностика собрана",
+    "Saved {name}. Attach it to your report; it leaves out sign-in data and join tickets.":
+        "Сохранено: {name}. Приложите файл к отчёту; данных входа и билетов подключения в нём нет.",
+    "Thread stacks need Allow freeze diagnostics (Settings → Environment → "
+    "Diagnostics) to be on before the game starts.":
+        "Для стеков потоков включите «Разрешить диагностику зависаний» (Настройки → Окружение → "
+        "Диагностика) до запуска игры.",
+    "Open folder": "Открыть папку",
+    "Could not open the folder: {error}": "Не удалось открыть папку: {error}",
+    # Server location
+    "Show server location": "Показывать расположение сервера",
+    "Sends the game server's IP address to RoValra (apis.rovalra.com) while you play":
+        "Во время игры отправляет IP-адрес игрового сервера сервису RoValra (apis.rovalra.com)",
 }
 
 

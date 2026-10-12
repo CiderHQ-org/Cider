@@ -125,10 +125,10 @@ class RuntimeSelectionTests(unittest.TestCase):
                                     "architecture": "x86_64", "source_revision": "fixture"}))
         return path
 
-    def discover(self, current=None, **environment):
+    def discover(self, current=None, pinned=None, **environment):
         return runtime.installed_runtimes(current, dict(self.environment, **environment),
                                           self.selection, regular_clients=[self.cider / "bin/darling", self.stock / "bin/darling"],
-                                          cider_directory=self.base / "versions")
+                                          cider_directory=self.base / "versions", pinned=pinned)
 
     def test_discovery_keeps_client_root_and_provider_together(self):
         self.install_cider_metadata()
@@ -197,6 +197,93 @@ class RuntimeSelectionTests(unittest.TestCase):
         self.assertEqual(choices["ciderdarling"]["executable"], current["executable"])
         (self.cider / "bin/darling").unlink()
         self.assertEqual(self.discover(current)["ciderdarling"]["executable"], str(client))
+
+    def cider_version(self, name, revision):
+        version = self.base / "versions" / name
+        client = version / "bin/darling"
+        client.parent.mkdir(parents=True)
+        client.write_text("#!/bin/sh\nexit 0\n"); client.chmod(0o755)
+        metadata = version / "libexec/darling/usr/share/ciderdarling/runtime.json"
+        metadata.parent.mkdir(parents=True)
+        metadata.write_text(json.dumps({"schema_version": 1, "name": "CiderDarling",
+                                        "architecture": "x86_64", "source_revision": revision}))
+        return client
+
+    def test_pinned_version_wins_over_remembered_older_revision(self):
+        pin = "a" * 40
+        old = self.cider_version("b" * 40, "b" * 40)
+        current = dict(self.select(), executable=str(old),
+                       sysroot=str(old.parent.parent / "libexec/darling"))
+        self.selection.write_text(json.dumps(current))
+        self.assertEqual(self.discover(current, pinned=pin)["ciderdarling"]["executable"], str(old))
+        new = self.cider_version(pin, pin)
+        choice = self.discover(current, pinned=pin)["ciderdarling"]
+        self.assertEqual(choice["executable"], str(new))
+        # The selected prefix stays with the variant.
+        self.assertEqual(choice["prefix"], current["prefix"])
+        # An interrupted install (other metadata in the pinned directory) is
+        # not preferred.
+        metadata = new.parent.parent / "libexec/darling/usr/share/ciderdarling/runtime.json"
+        metadata.write_text(json.dumps({"schema_version": 1, "name": "CiderDarling",
+                                        "architecture": "x86_64", "source_revision": "c" * 40}))
+        self.assertEqual(self.discover(current, pinned=pin)["ciderdarling"]["executable"], str(old))
+
+    def test_pin_is_read_from_the_installer(self):
+        pin = runtime.pinned_ciderdarling()
+        self.assertRegex(pin["revision"], r"^[0-9a-f]{40}$")
+        self.assertRegex(pin["manifest"], r"^[0-9a-f]{64}$")
+        source = (Path(runtime.__file__).resolve().parents[2] / "install.sh").read_text()
+        self.assertIn(f"CIDER_DARLING_REVISION={pin['revision']}\n", source)
+        installer = self.base / "install.sh"
+        for text in ("", "CIDER_DARLING_REVISION=$(cat pin)\nCIDER_DARLING_MANIFEST=" + "0" * 64,
+                     "CIDER_DARLING_REVISION=" + "a" * 40 + "\n"):
+            installer.write_text(text)
+            self.assertIsNone(runtime.pinned_ciderdarling(installer))
+        self.assertIsNone(runtime.pinned_ciderdarling(self.base / "missing.sh"))
+
+    def test_remember_updates_only_the_matching_variant(self):
+        regular, cider = self.select("regular"), self.select("ciderdarling")
+        runtime.save_selection(regular, self.selection, current=cider)
+        newer = dict(cider, executable="/opt/ciderdarling/new/bin/darling",
+                     sysroot="/opt/ciderdarling/new/libexec/darling")
+        self.assertTrue(runtime.remember_runtime(newer, self.selection))
+        saved = runtime.read_selection(self.selection)
+        self.assertEqual(saved["runtime"], "regular")
+        self.assertEqual(runtime.remembered_runtimes(saved)["ciderdarling"]["executable"],
+                         newer["executable"])
+        runtime.save_selection(cider, self.selection, current=regular)
+        runtime.remember_runtime(newer, self.selection)
+        saved = runtime.read_selection(self.selection)
+        self.assertEqual((saved["runtime"], saved["executable"], saved["prefix"]),
+                         ("ciderdarling", newer["executable"], cider["prefix"]))
+        self.assertEqual(runtime.remembered_runtimes(saved)["regular"]["prefix"], regular["prefix"])
+        self.selection.unlink()
+        self.assertFalse(runtime.remember_runtime(newer, self.selection))
+        self.assertFalse(self.selection.exists())
+
+    def test_inherited_server_log_variables_need_an_opt_in(self):
+        inherited = {"DSERVER_LOG_STDERR": "1", "DSERVER_LOG_LEVEL": "debug", "KEEP": "1"}
+        with patch.dict(os.environ, inherited, clear=True), \
+                patch.object(core, "DARLING_RUNTIME", {"runtime": "ciderdarling"}):
+            notes = []
+            env = core.darling_environment(notes=notes)
+            self.assertNotIn("DSERVER_LOG_STDERR", env)
+            self.assertNotIn("DSERVER_LOG_LEVEL", env)
+            self.assertEqual(env["KEEP"], "1")
+            self.assertEqual(len(notes), 1)
+            self.assertIn("DSERVER_LOG_LEVEL, DSERVER_LOG_STDERR", notes[0])
+            # CiderDarling's verbose log setting asks for debug, not stderr.
+            env = core.darling_environment({"cider_verbose_server_log": True})
+            self.assertEqual(env["DSERVER_LOG_LEVEL"], "debug")
+            self.assertNotIn("DSERVER_LOG_STDERR", env)
+            with patch.object(core, "DARLING_RUNTIME", {"runtime": "regular"}):
+                self.assertNotIn("DSERVER_LOG_LEVEL",
+                                 core.darling_environment({"cider_verbose_server_log": True}))
+        with patch.dict(os.environ, dict(inherited, CIDER_KEEP_DSERVER_LOG="1"), clear=True):
+            notes = []
+            env = core.darling_environment(notes=notes)
+            self.assertEqual(env["DSERVER_LOG_STDERR"], "1")
+            self.assertEqual(notes, [])
 
     def test_incomplete_cider_version_is_never_regular_darling(self):
         version = self.base / "versions/incomplete"

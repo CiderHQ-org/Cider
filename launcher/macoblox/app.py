@@ -4,6 +4,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import threading
@@ -105,7 +106,7 @@ def _error_dialog(window, heading, details):
     people can send it. Also kept in ~/.cache/ciderhq/last-error.txt."""
     try:
         core.CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        (core.CACHE_DIR / "last-error.txt").write_text(f"Cider {__version__}\n{heading}\n\n{details}\n")
+        core.LAST_ERROR.write_text(f"Cider {__version__}\n{heading}\n\n{details}\n")
     except OSError:
         pass
     dialog = Adw.AlertDialog(heading=heading)
@@ -154,6 +155,10 @@ class GameLogsView(Gtk.Box):
         self._search_limited = False
         self._search_query = ""
         self._server_poll_id = 0
+        # A lookup reads the Roblox log and may ask RoValra: never on GTK's
+        # thread. Results of an older polling run are dropped.
+        self._server_generation = 0
+        self._server_lookup = False
 
         bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         bar.set_margin_start(16)
@@ -434,27 +439,48 @@ class GameLogsView(Gtk.Box):
                     self.buffer.insert(end, line + "\n")
 
     def _refresh_server_location(self):
-        if not self.window.settings.get("show_server_location", True):
-            self.server_label.set_visible(False)
-            self._server_poll_id = 0
+        if (not self.window.settings.get("server_location_lookup", False)
+                or self.window.session is None):
+            self.stop_server_location_polling()
             return False
-        ip, location = core.detect_server_location()
-        if location:
-            self.server_label.set_text(f"🌍 {location}")
-            self.server_label.set_visible(True)
-        elif ip:
-            self.server_label.set_text(f"🌍 {ip}")
-            self.server_label.set_visible(True)
-        else:
-            self.server_label.set_text("")
-            self.server_label.set_visible(False)
+        if self._server_lookup:
+            return True
+        self._server_lookup = True
+        generation = self._server_generation
+
+        def lookup():
+            try:
+                ip, location = core.detect_server_location()
+            except Exception as error:  # a lookup must never end the poll loop
+                print("Server location lookup failed:", error)
+                ip = location = None
+            GLib.idle_add(self._show_server_location, generation, ip, location)
+
+        try:
+            threading.Thread(target=lookup, daemon=True).start()
+        except RuntimeError:
+            self._server_lookup = False
         return True
 
+    def _show_server_location(self, generation, ip, location):
+        self._server_lookup = False
+        if generation != self._server_generation or not self._server_poll_id:
+            return False
+        # Nothing found keeps the last answer: the connection line is written
+        # once per join and leaves the searched log tail during a long game.
+        if location or ip:
+            self.server_label.set_text(f"🌍 {location or ip}")
+            self.server_label.set_visible(True)
+        return False
+
     def start_server_location_polling(self):
+        """Poll while a game runs and the user opted in (it contacts RoValra)."""
         if self._server_poll_id:
             return
-        if not self.window.settings.get("show_server_location", True):
+        if (not self.window.settings.get("server_location_lookup", False)
+                or self.window.session is None):
             return
+        self._server_generation += 1
         self._server_poll_id = GLib.timeout_add_seconds(10, self._refresh_server_location)
         self._refresh_server_location()
 
@@ -462,6 +488,9 @@ class GameLogsView(Gtk.Box):
         if self._server_poll_id:
             GLib.source_remove(self._server_poll_id)
             self._server_poll_id = 0
+        self._server_generation += 1
+        self.server_label.set_text("")
+        self.server_label.set_visible(False)
 
 
     def reset(self, log_path=None):
@@ -476,12 +505,12 @@ class GameLogsView(Gtk.Box):
         self.line_count = 0
         self.buffer.set_text("")
         self.close_search()
+        self.stop_server_location_polling()
         if log_path:
             self.status_label.set_text(log_path.name)
             self.start_server_location_polling()
         else:
             self.status_label.set_text("")
-            self.stop_server_location_polling()
 
     def update(self):
         log_path = None
@@ -1189,6 +1218,8 @@ class SettingsPage(Adw.Bin):
                                 "ciderdarling": _("CiderHQ's CiderDarling")}
         self._runtime_choices = runtime.installed_runtimes(core.DARLING_RUNTIME)
         bundled = bool(os.environ.get("FLATPAK_ID"))
+        # The CiderDarling build Cider's installer installs (and updates to).
+        self._cider_pin = None if bundled else runtime.pinned_ciderdarling()
         darling_group = Adw.PreferencesGroup(
             title="Darling", description=_("Each runtime keeps its own Roblox sign-in."))
         self.runtime_group = darling_group
@@ -1218,6 +1249,13 @@ class SettingsPage(Adw.Bin):
         self.runtime_install_button.connect("clicked", lambda *_args: window.install_ciderdarling())
         self.runtime_install_row.add_suffix(self.runtime_install_button)
         darling_group.add(self.runtime_install_row)
+        self.cider_settings_row = Adw.ActionRow(
+            title=_("CiderDarling settings"),
+            subtitle=_("Graphics card, watchdog, tracing and diagnostics"),
+            activatable=True, visible=False)
+        self.cider_settings_row.add_suffix(Gtk.Image(icon_name="go-next-symbolic"))
+        self.cider_settings_row.connect("activated", lambda *_args: self.set_tab("ciderdarling"))
+        darling_group.add(self.cider_settings_row)
         self._runtime_handler = self.runtime_row.connect("notify::selected", lambda *_args: self._runtime_selection_changed())
         self._runtime_selection_changed()
         self.env_page.add(darling_group)
@@ -1233,53 +1271,15 @@ class SettingsPage(Adw.Bin):
         self.env_page.add(interface)
 
         game = Adw.PreferencesGroup(title=_("Game"))
-        renderer_codes = ("opengl", "vulkan")
-        renderer = Adw.ComboRow(
-            title=_("Renderer"),
-            subtitle=_("Applies on next launch. Missing Mesa EGL/Zink packages need administrator authentication."),
-            model=Gtk.StringList.new([_("OpenGL"), _("Vulkan (Zink, experimental)")]))
-        selected_renderer = settings.get("renderer", "opengl")
-        renderer.set_selected(renderer_codes.index(selected_renderer)
-                              if selected_renderer in renderer_codes else 0)
-        def select_renderer(row, _pspec):
-            selected = renderer_codes[row.get_selected()]
-            if selected == "opengl":
-                window.set_setting("renderer", selected)
-                return
-            from . import graphics
-            if not graphics.missing_vulkan_dependencies():
-                window.set_setting("renderer", selected)
-                return
-            row.set_sensitive(False)
-            _toast(window.toasts, _("Installing Vulkan dependencies… Authorize the administrator prompt to continue."))
-
-            def installed(_result, error):
-                row.set_sensitive(True)
-                if error:
-                    row.handler_block(renderer_handler)
-                    row.set_selected(renderer_codes.index(window.settings.get("renderer", "opengl")))
-                    row.handler_unblock(renderer_handler)
-                    _error_dialog(window, _("Could not install Vulkan dependencies"), str(error))
-                else:
-                    window.set_setting("renderer", "vulkan")
-                    _toast(window.toasts, _("Vulkan dependencies installed"))
-
-            self._in_thread(graphics.ensure_vulkan_dependencies, installed)
-
-        renderer_handler = renderer.connect("notify::selected", select_renderer)
-        game.add(renderer)
+        # The renderer and graphics card rows also appear on the CiderDarling
+        # tab; every copy shows and saves the same setting.
+        self._renderer_rows = []
+        game.add(self._renderer_row())
 
         self._gpu_codes = ["auto"]
-        self.gpu_row = Adw.ComboRow(
-            title=_("Graphics card"),
-            subtitle=_("Detecting graphics cards… Applies on next launch."),
-            model=Gtk.StringList.new([_("Automatic")]),
-            sensitive=False,
-            visible=settings.get("gpu", "auto") != "auto")
-        self._gpu_handler = self.gpu_row.connect("notify::selected", self._select_gpu)
+        self._gpu_rows = []
+        self.gpu_row = self._gpu_row()
         game.add(self.gpu_row)
-        from . import gpus
-        self._in_thread(gpus.enumerate_gpus, self._gpu_choices_loaded)
 
         backend_codes = ["x11", "wayland"]
         backend = Adw.ComboRow(
@@ -1363,6 +1363,14 @@ class SettingsPage(Adw.Bin):
                                         active=settings.get("show_playtime", True))
         playtime_switch.connect("notify::active", lambda row, _pspec: window.set_show_playtime(row.get_active()))
         game.add(playtime_switch)
+
+        server_location = Adw.SwitchRow(
+            title=_("Show server location"),
+            subtitle=_("Sends the game server's IP address to RoValra (apis.rovalra.com) while you play"),
+            active=settings.get("server_location_lookup", False))
+        server_location.connect("notify::active", lambda row, _pspec: window.set_server_location_lookup(
+            row.get_active()))
+        game.add(server_location)
 
         self.env_page.add(game)
 
@@ -1459,6 +1467,11 @@ class SettingsPage(Adw.Bin):
             row = Adw.SwitchRow(title=_(title), subtitle=core.TRACE_ENV[key], active=settings[key])
             row.connect("notify::active", lambda r, _pspec, k=key: window.set_setting(k, r.get_active()))
             diagnostics.add(row)
+        self._synced_switches = {}
+        diagnostics.add(self._allow_debugger_row())
+        collect = _button_row(_("Collect diagnostics"))
+        collect.connect("activated", lambda *_args: window.collect_diagnostics())
+        diagnostics.add(collect)
         logs = _button_row(_("Open logs folder"))
         logs.connect("activated", lambda *_args: self.open_logs())
         diagnostics.add(logs)
@@ -1541,6 +1554,12 @@ class SettingsPage(Adw.Bin):
         self.flags_page = FlagsPage(window)
         self.stack.add_titled_with_icon(self.flags_page, "flags", _("Fast flags"), "preferences-other-symbolic")
 
+        # 4. CiderDarling page, shown while CiderDarling is installed
+        self.cider_page = self._ciderdarling_page()
+        self.cider_stack_page = self.stack.add_titled_with_icon(
+            self.cider_page, "ciderdarling", "CiderDarling", "applications-engineering-symbolic")
+        self.refresh_ciderdarling()
+
         top_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         top_box.set_margin_top(10)
         top_box.set_margin_bottom(10)
@@ -1562,19 +1581,42 @@ class SettingsPage(Adw.Bin):
         if hasattr(self, "raw_mouse_row"):
             self.raw_mouse_row.set_active(self.window.settings.get("raw_mouse", True))
 
+    def ciderdarling_revisions(self):
+        """(installed, pinned) CiderDarling source revisions; None when unknown."""
+        choice = self._runtime_choices.get("ciderdarling")
+        installed = runtime.metadata(choice["sysroot"]).get("source_revision") if choice else None
+        return (installed if isinstance(installed, str) else None,
+                (self._cider_pin or {}).get("revision"))
+
+    def ciderdarling_update_needed(self):
+        """An installed CiderDarling that is not the build Cider's installer pins."""
+        installed, pinned = self.ciderdarling_revisions()
+        return bool(installed and pinned and installed != pinned and not os.environ.get("FLATPAK_ID"))
+
     def _runtime_selection_changed(self):
         index = self.runtime_row.get_selected()
         selected = self._runtime_codes[index] if index < len(self._runtime_codes) else None
         choice = self._runtime_choices.get(selected)
         bundled = bool(os.environ.get("FLATPAK_ID"))
         installing = self.window.runtime_install_job is not None
+        update = self.ciderdarling_update_needed()
         changed = choice is not None and any(choice[key] != core.DARLING_RUNTIME[key]
                                              for key in runtime.SELECTION_KEYS)
         self.runtime_apply_button.set_sensitive(changed and not bundled and not installing)
-        self.runtime_install_row.set_visible(not bundled and (installing or (selected == "ciderdarling" and choice is None)))
+        self.runtime_install_row.set_visible(not bundled and (
+            installing or update or (selected == "ciderdarling" and choice is None)))
         self.runtime_install_button.set_sensitive(not bundled and not installing)
-        self.runtime_install_row.set_subtitle(_("Installing CiderDarling in another terminal…") if installing
-            else _("Opens a separate terminal for the build and sudo prompts."))
+        self.runtime_install_row.set_title(_("Update CiderDarling") if update else _("Install CiderDarling"))
+        self.runtime_install_button.set_label(_("Update in terminal") if update else _("Install in terminal"))
+        if installing:
+            self.runtime_install_row.set_subtitle(_("Installing CiderDarling in another terminal…"))
+        elif update:
+            installed, pinned = self.ciderdarling_revisions()
+            self.runtime_install_row.set_subtitle(
+                _("Installed {installed}, Cider uses {pinned}. Opens a separate terminal for the build and sudo prompts.",
+                  installed=installed[:12], pinned=pinned[:12]))
+        else:
+            self.runtime_install_row.set_subtitle(_("Opens a separate terminal for the build and sudo prompts."))
         if bundled:
             subtitle = _("Flatpak uses its bundled Darling runtime.")
         elif installing:
@@ -1605,6 +1647,7 @@ class SettingsPage(Adw.Bin):
         finally:
             self.runtime_row.handler_unblock(self._runtime_handler)
         self._runtime_selection_changed()
+        self.refresh_ciderdarling()
 
     def apply_runtime(self):
         if os.environ.get("FLATPAK_ID") or not self.runtime_apply_button.get_sensitive():
@@ -1638,10 +1681,73 @@ class SettingsPage(Adw.Bin):
                 details = _("Runtime saved. Close and reopen Cider to apply it.") + "\n\n" + details
             _error_dialog(self.window, _("Could not switch Darling runtime"), details)
 
+    RENDERER_CODES = ("opengl", "vulkan")
+
+    def _renderer_row(self):
+        row = Adw.ComboRow(
+            title=_("Renderer"),
+            subtitle=_("Applies on next launch. Missing Mesa EGL/Zink packages need administrator authentication."),
+            model=Gtk.StringList.new([_("OpenGL"), _("Vulkan (Zink, experimental)")]))
+        selected = self.window.settings.get("renderer", "opengl")
+        row.set_selected(self.RENDERER_CODES.index(selected) if selected in self.RENDERER_CODES else 0)
+        self._renderer_rows.append((row, row.connect("notify::selected", self._select_renderer)))
+        return row
+
+    def _show_renderer(self, code):
+        index = self.RENDERER_CODES.index(code) if code in self.RENDERER_CODES else 0
+        for row, handler in self._renderer_rows:
+            if row.get_selected() != index:
+                row.handler_block(handler)
+                row.set_selected(index)
+                row.handler_unblock(handler)
+
+    def _select_renderer(self, row, _pspec):
+        window = self.window
+        selected = self.RENDERER_CODES[row.get_selected()]
+        from . import graphics
+        if selected == "opengl" or not graphics.missing_vulkan_dependencies():
+            window.set_setting("renderer", selected)
+            self._show_renderer(selected)
+            return
+        for other, _handler in self._renderer_rows:
+            other.set_sensitive(False)
+        _toast(window.toasts, _("Installing Vulkan dependencies… Authorize the administrator prompt to continue."))
+
+        def installed(_result, error):
+            for other, _handler in self._renderer_rows:
+                other.set_sensitive(True)
+            if error:
+                self._show_renderer(window.settings.get("renderer", "opengl"))
+                _error_dialog(window, _("Could not install Vulkan dependencies"), str(error))
+            else:
+                window.set_setting("renderer", "vulkan")
+                self._show_renderer("vulkan")
+                _toast(window.toasts, _("Vulkan dependencies installed"))
+
+        self._in_thread(graphics.ensure_vulkan_dependencies, installed)
+
+    def _gpu_row(self, always_visible=False):
+        row = Adw.ComboRow(
+            title=_("Graphics card"),
+            subtitle=_("Detecting graphics cards… Applies on next launch."),
+            model=Gtk.StringList.new([_("Automatic")]),
+            sensitive=False,
+            visible=always_visible or self.window.settings.get("gpu", "auto") != "auto")
+        self._gpu_rows.append((row, row.connect("notify::selected", self._select_gpu), always_visible))
+        if len(self._gpu_rows) == 1:
+            from . import gpus
+            self._in_thread(gpus.enumerate_gpus, self._gpu_choices_loaded)
+        return row
+
     def _select_gpu(self, row, _pspec):
         selected = row.get_selected()
         if selected < len(self._gpu_codes):
             self.window.set_setting("gpu", self._gpu_codes[selected])
+            for other, handler, _always in self._gpu_rows:
+                if other is not row and other.get_selected() != selected:
+                    other.handler_block(handler)
+                    other.set_selected(selected)
+                    other.handler_unblock(handler)
 
     def _gpu_choices_loaded(self, adapters, error):
         if getattr(self.window, "settings_page", None) is not self:
@@ -1654,17 +1760,134 @@ class SettingsPage(Adw.Bin):
             codes.append(selection)
             labels.append(_("Selected graphics card unavailable"))
         self._gpu_codes = codes
-        self.gpu_row.handler_block(self._gpu_handler)
-        try:
-            self.gpu_row.set_model(Gtk.StringList.new(labels))
-            self.gpu_row.set_selected(codes.index(selection))
-        finally:
-            self.gpu_row.handler_unblock(self._gpu_handler)
-        self.gpu_row.set_sensitive(True)
-        self.gpu_row.set_visible(len(adapters) > 1 or selection != "auto" or error is not None)
-        self.gpu_row.set_subtitle(_("Could not detect graphics cards. Select Automatic to use the system default.")
-                                  if error else _("Applies on next launch. Automatic keeps your desktop or terminal's GPU selection."))
+        for row, handler, always_visible in self._gpu_rows:
+            row.handler_block(handler)
+            try:
+                row.set_model(Gtk.StringList.new(labels))
+                row.set_selected(codes.index(selection))
+            finally:
+                row.handler_unblock(handler)
+            row.set_sensitive(True)
+            row.set_visible(always_visible or len(adapters) > 1 or selection != "auto" or error is not None)
+            row.set_subtitle(_("Could not detect graphics cards. Select Automatic to use the system default.")
+                             if error else _("Applies on next launch. Automatic keeps your desktop or terminal's GPU selection."))
         return False
+
+    def _synced_switch(self, key, title, subtitle):
+        """A switch for one setting; its copies on other tabs follow it."""
+        row = Adw.SwitchRow(title=title, subtitle=subtitle, active=self.window.settings.get(key, False))
+        rows = self._synced_switches.setdefault(key, [])
+        rows.append(row)
+
+        def changed(changed_row, _pspec):
+            value = changed_row.get_active()
+            self.window.set_setting(key, value)
+            for other in rows:
+                if other is not changed_row and other.get_active() != value:
+                    other.set_active(value)
+
+        row.connect("notify::active", changed)
+        return row
+
+    def _allow_debugger_row(self):
+        return self._synced_switch(
+            "allow_debugger", _("Allow freeze diagnostics"),
+            _("MACOBLOX_ALLOW_DEBUGGER. Lets Collect diagnostics read the game's thread stacks; "
+              "turn on before starting the game."))
+
+    def _ciderdarling_page(self):
+        window, settings = self.window, self.window.settings
+        page = Adw.PreferencesPage()
+        about = Adw.PreferencesGroup(
+            title="CiderDarling",
+            description=_("These settings apply while CiderDarling is the active runtime. The renderer "
+                          "and graphics card are shared with Environment → Game."))
+        self.cider_revision_row = Adw.ActionRow(title=_("Installed revision"))
+        self.cider_revision_row.set_subtitle_selectable(True)
+        self.cider_update_button = Gtk.Button(label=_("Update in terminal"), valign=Gtk.Align.CENTER,
+                                              visible=False)
+        self.cider_update_button.add_css_class("suggested-action")
+        self.cider_update_button.connect("clicked", lambda *_args: window.install_ciderdarling())
+        self.cider_revision_row.add_suffix(self.cider_update_button)
+        about.add(self.cider_revision_row)
+        self.cider_active_row = Adw.ActionRow(title=_("Active runtime"))
+        about.add(self.cider_active_row)
+        page.add(about)
+
+        graphics = Adw.PreferencesGroup(title=_("Graphics"))
+        graphics.add(self._renderer_row())
+        graphics.add(self._gpu_row(always_visible=True))
+        page.add(graphics)
+
+        threads = Adw.PreferencesGroup(title=_("Threads"))
+        kicks = Adw.SwitchRow(
+            title=_("Watchdog thread kicks"),
+            subtitle=_("MACOBLOX_KICK. Interrupts threads stuck in long waits. Off by default: "
+                       "each kick costs time. Applies on next launch."),
+            active=settings.get("cider_thread_kicks", False))
+        kicks.connect("notify::active", lambda row, _pspec: window.set_setting(
+            "cider_thread_kicks", row.get_active()))
+        threads.add(kicks)
+        page.add(threads)
+
+        diagnostics = Adw.PreferencesGroup(title=_("Diagnostics"))
+        trace = Adw.SwitchRow(
+            title=_("Record runtime trace"),
+            subtitle=_("CIDER_TRACE_FILE. Numeric timings, no game text, in a private file in the logs "
+                       "folder (up to 32 MB per launch). Applies on next launch."),
+            active=settings.get("cider_trace", False))
+        trace.connect("notify::active", lambda row, _pspec: window.set_setting("cider_trace", row.get_active()))
+        diagnostics.add(trace)
+        verbose = Adw.SwitchRow(
+            title=_("Verbose darlingserver log"),
+            subtitle=_("DSERVER_LOG_LEVEL=debug. dserver.log grows quickly; applies the next time "
+                       "Darling starts."),
+            active=settings.get("cider_verbose_server_log", False))
+        verbose.connect("notify::active", lambda row, _pspec: window.set_setting(
+            "cider_verbose_server_log", row.get_active()))
+        diagnostics.add(verbose)
+        diagnostics.add(self._allow_debugger_row())
+        collect = _button_row(_("Collect diagnostics"))
+        collect.connect("activated", lambda *_args: window.collect_diagnostics())
+        diagnostics.add(collect)
+        prefix = _button_row(_("Open prefix folder"))
+        prefix.connect("activated", lambda *_args: self.open_prefix())
+        diagnostics.add(prefix)
+        restart = _button_row(_("Restart Darling"))
+        restart.connect("activated", lambda *_args: self.restart_darling())
+        diagnostics.add(restart)
+        page.add(diagnostics)
+        return page
+
+    def refresh_ciderdarling(self):
+        """Show the CiderDarling tab and its shortcut while it is installed."""
+        available = "ciderdarling" in self._runtime_choices and not os.environ.get("FLATPAK_ID")
+        self.cider_stack_page.set_visible(available)
+        self.cider_settings_row.set_visible(available)
+        if not available:
+            if self.stack.get_visible_child_name() == "ciderdarling":
+                self.stack.set_visible_child_name("env")
+            return
+        installed, pinned = self.ciderdarling_revisions()
+        update = self.ciderdarling_update_needed()
+        if update:
+            subtitle = _("{installed}; Cider uses {pinned}", installed=installed[:12], pinned=pinned[:12])
+        else:
+            subtitle = (installed or _("unknown"))[:12]
+        self.cider_revision_row.set_subtitle(subtitle)
+        self.cider_update_button.set_visible(update)
+        self.cider_update_button.set_sensitive(self.window.runtime_install_job is None)
+        active = core.DARLING_RUNTIME["runtime"] == "ciderdarling"
+        self.cider_active_row.set_subtitle(
+            self._runtime_labels["ciderdarling"] if active else
+            _("{runtime}. Switch in Environment → Darling to use these settings.",
+              runtime=self._runtime_labels[core.DARLING_RUNTIME["runtime"]]))
+
+    def open_prefix(self):
+        try:
+            Gio.AppInfo.launch_default_for_uri(core.DARLING_PREFIX.as_uri(), None)
+        except (OSError, GLib.Error, ValueError) as error:
+            _toast(self.window.toasts, _("Could not open the prefix folder: {error}", error=error))
 
     def open_logs(self):
         try:
@@ -1818,6 +2041,8 @@ class SettingsPage(Adw.Bin):
             self.progress.set_visible(False)
             self.version_row.set_subtitle(core.installed_version() or _("not found"))
             self.window.play_page.refresh()
+            if error is None:
+                core.clear_last_error()
             if on_complete:
                 on_complete(error)
             elif error:
@@ -2367,7 +2592,7 @@ class ModsPage(Adw.Bin):
 
 
 class LauncherWindow(Adw.ApplicationWindow):
-    def __init__(self, app):
+    def __init__(self, app, page=None):
         super().__init__(application=app, title="Cider")
         self.set_default_size(760, 580)
         self.set_resizable(True)
@@ -2383,15 +2608,117 @@ class LauncherWindow(Adw.ApplicationWindow):
         self.runtime_install_job = None
         self.quit_when_idle = False  # the window was closed during an operation
         self.last_log = self._find_last_log()
-        self.pending_uri = None
+        self._pending_uri = None
+        self._pending_uri_at = 0.0
+        self.diagnostics_running = False
         self.setup_active = False
         setup_action = Gio.SimpleAction.new("setup", None)
         setup_action.connect("activate", lambda *_args: self.show_setup())
         self.add_action(setup_action)
+        diagnostics_action = Gio.SimpleAction.new("collect-diagnostics", None)
+        diagnostics_action.connect("activate", lambda *_args: self.collect_diagnostics())
+        self.add_action(diagnostics_action)
         # MACOBLOX_PAGE opens another tab first (for screenshots).
-        self.build(os.environ.get("MACOBLOX_PAGE", "play"))
+        self.build(page or os.environ.get("MACOBLOX_PAGE", "play"))
         if not self.setup_active:
             threading.Thread(target=self._check_startup_update, daemon=True).start()
+        threading.Thread(target=self._sync_ciderdarling_shortcut, daemon=True).start()
+
+    # A browser join link waiting for the launcher expires like its file
+    # (uri.PENDING_MAX_AGE): an old click must not start a game much later.
+    @property
+    def pending_uri(self):
+        if (self._pending_uri is not None and
+                time.monotonic() - self._pending_uri_at > uri_handoff.PENDING_MAX_AGE):
+            self._pending_uri = None
+        return self._pending_uri
+
+    @pending_uri.setter
+    def pending_uri(self, value):
+        if value != self._pending_uri:
+            self._pending_uri_at = time.monotonic()
+        self._pending_uri = value
+
+    def _sync_ciderdarling_shortcut(self):
+        """Keep the CiderDarling Settings menu entry in step with the runtimes."""
+        try:
+            installed = "ciderdarling" in runtime.installed_runtimes(core.DARLING_RUNTIME)
+        except (OSError, RuntimeError, ValueError):
+            return  # an unreadable selection: leave the entry as it is
+        core.sync_ciderdarling_shortcut(installed)
+
+    def show_ciderdarling_settings(self):
+        if "ciderdarling" not in self.settings_page._runtime_choices or os.environ.get("FLATPAK_ID"):
+            self.stack.set_visible_child_name("settings")
+            self.settings_page.set_tab("env")
+            _toast(self.toasts, _("CiderDarling is not installed"))
+            return
+        self.stack.set_visible_child_name("settings")
+        self.settings_page.set_tab("ciderdarling")
+
+    def collect_diagnostics(self):
+        """Write a diagnostics archive (diagnostics.py) without blocking GTK."""
+        if self.diagnostics_running:
+            _toast(self.toasts, _("Diagnostics are being collected…"))
+            return
+        try:
+            from . import diagnostics
+        except ImportError as error:
+            _error_dialog(self, _("Could not collect diagnostics"), str(error))
+            return
+        self.diagnostics_running = True
+        toast = Adw.Toast.new(_("Collecting diagnostics… This can take up to a minute."))
+        toast.set_timeout(0)
+        self.toasts.add_toast(toast)
+
+        def done(archive, error):
+            self.diagnostics_running = False
+            toast.dismiss()
+            if error:
+                _error_dialog(self, _("Could not collect diagnostics"), str(error) or repr(error))
+                return False
+            self._diagnostics_ready_dialog(archive)
+            return False
+
+        def work():
+            try:
+                archive = diagnostics.collect()
+                GLib.idle_add(done, archive, None)
+            except Exception as error:  # shown to the user
+                GLib.idle_add(done, None, error)
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _diagnostics_ready_dialog(self, archive):
+        body = _("Saved {name}. Attach it to your report; it leaves out sign-in data and join tickets.",
+                 name=archive.name)
+        if not self.settings.get("allow_debugger", False):
+            body += "\n\n" + _("Thread stacks need Allow freeze diagnostics (Settings → Environment → "
+                                 "Diagnostics) to be on before the game starts.")
+        dialog = Adw.AlertDialog(heading=_("Diagnostics collected"), body=body)
+        dialog.add_response("close", _("Close"))
+        dialog.add_response("open", _("Open folder"))
+        dialog.set_response_appearance("open", Adw.ResponseAppearance.SUGGESTED)
+        dialog.set_default_response("open")
+        dialog.set_close_response("close")
+
+        def response(_dialog, result):
+            if result == "open":
+                try:
+                    Gio.AppInfo.launch_default_for_uri(archive.parent.as_uri(), None)
+                except (OSError, GLib.Error) as error:
+                    _toast(self.toasts, _("Could not open the folder: {error}", error=error))
+
+        dialog.connect("response", response)
+        dialog.present(self)
+
+    def set_server_location_lookup(self, enabled):
+        self.set_setting("server_location_lookup", enabled)
+        logs = self.play_page.logs_view
+        if enabled:
+            logs.start_server_location_polling()
+        else:
+            logs.stop_server_location_polling()
 
     def build(self, page):
         """(Re)create the interface, e.g. after the language changes."""
@@ -2409,7 +2736,9 @@ class LauncherWindow(Adw.ApplicationWindow):
         self.stack.add_titled_with_icon(self.info_page, "info", _("Info"), "help-about-symbolic")
         self.flags_page = self.settings_page.flags_page
 
-        if page in ("flags", "env", "roblox"):
+        if page == "ciderdarling":
+            self.show_ciderdarling_settings()
+        elif page in ("flags", "env", "roblox"):
             self.stack.set_visible_child_name("settings")
             self.settings_page.set_tab(page)
         else:
@@ -2438,6 +2767,7 @@ class LauncherWindow(Adw.ApplicationWindow):
         header = Adw.HeaderBar()
         menu = Gio.Menu()
         menu.append(_("Setup guide"), "win.setup")
+        menu.append(_("Collect diagnostics"), "win.collect-diagnostics")
         header.pack_end(Gtk.MenuButton(icon_name="open-menu-symbolic", menu_model=menu,
                                        tooltip_text=_("Launcher menu")))
 
@@ -2579,10 +2909,13 @@ class LauncherWindow(Adw.ApplicationWindow):
         core.save_settings(self.settings)
 
     def install_ciderdarling(self):
+        """Install CiderDarling, or update it to the build Cider's installer
+        pins, in a separate terminal (runtime_install.TERMINAL_SCRIPT)."""
         if os.environ.get("FLATPAK_ID"):
             return
         page = self.settings_page
-        if page._runtime_codes[page.runtime_row.get_selected()] != "ciderdarling":
+        update = page.ciderdarling_update_needed()
+        if not update and page._runtime_codes[page.runtime_row.get_selected()] != "ciderdarling":
             return
         if not self.begin("installing runtime"):
             return
@@ -2592,7 +2925,7 @@ class LauncherWindow(Adw.ApplicationWindow):
                 self.end(resume_pending=False)
                 _toast(self.toasts, _("Close Roblox first"))
                 return
-            if "ciderdarling" in runtime.installed_runtimes(core.DARLING_RUNTIME):
+            if not update and "ciderdarling" in runtime.installed_runtimes(core.DARLING_RUNTIME):
                 self.end(resume_pending=False)
                 page.refresh_runtime_choices()
                 return
@@ -2601,6 +2934,7 @@ class LauncherWindow(Adw.ApplicationWindow):
                 raise RuntimeError(_("Could not open an installation terminal."))
             self.runtime_install_job = job
             page._runtime_selection_changed()
+            page.refresh_ciderdarling()
             GLib.timeout_add(1000, self._watch_runtime_install, job)
         except (GLib.Error, OSError, RuntimeError, ValueError) as error:
             if job is not None:
@@ -2621,6 +2955,9 @@ class LauncherWindow(Adw.ApplicationWindow):
                 return True
             if status != 0:
                 error = _("Installation failed or was cancelled. See the separate terminal for details.")
+                tail = job.log_tail(40)
+                if tail:
+                    error += "\n\n" + _("End of the build log:") + "\n" + tail
         except (OSError, RuntimeError, ValueError) as exception:
             error = str(exception)
         self.runtime_install_job = None
@@ -2629,16 +2966,35 @@ class LauncherWindow(Adw.ApplicationWindow):
         except OSError as exception:
             error = error or str(exception)
         self.end(resume_pending=False)
-        self.settings_page.refresh_runtime_choices()
+        page = self.settings_page
+        page.refresh_runtime_choices()
+        choice = page._runtime_choices.get("ciderdarling")
         if error:
             _error_dialog(self, _("Could not install CiderDarling"), error)
-        elif "ciderdarling" not in self.settings_page._runtime_choices:
+        elif choice is None:
             _error_dialog(self, _("Could not detect CiderDarling"),
                           _("The installer finished, but the runtime could not be detected. Check the terminal output."))
         else:
-            self.settings_page.runtime_row.set_selected(self.settings_page._runtime_codes.index("ciderdarling"))
-            _toast(self.toasts, _("CiderDarling installed. Apply the runtime choice to switch."))
+            core.clear_last_error()
+            self._remember_installed_ciderdarling(choice)
+            threading.Thread(target=self._sync_ciderdarling_shortcut, daemon=True).start()
+            page.runtime_row.set_selected(page._runtime_codes.index("ciderdarling"))
+            if core.DARLING_RUNTIME["runtime"] == "ciderdarling" and page.runtime_apply_button.get_sensitive():
+                _toast(self.toasts, _("CiderDarling updated. Apply and restart Cider to use it."))
+            else:
+                _toast(self.toasts, _("CiderDarling installed. Apply the runtime choice to switch."))
         return False
+
+    def _remember_installed_ciderdarling(self, choice):
+        """A saved CiderDarling (active or remembered) moves to the new
+        installation, keeping its prefix; another active runtime stays."""
+        try:
+            saved = runtime.read_selection(runtime.selection_path())
+            remembered = runtime.remembered_runtimes(saved).get("ciderdarling")
+            if remembered and any(remembered[key] != choice[key] for key in runtime.SELECTION_KEYS):
+                runtime.remember_runtime(choice)
+        except (OSError, RuntimeError, ValueError) as error:
+            print("Could not remember the installed CiderDarling:", error)
 
     def set_language(self, code):
         if code == i18n.language():
@@ -2675,7 +3031,7 @@ class LauncherWindow(Adw.ApplicationWindow):
         # so the newest handoff is the one that starts the client.
         browser_uri = uri_handoff.peek_pending() or browser_uri
         self.pending_uri = browser_uri
-        if (self.session or self.busy or self.setup_active or
+        if (self.session or self.busy or self.setup_active or getattr(self, "stopping", False) or
                 getattr(self, "_update_required_dialog_active", False)):
             # The pending file remains in place.  A later activation or the
             # end of the current operation will retry this exact argument.
@@ -2744,7 +3100,7 @@ class LauncherWindow(Adw.ApplicationWindow):
         threading.Thread(target=run, daemon=True).start()
 
     def launch(self, launch_uri=None):
-        if not self.begin("starting"):
+        if getattr(self, "stopping", False) or not self.begin("starting"):
             return
         self.settings_page.flush()
         session = core.RobloxSession(dict(self.settings), launch_uri=launch_uri)
@@ -2911,6 +3267,7 @@ class LauncherWindow(Adw.ApplicationWindow):
             return
         self._stop_rpc()
         self.session = session
+        core.clear_last_error()
         if session.launch_uri:
             # A newer click may have replaced pending-uri while Darling was
             # starting; clear only the argument this session consumed.
@@ -2991,6 +3348,7 @@ class LauncherWindow(Adw.ApplicationWindow):
         self.session = None
         self._stop_web()
         self._stop_rpc()
+        self.play_page.logs_view.stop_server_location_polling()
         core.save_settings(self.settings)
         self.play_page.refresh()
         # Roblox's macOS updater cannot reliably replace the host bundle through
@@ -3145,9 +3503,62 @@ class LauncherWindow(Adw.ApplicationWindow):
 
 
 class LauncherApp(Adw.Application):
-    def __init__(self):
+    def __init__(self, page=None):
         super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.DEFAULT_FLAGS)
         self.window = None
+        self.page = page
+        self._stopping = False
+        # `ciderhq --ciderdarling-settings` activates this in a running launcher.
+        action = Gio.SimpleAction.new("ciderdarling-settings", None)
+        action.connect("activate", lambda *_args: self._show_ciderdarling_settings())
+        self.add_action(action)
+
+    def _show_ciderdarling_settings(self):
+        if not self.window:
+            self.page = "ciderdarling"
+            self.activate()
+            return
+        self.window.set_visible(True)
+        self.window.present()
+        if not self.window.setup_active:
+            self.window.show_ciderdarling_settings()
+
+    def stop_from_signal(self, signal_number):
+        """SIGTERM/SIGINT/SIGHUP: end the game session like a normal exit
+        (its audio FIFOs, DNS forwarder and Roblox processes), then quit."""
+        if self._stopping:
+            return GLib.SOURCE_CONTINUE
+        self._stopping = True
+        window = self.window
+        session = window.session if window else None
+        if window:
+            # The game watcher may queue a pending join as the game ends.
+            window.stopping = True
+        print(f"Signal {signal_number}: closing Cider")
+
+        def finish():
+            try:
+                if session:
+                    session.finish()
+            except Exception as error:
+                print("Cleaning up the game failed:", error)
+            GLib.idle_add(self._quit_after_signal)
+
+        threading.Thread(target=finish, daemon=True).start()
+        return GLib.SOURCE_CONTINUE
+
+    def _quit_after_signal(self):
+        window = self.window
+        if window:
+            try:
+                window.settings_page.flush()
+                window._stop_web()
+                window._stop_rpc()
+                core.save_settings(window.settings)
+            except Exception as error:
+                print("Saving before exit failed:", error)
+        self.quit()
+        return False
 
     def do_activate(self):
         pending = uri_handoff.peek_pending()
@@ -3156,7 +3567,9 @@ class LauncherApp(Adw.Application):
             Gtk.IconTheme.get_for_display(Gdk.Display.get_default()).add_search_path(
                 str(core.PROJECT / "launcher" / "icons"))
             Gtk.IconTheme.get_for_display(Gdk.Display.get_default()).add_search_path(str(core.ICONS))
-            self.window = LauncherWindow(self)
+            # Audio FIFOs of a launcher that was killed (HostAudio.stop never ran).
+            core.sweep_audio_fifos()
+            self.window = LauncherWindow(self, self.page)
             # Keep running while the window is hidden during a game.
             self.hold()
             self.window.connect("close-request", self._close)
@@ -3182,7 +3595,7 @@ class LauncherApp(Adw.Application):
         return False
 
 
-def main():
+def main(page=None):
     # Some desktops set GTK's old dark-theme preference globally. Libadwaita
     # owns the color scheme; clear the legacy property for this process before
     # constructing Adw.Application, without editing the user's GTK settings.
@@ -3190,4 +3603,21 @@ def main():
     settings = Gtk.Settings.get_default()
     if settings and settings.get_property("gtk-application-prefer-dark-theme"):
         settings.set_property("gtk-application-prefer-dark-theme", False)
-    return LauncherApp().run(None)
+    application = LauncherApp(page)
+    if page == "ciderdarling":
+        # One launcher at a time: a running one opens the page itself.
+        try:
+            application.register(None)
+        except GLib.Error as error:
+            print("Could not register Cider:", error)
+        if application.get_is_remote():
+            application.activate_action("ciderdarling-settings", None)
+            connection = application.get_dbus_connection()
+            if connection:
+                connection.flush_sync(None)
+            return 0
+    for number in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+        if number == signal.SIGHUP and signal.getsignal(number) == signal.SIG_IGN:
+            continue  # started with nohup: closing the terminal must not end the game
+        GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, number, application.stop_from_signal, number)
+    return application.run(None)

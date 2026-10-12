@@ -65,6 +65,33 @@ class RuntimeInstallationTests(unittest.TestCase):
         job.close()
         self.assertEqual(sibling.read_text(), "other work")
 
+    def test_build_log_tail_is_read_only_from_the_installer_folder(self):
+        job = self.create()
+        self.assertEqual(job.log_tail(), "")
+        log = job.directory.parent / "darling-build-fixture.log"
+        log.write_text("".join(f"line {number}\n" for number in range(100)) + "\x1b[31mError:\x1b[0m failed\n")
+        (job.directory / "build-log").write_text(f"{log}\n")
+        tail = job.log_tail(3).splitlines()
+        self.assertEqual(tail, ["line 98", "line 99", "Error: failed"])
+        for outside in (self.root / "elsewhere.log", job.directory / "nested.log"):
+            outside.write_text("secret\n")
+            (job.directory / "build-log").write_text(str(outside))
+            self.assertEqual(job.log_tail(), "")
+        link = job.directory.parent / "link.log"
+        link.symlink_to(self.root / "elsewhere.log")
+        (job.directory / "build-log").write_text(str(link))
+        self.assertEqual(job.log_tail(), "")
+        job.close()
+
+    def test_wrapper_tells_the_installer_where_to_record_its_log(self):
+        self.installer.write_text('printf "%s" "$CIDER_RUNTIME_LOG_RECORD" > '
+                                  + shlex.quote(str(self.arguments)) + '\n')
+        job = self.create()
+        process = subprocess.run(job.command, input="\n", text=True, capture_output=True, timeout=10)
+        self.assertEqual(process.returncode, 0)
+        self.assertEqual(self.arguments.read_text(), str(job.directory / "build-log"))
+        job.close()
+
     def terminal(self, job):
         master, slave = pty.openpty()
         def controlling_terminal():

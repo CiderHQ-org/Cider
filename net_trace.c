@@ -17,9 +17,9 @@
  * watch left behind reported the next socket with that number to the old
  * socket's owner.
  *
- * A watchdog thread (every 100 ms) also kicks reader threads that leave
+ * A watchdog thread (every 100 ms) also reports reader threads that leave
  * queued datagrams unread (see check_stalls) and mutex waits that take too
- * long (thread_kick.c).
+ * long, and with MACOBLOX_KICK=1 kicks them (thread_kick.c).
  *
  * MACOBLOX_TRACE_UDP=1 also prints socket activity every two seconds;
  * MACOBLOX_TRACE_UDP=2 also logs the first 6000 UDP packets one by one (time,
@@ -228,7 +228,7 @@ static void check_stalls(unsigned long long now) {
                     snprintf(line, sizeof line,
                              "[Cider UDP] fd=%d read again ~%llu ms after its data came (%d kick(s))\n", fd,
                              last > pending_since[fd] ? (last - pending_since[fd]) / 1000000ULL : 0ULL,
-                             stall_kicks[fd]));
+                             macoblox_kicks_enabled() ? stall_kicks[fd] : 0));
                 stall_since[fd] = 0;
                 stall_locating[fd] = 0;
                 pending_since[fd] = 0;
@@ -268,7 +268,7 @@ static void check_stalls(unsigned long long now) {
             snprintf(line, sizeof line,
                      "[Cider UDP] STALL fd=%d: data unread for %llu ms (last read %llu ms ago), %s thread %ld\n",
                      fd, (now - pending_since[fd]) / 1000000ULL, (now - last) / 1000000ULL,
-                     macoblox_kicks_enabled() ? "kicking" : "not kicking (MACOBLOX_NO_KICK)", stall_tid[fd]));
+                     macoblox_kicks_enabled() ? "kicking" : "not kicking (MACOBLOX_KICK=1 enables)", stall_tid[fd]));
         macoblox_kick(stall_tid[fd], stall_locating[fd]);
     }
 }

@@ -9,7 +9,7 @@ from unittest.mock import Mock, patch
 gi = types.ModuleType("gi")
 gi.require_version = Mock()
 repository = types.ModuleType("gi.repository")
-for name in ("Adw", "Gdk", "GLib", "Gtk"):
+for name in ("Adw", "Gdk", "Gio", "GLib", "Gtk"):
     setattr(repository, name, types.SimpleNamespace())
 repository.GLib.Error = RuntimeError
 with patch.dict(sys.modules, {"gi": gi, "gi.repository": repository}):
@@ -41,7 +41,7 @@ class WebBridgeTests(unittest.TestCase):
             bridge._cookie_set(123, cookie)
             self.assertEqual(bridge.send.call_args.args[0]["request"], 123)
             self.assertIn("error", bridge.send.call_args.args[0])
-        page = web._Page(22, Mock())
+        page = web._Page(22, Mock(), 0)
         bridge._eval(page, 124, None)
         self.assertEqual(bridge.send.call_args.args[0]["view"], 22)
         page.view.evaluate_javascript.assert_not_called()
@@ -54,7 +54,7 @@ class WebBridgeTests(unittest.TestCase):
 
     def test_invalid_url_is_reported_without_loading(self):
         bridge = self.bridge()
-        page = web._Page(4, Mock())
+        page = web._Page(4, Mock(), 0)
         bridge._event = Mock()
         bridge._load(page, {"url": "https://[invalid"})
         page.view.load_request.assert_not_called()

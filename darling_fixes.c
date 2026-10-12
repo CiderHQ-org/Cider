@@ -538,7 +538,11 @@ static int futex_cond_wait(void *object, void *mutex, const struct darwin_timesp
             return DARWIN_EINVAL;
         if (kind == WAIT_FOR) { /* as a monotonic deadline: a wait may be resumed */
             linux_monotonic(&deadline);
-            deadline.tv_sec += time->tv_sec;
+            /* A huge interval (wait_for(duration::max())) would overflow into
+             * the past and time out at once, every time: wait without one. */
+            if (time->tv_sec > 0x7fffffffffffffffL - deadline.tv_sec - 1)
+                kind = WAIT_FOREVER;
+            deadline.tv_sec += kind == WAIT_FOREVER ? 0 : time->tv_sec;
             deadline.tv_nsec += time->tv_nsec;
             if (deadline.tv_nsec >= 1000000000L) {
                 deadline.tv_sec++;

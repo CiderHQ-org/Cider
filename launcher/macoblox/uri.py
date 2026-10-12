@@ -8,6 +8,7 @@ launcher must not inspect or rebuild it.
 
 import os
 import tempfile
+import time
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -19,6 +20,9 @@ CACHE_DIR = user_directory("CACHE")
 PENDING_URI = CACHE_DIR / "pending-uri"
 LAST_URI = CACHE_DIR / "last-uri.txt"
 PENDING_LOCK = CACHE_DIR / "pending-uri.lock"
+# A join link is only worth starting shortly after the click. The file keeps
+# the raw URI (the shim reads it as a fallback), so its age is its mtime.
+PENDING_MAX_AGE = 10 * 60
 
 
 def _raw(uri):
@@ -67,8 +71,31 @@ def receive(uri):
         _atomic_write(LAST_URI, data)
 
 
+def _expired(path, now=None):
+    try:
+        age = (time.time() if now is None else now) - path.stat().st_mtime
+    except OSError:
+        return False
+    # A clock set back makes the age negative: treat that as stale too.
+    return not -60 <= age <= PENDING_MAX_AGE
+
+
+def expire_pending():
+    """Delete a pending argument older than PENDING_MAX_AGE; True if one was."""
+    with _pending_lock():
+        if not _expired(PENDING_URI):
+            return False
+        try:
+            PENDING_URI.unlink()
+        except OSError:
+            return False
+        return True
+
+
 def peek_pending():
-    """Read the pending argument, leaving it available for a later retry."""
+    """Read the pending argument, leaving it available for a later retry.
+    An expired one is deleted instead: an old click must not start a game."""
+    expire_pending()
     with _pending_lock(shared=True):
         try:
             return os.fsdecode(PENDING_URI.read_bytes())

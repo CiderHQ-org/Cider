@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from macoblox import core, graphics
+from session_fixture import bare_session
 
 
 class GraphicsTests(unittest.TestCase):
@@ -256,8 +257,10 @@ class GraphicsTests(unittest.TestCase):
                 graphics.validate_vulkan({})
 
     def test_renderer_reaches_guest_and_nvidia_cache_uses_host_path(self):
-        session = object.__new__(core.RobloxSession)
-        session.settings = dict(core.DEFAULT_SETTINGS, renderer="vulkan")
+        session = bare_session()
+        # The Settings switch turns the overlay on; its configuration from the
+        # launcher's environment then reaches the guest unchanged.
+        session.settings = dict(core.DEFAULT_SETTINGS, renderer="vulkan", mangohud=True)
         session.web_socket = session.dns = session.audio = None
         with patch.object(graphics.Path, "is_file", return_value=True), \
                 patch.object(core, "host_vram_bytes", return_value=0), \
@@ -272,10 +275,14 @@ class GraphicsTests(unittest.TestCase):
         self.assertEqual(env["MANGOHUD_CONFIGFILE"], "/tmp/hud config.conf")
 
     def test_mangohud_disabled_by_default(self):
+        # Off is explicit: an overlay inherited from the desktop or an earlier
+        # Darling session must not turn itself on.
         self.assertFalse(core.DEFAULT_SETTINGS["mangohud"])
-        with patch.dict(graphics.os.environ, {}, clear=True):
-            self.assertEqual(graphics.mangohud_environment("opengl"), {})
-            self.assertEqual(graphics.mangohud_environment("vulkan"), {})
+        off = {"MANGOHUD": "0", "MACOBLOX_MANGOHUD_OPENGL": ""}
+        for inherited in ({}, {"MANGOHUD": "1", "MANGOHUD_CONFIG": "fps"}):
+            with self.subTest(inherited=inherited), patch.dict(graphics.os.environ, inherited, clear=True):
+                self.assertEqual(graphics.mangohud_environment("opengl"), off)
+                self.assertEqual(graphics.mangohud_environment("vulkan"), off)
 
     def test_mangohud_opengl_uses_bridge_and_preserves_settings(self):
         settings = {"MANGOHUD": "0", "MANGOHUD_CONFIG": "fps,frametime",
@@ -292,12 +299,13 @@ class GraphicsTests(unittest.TestCase):
     def test_mangohud_vulkan_does_not_load_opengl_hooks(self):
         with patch.dict(graphics.os.environ, {}, clear=True), \
                 patch.object(graphics.Path, "is_file", return_value=False):
-            self.assertEqual(graphics.mangohud_environment("vulkan", True), {"MANGOHUD": "1"})
+            self.assertEqual(graphics.mangohud_environment("vulkan", True),
+                             {"MANGOHUD": "1", "MACOBLOX_MANGOHUD_OPENGL": ""})
             with self.assertRaisesRegex(RuntimeError, "Install MangoHud or turn it off"):
                 graphics.mangohud_environment("opengl", True)
 
     def test_mangohud_toggle_reaches_host_and_guest(self):
-        session = object.__new__(core.RobloxSession)
+        session = bare_session()
         session.settings = dict(core.DEFAULT_SETTINGS, mangohud=True)
         session.web_socket = session.dns = session.audio = None
         with patch.dict(core.os.environ, {}, clear=True), \

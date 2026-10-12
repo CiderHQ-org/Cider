@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=CiderDarling Settings
+Name[ru]=Настройки CiderDarling
+Comment=Graphics card, runtime and diagnostics settings for CiderDarling
+Comment[ru]=Видеокарта, среда и диагностика для CiderDarling
+Exec=ciderhq --ciderdarling-settings
+Icon=ciderhq
+Terminal=false
+Categories=Game;
+Keywords=ciderdarling;darling;gpu;
+StartupNotify=true
+X-CiderHQ-Managed=true

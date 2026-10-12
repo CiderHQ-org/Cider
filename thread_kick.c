@@ -23,8 +23,12 @@
  * When asked, the handler records only the interrupted RIP. It neither
  * dereferences application stack pointers nor enters pthread/loader APIs.
  * The watchdog prints the raw address without taking the dynamic loader lock.
- * MACOBLOX_NO_KICK=1 turns the kicks off (stalls and long mutex waits are
- * still logged, without the location).
+ * Kicks are off unless MACOBLOX_KICK=1 (MACOBLOX_NO_KICK=1 still forces them
+ * off); stalls and long mutex waits are logged either way, without the
+ * location when off. Each kick runs Darling's signal handler, which makes
+ * several darlingserver requests at whatever point the thread was stopped,
+ * and Darling installs every handler with SA_RESTART, so an untimed futex
+ * wait or a blocking recv simply resumes after it: kicks mostly cost time.
  *
  * A kick must only reach a thread that is still in the wait it was meant
  * for: a condition wait that is not lost returns early when a signal comes,
@@ -50,11 +54,13 @@ static long linux_syscall3(long number, long a, long b, long c) {
 #define LINUX_GETPID 39
 #define LINUX_GETTID 186
 #define LINUX_TGKILL 234
+#define LINUX_PRCTL 157
+#define LINUX_PR_SET_PTRACER 0x59616d61
 #define LINUX_SIGURG 23
 #define DARWIN_SIGURG 16
 #define DARWIN_SA_SIGINFO 0x0040
 
-static int kicks_enabled = 1;
+static int kicks_enabled;
 static unsigned long tid_key;
 static volatile int tid_key_ready;
 
@@ -155,11 +161,17 @@ static int ask_location(long tid, unsigned long long now) {
 }
 
 __attribute__((constructor)) static void install_kick_handler(void) {
-    const char *off = getenv("MACOBLOX_NO_KICK");
-    kicks_enabled = !(off && off[0] && off[0] != '0');
+    const char *on = getenv("MACOBLOX_KICK"), *off = getenv("MACOBLOX_NO_KICK");
+    kicks_enabled = on && on[0] && on[0] != '0' && !(off && off[0] && off[0] != '0');
     if (pthread_key_create(&tid_key, 0) == 0)
         tid_key_ready = 1;
-    /* No SA_RESTART: the point is to interrupt the wait. */
+    /* MACOBLOX_ALLOW_DEBUGGER=1 lets this user's tools read the game's threads
+     * (Cider's freeze diagnostics, gdb): Yama otherwise allows only ancestors,
+     * and the game is darlingserver's child, not Cider's. */
+    const char *debugger = getenv("MACOBLOX_ALLOW_DEBUGGER");
+    if (debugger && debugger[0] && debugger[0] != '0')
+        linux_syscall3(LINUX_PRCTL, LINUX_PR_SET_PTRACER, -1 /* PR_SET_PTRACER_ANY */, 0);
+    /* No SA_RESTART asked, but Darling's own Linux handler has it (above). */
     struct darwin_sigaction_t action = {kick_handler, 0, DARWIN_SA_SIGINFO};
     sigaction(DARWIN_SIGURG, &action, 0);
 }
@@ -276,7 +288,7 @@ void macoblox_kick_stuck_waiters(unsigned long long now) {
             long seen = __sync_add_and_fetch(&lock_waits_seen, 1);
             int log = seen <= 20 || seen % 100 == 0;
             if (log && !kicks_enabled)
-                report_wait(tid, now - since, "not kicked (MACOBLOX_NO_KICK)", 0);
+                report_wait(tid, now - since, "not kicked (MACOBLOX_KICK=1 enables)", 0);
             waiters[i].report = log && kicks_enabled ? LOCATING : REPORTED;
             waiters[i].asked = now;
         }

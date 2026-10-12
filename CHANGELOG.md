@@ -1,5 +1,45 @@
 # Changelog
 
+## Unreleased
+
+- Prefer the CiderDarling revision pinned in `install.sh` over a remembered
+  older one, offer **Update CiderDarling** in Settings, and save the updated
+  installation (same prefix) from both the launcher and
+  `install.sh --install-runtime`. Detect an interrupted pinned installation
+  and offer to remove it (`--replace-incomplete-runtime` without a terminal).
+  Delete build trees after a successful build and earlier leftovers before
+  a new one; keep the build log, and show its end when an install fails.
+- Add **Settings → CiderDarling** (GPU, renderer, watchdog kicks, runtime
+  trace, verbose darlingserver log, diagnostics, prefix folder), `ciderhq --ciderdarling-settings`, and a *CiderDarling Settings*
+  menu entry while CiderDarling is installed.
+- Add **Collect diagnostics** (menu and `ciderhq --collect-diagnostics`): an
+  archive with every game thread's wait sampled twice, logs (join tickets and
+  cookies redacted) and the runtime selection. With **Allow freeze
+  diagnostics** (`MACOBLOX_ALLOW_DEBUGGER=1`) the game lets it read each
+  thread's instruction pointer and stack, as library + offset.
+- Shim: watchdog thread kicks are off unless `MACOBLOX_KICK=1`. Each kick ran
+  Darling's signal handler (several darlingserver requests at an arbitrary
+  point), and Darling restarts untimed waits after a signal anyway, so a
+  stalled UDP reader stayed stalled for up to 10 s. Stalls are still logged.
+  A condition wait with a practically infinite timeout no longer overflows
+  into an immediate timeout (a busy loop).
+- Pin CiderDarling a8dae5f8e: the `__sincosf_stret` startup crash fix, thread
+  requests that are never refused (a queue starved for good once 64 GCD
+  workers were busy), and fewer darlingserver round trips per I/O call.
+- Server location lookups are now opt-in (they send the server's IP address
+  to RoValra), run off the interface thread, read only the end of the
+  selected prefix's Roblox log, cache failures and stop with the game.
+- Start darlingserver with its own output file instead of the launch log,
+  ignore inherited `DSERVER_LOG_*` (`CIDER_KEEP_DSERVER_LOG=1` keeps them),
+  cap launch logs at 200 MB in total and rotate `dserver.log` past 32 MB.
+- Re-stage the repaired libSystem/libsystem_c and ffmpeg bridge copies in
+  the prefix when the runtime's own files change, and report prefix
+  libraries Cider did not make instead of touching them.
+- Give Roblox 6 s to save its settings after it starts quitting; remove audio
+  FIFOs left by a killed launcher and clean up on SIGTERM/SIGINT/SIGHUP;
+  ignore browser join links older than 10 minutes; clear `last-error.txt`
+  after a successful launch or install.
+
 ## 0.22Patch1 — 2026-10-12
 
 - Add an installer choice between regular Darling and pinned CiderDarling,

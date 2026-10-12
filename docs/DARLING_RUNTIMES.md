@@ -44,8 +44,8 @@ source build. CiderDarling always uses CiderHQ's pinned source or a matching
 installed version. It never falls back to installing regular Darling.
 
 The current CiderDarling pin is
-`4312cd798e1ec1967b13b1a8adcedd5efcba8a10`, with patch manifest SHA-256
-`2be76e8bf45ab7fc06e937ea3876049d6e46ffaab35ebc6d255f8f3f713707a0`.
+`a8dae5f8e6daf6ec0245f94a9ba97c0d0cc4aeb7`, with patch manifest SHA-256
+`009cf8db2cfc409ceaafb602dac3ee0744e987396eb544e1361bc86910e03e44`.
 It installs into `/opt/ciderdarling/<revision>`. Source preparation calls its
 versioned bootstrap to fetch pinned public dependencies and apply source
 patches. Builds disable i386, Metal implementation and the global install-time

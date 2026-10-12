@@ -1,6 +1,7 @@
 """Monitor an interactive runtime installer independently of its terminal client."""
 import os
 from pathlib import Path
+import re
 import shutil
 import tempfile
 import time
@@ -11,10 +12,11 @@ from .runtime import VARIANTS
 # All paths and the variant are positional arguments, never inserted into code.
 # Some terminal applications exit their launch client before the shell finishes;
 # the started/result files report the installer itself rather than that client.
+# The installer records its build log's path in build-log (see install.sh).
 TERMINAL_SCRIPT = r'''set -u
 [[ -d "$3" ]] || exit 125
 printf '%s\n' "$$" > "$3/started.tmp" && mv -- "$3/started.tmp" "$3/started" || exit 125
-if bash "$1" --install-runtime --darling "$2"; then
+if CIDER_RUNTIME_LOG_RECORD="$3/build-log" bash "$1" --install-runtime --darling "$2"; then
     cider_install_status=0
 else
     cider_install_status=$?
@@ -73,6 +75,26 @@ class Installation:
         if os.fsencode(self.directory) not in arguments:
             raise RuntimeError("The installation terminal closed before the installer finished.")
         return None
+
+    def log_tail(self, lines=40):
+        """The end of the installer's build log, or "" when there is none.
+
+        Only a regular file in the installer cache folder is read: the path
+        comes from a file the installer wrote.
+        """
+        try:
+            path = Path((self.directory / "build-log").read_text().strip())
+            if (not path.is_absolute() or path.is_symlink() or not path.is_file()
+                    or path.resolve().parent != self.directory.parent.resolve()):
+                return ""
+            with path.open("rb") as log:
+                log.seek(0, os.SEEK_END)
+                log.seek(max(0, log.tell() - 65536))
+                text = log.read().decode(errors="replace")
+        except (OSError, ValueError):
+            return ""
+        text = re.sub(r"\x1b\[[0-9;?]*[A-Za-z]", "", text).replace("\r", "\n")
+        return "\n".join(line for line in text.splitlines()[-lines:])
 
     def close(self):
         # Only the temporary directory created for this job is removed.

@@ -29,8 +29,10 @@ PREFIX=${DPREFIX:-$HOME/.darling}
 DARLING_TAG=v0.1.20260608
 DARLING_DEBS_SHA256=27469ef3932da2e91dd7fb34b70e3628a3e54b7af9fb5480051f44af35eca1fd
 CIDER_DARLING_REPO=https://github.com/CiderHQ-org/CiderDarling.git
-CIDER_DARLING_REVISION=4312cd798e1ec1967b13b1a8adcedd5efcba8a10
-CIDER_DARLING_MANIFEST=2be76e8bf45ab7fc06e937ea3876049d6e46ffaab35ebc6d255f8f3f713707a0
+# The launcher reads the next two lines from this file (runtime.pinned_ciderdarling)
+# to prefer this build and offer "Update CiderDarling": keep them literal.
+CIDER_DARLING_REVISION=a8dae5f8e6daf6ec0245f94a9ba97c0d0cc4aeb7
+CIDER_DARLING_MANIFEST=009cf8db2cfc409ceaafb602dac3ee0744e987396eb544e1361bc86910e03e44
 CIDER_DARLING_INSTALL=/opt/ciderdarling/$CIDER_DARLING_REVISION
 DARLING_RUNTIME=''
 DARLING_CHOICE_EXPLICIT=''
@@ -127,18 +129,25 @@ select_darling_prefix() {
 save_darling_selection() {
   # Activate only after the launcher and its selected-root shim built
   # successfully. A failed build leaves the previous selection available.
-  python3 - "$CONFIG_HOME/ciderhq/runtime.json" "$DARLING_RUNTIME" "$DARLING_EXECUTABLE" "$DARLING_SYSROOT" "$PREFIX" <<'PY'
+  # With "remember" (a runtime-only install), only an update of the active
+  # variant changes the selection; another variant is just remembered, and
+  # nothing is written before a first selection exists.
+  python3 - "${1:-activate}" "$CONFIG_HOME/ciderhq/runtime.json" "$DARLING_RUNTIME" "$DARLING_EXECUTABLE" "$DARLING_SYSROOT" "$PREFIX" <<'PY'
 import json
 import os
 from pathlib import Path
 import sys
 import tempfile
-path = Path(sys.argv[1])
-data = dict(zip(('runtime', 'executable', 'sysroot', 'prefix'), sys.argv[2:]))
+mode = sys.argv[1]
+path = Path(sys.argv[2])
+data = dict(zip(('runtime', 'executable', 'sysroot', 'prefix'), sys.argv[3:]))
 data['schema_version'] = 1
 for key in ('executable', 'sysroot', 'prefix'):
     data[key] = str(Path(data[key]).absolute())
 history = {}
+active = None
+if mode == 'remember' and not path.exists():
+    sys.exit(0)
 if path.exists():
     if path.stat().st_size > 16384: raise ValueError('saved runtime file is too large')
     old = json.loads(path.read_text())
@@ -150,7 +159,11 @@ if path.exists():
         if all(isinstance(entry.get(key), str) and Path(entry[key]).is_absolute() and not any(c in entry[key] for c in '\n\r\0')
                for key in ('executable', 'sysroot', 'prefix')):
             history[entry['runtime']] = {key: entry[key] for key in ('schema_version', 'runtime', 'executable', 'sysroot', 'prefix')}
+            if entry is old:
+                active = dict(history[entry['runtime']])
 history[data['runtime']] = dict(data)
+if mode == 'remember' and active is not None and active['runtime'] != data['runtime']:
+    data = active
 data['runtimes'] = history
 path.parent.mkdir(parents=True, exist_ok=True)
 temporary = None
@@ -709,9 +722,21 @@ build_darling_source() {
   fi
   install_darling_build_dependencies "$manager" || die "Could not install Darling build dependencies. Check enabled repositories and package names for your distro, then rerun."
   mkdir -p -- "$CACHE_HOME/ciderhq/installer"
+  # Every build starts from a fresh tree, so earlier ones (kept by older
+  # installers, or left by a failed build) only take disk space: several GB.
+  local old_build
+  for old_build in "$CACHE_HOME/ciderhq/installer"/darling-source-*; do
+    [[ -d $old_build && ! -L $old_build ]] || continue
+    say "Removing earlier build files: ${old_build/#$HOME/\~}"
+    rm -rf -- "$old_build" || say "Could not remove all of $old_build; continuing."
+  done
   build=$(umask 077; mktemp -d "$CACHE_HOME/ciderhq/installer/darling-source-XXXXXX")
-  log=$build/build.log
-  say "Building $(darling_runtime_name); sources and log: $build"
+  # The log lives next to the tree, which is removed after a successful install.
+  log=$(umask 077; mktemp "$CACHE_HOME/ciderhq/installer/darling-build-$(date -u +%Y%m%d-%H%M%S)-XXXXXX.log")
+  # The launcher's runtime installer shows the end of this log on failure.
+  [[ -z ${CIDER_RUNTIME_LOG_RECORD:-} ]] || printf '%s\n' "$log" > "$CIDER_RUNTIME_LOG_RECORD" || true
+  say "Building $(darling_runtime_name); sources: $build"
+  say "Build log: $log"
 
   # Public source does not need credentials. Swift's optional SDK binaries
   # use a separate LFS service; Roblox uses the C/C++/Objective-C runtime.
@@ -770,7 +795,8 @@ build_darling_source() {
   fi
   hash -r
   [[ -x $install_prefix/bin/darling ]] || die "Build completed but darling was not installed. Log: $log"
-  say "Darling installed. Build files retained at $build"
+  rm -rf -- "$build" || say "Could not remove all build files in $build."
+  say "Darling installed. Build files removed; log kept at $log"
 }
 
 # Retain the existing checksum-verified upstream Debian binary option.
@@ -793,12 +819,39 @@ try_darling_debs() {
   command -v darling >/dev/null
 }
 
+# An interrupted sudo install leaves the pinned version directory without
+# matching metadata. Only that exact directory is removed, after asking (or
+# with --replace-incomplete-runtime when there is no terminal to ask in).
+REPLACE_INCOMPLETE_RUNTIME=''
+remove_incomplete_ciderdarling() {
+  local answer='' target=$CIDER_DARLING_INSTALL
+  say "CiderDarling's version directory exists with incomplete or mismatched metadata:"
+  say "  $target"
+  say "This usually means an earlier installation was interrupted."
+  [[ $CIDER_DARLING_REVISION =~ ^[0-9a-f]{40}$ && ${target##*/} == "$CIDER_DARLING_REVISION" &&
+     -d $target && ! -L $target ]] ||
+    die "$target is not a CiderDarling version directory, so it is left alone. Move it aside and rerun."
+  if [[ -z $REPLACE_INCOMPLETE_RUNTIME ]]; then
+    if ! (: </dev/tty) 2>/dev/null; then
+      die "Not removing $target without a terminal to ask in. Rerun interactively, or add --replace-incomplete-runtime."
+    fi
+    printf '  Remove it with sudo and install CiderDarling again? [y/N] ' >/dev/tty
+    IFS= read -r answer </dev/tty || answer=''
+    [[ $answer == [Yy] || $answer == [Yy][Ee][Ss] ]] ||
+      die "Kept $target. Remove it with: sudo rm -rf -- '$target' (or rerun with --replace-incomplete-runtime)."
+  fi
+  say "Removing the incomplete CiderDarling installation"
+  sudo rm -rf -- "$target" || die "Could not remove $target."
+  [[ ! -e $target && ! -L $target ]] || die "$target is still present after removal."
+}
+
 ensure_darling() {
   local manager
   if [[ $DARLING_RUNTIME == ciderdarling ]]; then
     if ! ciderdarling_matches; then
-      [[ ! -e $CIDER_DARLING_INSTALL && ! -L $CIDER_DARLING_INSTALL ]] ||
-        die "CiderDarling's version directory exists with incomplete or mismatched metadata: $CIDER_DARLING_INSTALL. Preserve it and resolve the incomplete installation before retrying."
+      if [[ -e $CIDER_DARLING_INSTALL || -L $CIDER_DARLING_INSTALL ]]; then
+        remove_incomplete_ciderdarling
+      fi
       manager=$(detect_package_manager)
       [[ $manager != manual ]] || die "CiderDarling source installation needs your host's supported build method on this system."
       confirm_darling_build || die "CiderDarling compilation declined. Setup stopped."
@@ -847,6 +900,9 @@ do_install_runtime() {
   command -v python3 >/dev/null || die "Python 3 is required for runtime installation."
   say "Installing $(darling_runtime_name) for use with Cider."
   ensure_darling
+  # Point the saved choice at this installation (a new CiderDarling revision
+  # lives in a new directory); another active runtime stays selected.
+  save_darling_selection remember
   say "$(darling_runtime_name) is installed. Return to Cider and apply the runtime choice when ready."
 }
 
@@ -953,6 +1009,11 @@ do_uninstall() {
     "$apps/org.ciderhq.Cider.Studio.desktop" "$apps/ciderhq-roblox-window.desktop" \
     "$DATA_HOME"/icons/hicolor/*/apps/ciderhq.png \
     "$DATA_HOME/icons/hicolor/scalable/apps/ciderhq.svg" "$DATA_HOME/mime/packages/org.ciderhq.Cider.xml"
+  # Only Cider's own CiderDarling entry; a user's entry of that name stays.
+  local cider_entry=$apps/org.ciderhq.Cider.CiderDarling.desktop
+  if [[ -f $cider_entry && ! -L $cider_entry ]] && grep -qsx 'X-CiderHQ-Managed=true' "$cider_entry"; then
+    rm -f -- "$cider_entry"
+  fi
   local cider_link=$HOME/.local/bin/ciderhq
   if [[ -L $cider_link && $(readlink "$cider_link") == */ciderhq-launcher ]]; then
     rm -f -- "$cider_link"
@@ -1186,6 +1247,10 @@ Cider installer
                            source builds still ask for terminal confirmation
   install.sh --install-runtime --darling ciderdarling
                            install only the runtime, keeping the current selection
+                           (an update of the selected runtime switches to it)
+  install.sh --replace-incomplete-runtime
+                           remove an interrupted CiderDarling installation without
+                           asking, then build it again
   install.sh --uninstall   remove Cider (asks first, unless --yes)
   install.sh --uninstall --purge
                            also delete the selected Darling prefix (Roblox sign-in)
@@ -1209,6 +1274,7 @@ main() {
       --uninstall) action=uninstall ;;
       --purge) PURGE=1 ;;
       -y | --yes) assume_yes=1 ;;
+      --replace-incomplete-runtime) REPLACE_INCOMPLETE_RUNTIME=1 ;;
       --darling)
         (($# >= 2)) || die "--darling needs regular or ciderdarling."
         DARLING_RUNTIME=$2

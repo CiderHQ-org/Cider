@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 from macoblox import core, display, graphics
+from session_fixture import bare_session
 
 
 class DisplayTests(unittest.TestCase):
@@ -34,7 +35,7 @@ class DisplayTests(unittest.TestCase):
                                          display.validated_dpi_scale(value))
 
     def test_dpi_scale_reaches_guest_on_both_backends(self):
-        session = object.__new__(core.RobloxSession)
+        session = bare_session()
         session.web_socket = session.dns = session.audio = None
         for backend in ("x11", "wayland"):
             with self.subTest(backend=backend):
@@ -50,7 +51,7 @@ class DisplayTests(unittest.TestCase):
                 self.assertNotIn("QT_SCALE_FACTOR", host)
 
     def test_direct_invalid_dpi_is_sanitized_before_guest_export(self):
-        session = object.__new__(core.RobloxSession)
+        session = bare_session()
         session.web_socket = session.dns = session.audio = None
         session.settings = dict(core.DEFAULT_SETTINGS, dpi_scale=float("nan"))
         with patch.dict(os.environ, {}, clear=True), \
@@ -118,7 +119,7 @@ class DisplayTests(unittest.TestCase):
                 drivers.assert_called_once()
 
     def test_native_wayland_driver_configuration_reaches_host_and_guest(self):
-        session = object.__new__(core.RobloxSession)
+        session = bare_session()
         session.settings = dict(core.DEFAULT_SETTINGS, display_backend="wayland", renderer="vulkan")
         session.web_socket = session.dns = session.audio = None
         with patch.dict(os.environ, {"WAYLAND_DISPLAY": "wayland-0"}, clear=True), \

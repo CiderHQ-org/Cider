@@ -97,6 +97,23 @@ Installing this way keeps the current runtime selection and launcher files.
 Custom prefixes are remembered for both choices. Flatpak keeps this selector
 read-only because its runtime is bundled.
 
+Cider prefers the CiderDarling revision pinned in its installer
+(`CIDER_DARLING_REVISION` in `install.sh`, the one place it is set). When an
+older revision is installed, the same section offers **Update CiderDarling**;
+the new version is saved for CiderDarling with its prefix unchanged, and the
+active runtime switches to it only if CiderDarling was already active. An
+installation interrupted during `sudo` is detected and removed after asking
+(`--replace-incomplete-runtime` skips the question). Build trees are deleted
+after a successful build; the build log stays in `~/.cache/ciderhq/installer/`.
+
+While CiderDarling is installed, **Settings → CiderDarling** (also the
+*CiderDarling Settings* app menu entry, or `ciderhq --ciderdarling-settings`)
+collects its options: renderer and graphics card (shared with Environment →
+Game), watchdog thread kicks (`MACOBLOX_KICK=1`, off by default), a runtime trace
+(`CIDER_TRACE_FILE`, a private file in the logs folder), a verbose
+darlingserver log (`DSERVER_LOG_LEVEL=debug`), diagnostics and the prefix
+folder. These apply only while CiderDarling is the active runtime.
+
 Run the same command again to update or uninstall. Updates save local source
 changes in `~/.local/share/CiderHQ-backups` (or your XDG data directory) and
 keep settings and sign-in. Without a terminal, or for scripts, the choices
@@ -333,6 +350,14 @@ use `~/.var/app/wtf.aubree.MacOBlox/data/macoblox/logs/`. Also collect
 
 The lifecycle record describes the observed state before cleanup. A final
 `Broken pipe` can follow cleanup and does not identify the original failure.
+
+**Collect diagnostics** (launcher menu, or `ciderhq --collect-diagnostics`)
+writes one archive with the logs, runtime selection and the game's thread
+states. Thread stacks need **Allow freeze diagnostics**
+(`MACOBLOX_ALLOW_DEBUGGER=1`) turned on before the game starts. Inherited
+`DSERVER_LOG_*` variables are ignored unless `CIDER_KEEP_DSERVER_LOG=1` is
+set; launch logs are capped at 200 MB in total, and `dserver.log` is rotated
+to `dserver.log.old` past 32 MB while Darling is stopped.
 
 If the log says `app_closed_for_update`, Roblox intentionally closed for a
 required client update. Use **Update Roblox** in the launcher's recovery dialog.

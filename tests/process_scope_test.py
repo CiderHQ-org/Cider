@@ -7,6 +7,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from macoblox import core
+from session_fixture import bare_session
 
 
 class ProcessScopeTests(unittest.TestCase):
@@ -114,7 +115,26 @@ class ProcessScopeTests(unittest.TestCase):
         with patch.object(core,"_orphaned_darling_processes",return_value=[13]), \
                 patch.object(core,"_terminate") as terminate:
             self.assertEqual(core.clear_orphaned_darling(),1)
-        terminate.assert_called_once_with([13],scope=core._process_in_prefix)
+        terminate.assert_called_once()
+        self.assertEqual(terminate.call_args.args,([13],))
+        scope=terminate.call_args.kwargs["scope"]
+        # Rechecked after the pidfd is open: still this user's mldr, outside
+        # every live darlingserver's namespace, in the selected prefix.
+        namespaces={13:"orphaned",20:"live"}
+        def check(exe="/usr/libexec/darling/mldr", namespace="orphaned", prefix=None, uid=None):
+            namespaces[13]=namespace
+            with patch.object(core,"NOROOT_LIB",None), \
+                    patch.object(core.Path,"stat",return_value=SimpleNamespace(st_uid=core.os.getuid() if uid is None else uid)), \
+                    patch.object(core.os,"readlink",return_value=exe), \
+                    patch.object(core,"_mount_namespace",side_effect=lambda pid:namespaces[pid]), \
+                    patch.object(core,"_user_commands",return_value=[(20,["darlingserver","prefix"])]), \
+                    patch.object(core,"_process_prefix",return_value=self.prefix.resolve() if prefix is None else prefix):
+                return scope(13)
+        self.assertTrue(check())
+        self.assertFalse(check(exe="/usr/bin/bash"))
+        self.assertFalse(check(namespace="live"))
+        self.assertFalse(check(prefix=self.base/"other prefix"))
+        self.assertFalse(check(uid=core.os.getuid()+1))
 
     def test_live_namespaces_require_selected_server_and_exclude_host_namespace(self):
         namespaces={core.os.getpid():"host",10:"selected",11:"host",12:None,13:"other"}
@@ -208,7 +228,7 @@ class ProcessScopeTests(unittest.TestCase):
         process.wait.assert_called_once_with(timeout=2);kill_group.assert_not_called()
 
     def test_session_finish_uses_scoped_roblox_and_owned_frontend_cleanup(self):
-        session=object.__new__(core.RobloxSession)
+        session=bare_session()
         session.process=Mock();session.process.poll.return_value=None
         session.dns=None;session.audio=None
         with patch.object(core,"roblox_pids",return_value=[1]), \
@@ -219,7 +239,7 @@ class ProcessScopeTests(unittest.TestCase):
         frontend.assert_called_once_with(session.process)
 
     def test_session_poll_drops_cached_pids_reused_in_other_prefix(self):
-        session=object.__new__(core.RobloxSession)
+        session=bare_session()
         session.process=Mock();session.process.poll.return_value=None
         session.audio=None;session.seen_roblox=True;session.started_at=time.time()
         session.game_pids=[11,22];session.scanned_at=time.time();session.gone_since=None

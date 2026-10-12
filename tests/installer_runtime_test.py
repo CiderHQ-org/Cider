@@ -30,9 +30,11 @@ class InstallerRuntimeTests(unittest.TestCase):
             self.environment.pop(key, None)
 
     def shell(self, body, **environment):
+        # A new session has no controlling terminal: prompts that read
+        # /dev/tty fail instead of waiting for the person running the tests.
         return subprocess.run(["bash", "-c", '. "$1"\n' + body, "test", str(self.functions)],
                               env=dict(self.environment, **environment),
-                              capture_output=True, text=True, timeout=20)
+                              capture_output=True, text=True, timeout=20, start_new_session=True)
 
     def checked(self, body, **environment):
         result = self.shell(body, **environment)
@@ -56,17 +58,43 @@ main '''
                     'executable': '/usr/bin/darling', 'sysroot': '/usr/libexec/darling',
                     'prefix': str(self.base / 'saved-prefix')}
         runtime.save_selection(original, file)
-        before = file.read_bytes()
-        output = self.checked('''
-ensure_darling() { printf 'ensured:%s\\n' "$DARLING_RUNTIME"; }
+        stub = '''
+ensure_darling() {
+  printf 'ensured:%s\\n' "$DARLING_RUNTIME"
+  DARLING_EXECUTABLE=$CIDER_DARLING_INSTALL/bin/darling
+  export DARLING_SYSROOT=$CIDER_DARLING_INSTALL/libexec/darling
+}
 do_install() { exit 91; }
 install_tools() { exit 92; }
-save_darling_selection() { exit 93; }
 main --install-runtime --darling ciderdarling --yes
-''')
+'''
+        output = self.checked(stub)
         self.assertIn('ensured:ciderdarling', output)
-        self.assertEqual(file.read_bytes(), before)
         self.assertFalse((self.base / 'data/CiderHQ').exists())
+        # Regular Darling stays selected; the new CiderDarling is remembered.
+        saved = runtime.read_selection(file)
+        self.assertEqual({key: saved[key] for key in runtime.SELECTION_KEYS},
+                         {key: original[key] for key in runtime.SELECTION_KEYS})
+        cider = runtime.remembered_runtimes(saved)['ciderdarling']
+        pin = runtime.pinned_ciderdarling(ROOT / 'install.sh')['revision']
+        self.assertEqual(cider['executable'], f'/opt/ciderdarling/{pin}/bin/darling')
+        self.assertEqual(cider['prefix'], str(self.base / '.ciderdarling'))
+        # An update of the selected CiderDarling switches to the new version
+        # and keeps its prefix.
+        old = {'schema_version': 1, 'runtime': 'ciderdarling',
+               'executable': '/opt/ciderdarling/old/bin/darling',
+               'sysroot': '/opt/ciderdarling/old/libexec/darling',
+               'prefix': str(self.base / 'cider prefix')}
+        runtime.save_selection(old, file, current=original)
+        self.checked(stub)
+        saved = runtime.read_selection(file)
+        self.assertEqual(saved['executable'], f'/opt/ciderdarling/{pin}/bin/darling')
+        self.assertEqual(saved['prefix'], old['prefix'])
+        self.assertEqual(runtime.remembered_runtimes(saved)['regular']['prefix'], original['prefix'])
+        # Without a saved choice nothing is selected behind the user's back.
+        file.unlink()
+        self.checked(stub)
+        self.assertFalse(file.exists())
 
     def test_atomic_save_roundtrip_update_retains_selection_and_prefix(self):
         self.checked('''
@@ -159,13 +187,44 @@ printf '%s|%s' "$DARLING_EXECUTABLE" "$DARLING_SYSROOT"
         result = self.shell('''
 DARLING_RUNTIME=ciderdarling; load_darling_selection
 CIDER_DARLING_INSTALL="$FIXTURE/runtime"
+REPLACE_INCOMPLETE_RUNTIME=1
 ciderdarling_matches() { return 1; }
+sudo() { exit 90; }
 build_darling_source() { exit 91; }
 ensure_darling
 ''')
         self.assertEqual(result.returncode, 1)
-        self.assertIn('incomplete or mismatched metadata', result.stderr)
+        self.assertIn('incomplete or mismatched metadata', result.stdout)
+        self.assertIn('not a CiderDarling version directory', result.stderr)
         self.assertEqual(sentinel.read_text(), 'existing runtime')
+
+    def test_interrupted_pinned_install_is_replaced_only_when_allowed(self):
+        body = '''
+DARLING_RUNTIME=ciderdarling; load_darling_selection
+CIDER_DARLING_INSTALL="$FIXTURE/versions/$CIDER_DARLING_REVISION"
+ciderdarling_matches() { return 1; }
+detect_package_manager() { printf apt-get; }
+confirm_darling_build() { return 0; }
+sudo() { printf 'sudo:%s\\n' "$*"; "$@"; }
+build_darling_source() { printf 'built\\n'; }
+'''
+        pin = runtime.pinned_ciderdarling(ROOT / 'install.sh')['revision']
+        root = self.base / 'versions' / pin
+        (root / 'bin').mkdir(parents=True)
+        (root / 'bin/partial').write_text('interrupted')
+        # No terminal to ask in and no flag: kept, with the way out.
+        result = self.shell(body + 'ensure_darling')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('--replace-incomplete-runtime', result.stderr)
+        self.assertTrue((root / 'bin/partial').exists())
+        output = self.checked(body + 'REPLACE_INCOMPLETE_RUNTIME=1\nensure_darling')
+        self.assertIn(f'sudo:rm -rf -- {root}', output)
+        self.assertIn('built', output)
+        self.assertFalse(root.exists())
+        # The command line flag sets the same switch.
+        self.assertEqual(self.checked('''
+banner() { :; }; do_install_runtime() { printf '%s' "$REPLACE_INCOMPLETE_RUNTIME"; }
+main --install-runtime --darling ciderdarling --replace-incomplete-runtime''').strip(), '1')
 
     def test_menu_can_select_either_runtime_and_cancel(self):
         body = '''
@@ -218,8 +277,18 @@ darling_literal_flags() { :; }
 cmake() { printf '%s\\n' "$@" >> "$FIXTURE/commands"; }
 sudo() { "$@"; mkdir -p "$CIDER_DARLING_INSTALL/bin"; touch "$CIDER_DARLING_INSTALL/bin/darling"; chmod 755 "$CIDER_DARLING_INSTALL/bin/darling"; }
 ciderdarling_matches() { return 0; }
+mkdir -p "$XDG_CACHE_HOME/ciderhq/installer/darling-source-earlier/build"
 build_darling_source apt-get
-''', DARLING_BUILD_JOBS='7')
+''', DARLING_BUILD_JOBS='7', CIDER_RUNTIME_LOG_RECORD=str(self.base / 'build-log'))
+        # The build tree goes after a successful install, earlier ones before
+        # a new build; the log stays where the launcher's record points.
+        installer = self.base / 'cache/ciderhq/installer'
+        self.assertEqual(list(installer.glob('darling-source-*')), [])
+        log = Path((self.base / 'build-log').read_text().strip())
+        self.assertEqual(log.parent, installer)
+        self.assertRegex(log.name, r'^darling-build-\d{8}-\d{6}-\w+\.log$')
+        self.assertIn('source-ready', log.read_text())
+        self.assertEqual(log.stat().st_mode & 0o777, 0o600)
         commands = (self.base / 'commands').read_text().splitlines()
         for argument in (f'-DCMAKE_INSTALL_PREFIX={self.base}/runtime', '-DCIDER_SHUTDOWN_ON_INSTALL=OFF',
                          '-DENABLE_METAL=OFF', '-DCIDER_APPLY_PATCHES=ON', '-DTARGET_i386=OFF'):

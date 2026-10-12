@@ -29,6 +29,22 @@ if sys.argv[1:2] == ["--uri"]:
     from macoblox import uri  # noqa: E402
     uri.receive(sys.argv[2])
 
+# `ciderhq --collect-diagnostics [options]` writes a report archive without
+# the interface (see `ciderhq --collect-diagnostics --help`).
+if sys.argv[1:2] == ["--collect-diagnostics"]:
+    try:
+        from macoblox import diagnostics  # noqa: E402
+    except ImportError as error:
+        print(f"Diagnostics are unavailable in this Cider build: {error}", file=sys.stderr)
+        sys.exit(1)
+    sys.exit(diagnostics.collect_cli(sys.argv[2:]))
+
+# `ciderhq --ciderdarling-settings` opens Settings -> CiderDarling, also in an
+# already running launcher (the CiderDarling Settings menu entry).
+page = None
+if sys.argv[1:2] == ["--ciderdarling-settings"]:
+    page = "ciderdarling"
+
 from macoblox.app import main  # noqa: E402
 
-sys.exit(main())
+sys.exit(main(page))

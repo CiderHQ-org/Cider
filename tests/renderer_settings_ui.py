@@ -33,25 +33,28 @@ with patch.object(core, "load_settings", return_value=dict(core.DEFAULT_SETTINGS
         patch.object(app, "_error_dialog", side_effect=lambda *args: errors.append(args)), \
         patch.object(graphics, "missing_vulkan_dependencies", return_value=["Zink"]):
     window = app.LauncherWindow(application)
+    # Environment -> Game, and its copy on the CiderDarling tab.
     rows = [widget for widget in walk(window.settings_page)
             if isinstance(widget, Adw.ComboRow) and widget.get_title() == "Renderer"]
-    assert len(rows) == 1
-    row = rows[0]
+    assert len(rows) == 2
+    row, copy = rows
     row.set_selected(1)
-    assert not row.get_sensitive() and window.settings["renderer"] == "opengl"
+    assert not row.get_sensitive() and not copy.get_sensitive() and window.settings["renderer"] == "opengl"
     work, done = pending.pop()
     assert work == graphics.ensure_vulkan_dependencies
     done(None, RuntimeError("Authentication cancelled"))
     assert row.get_sensitive() and row.get_selected() == 0 and errors
+    assert copy.get_sensitive() and copy.get_selected() == 0
     assert window.settings["renderer"] == "opengl"
     assert not any(value["renderer"] == "vulkan" for value in saved)
-    row.set_selected(1)
-    assert not row.get_sensitive()
+    copy.set_selected(1)
+    assert not row.get_sensitive() and not copy.get_sensitive()
     _work, done = pending.pop()
     done(True, None)
-    assert row.get_sensitive() and row.get_selected() == 1
+    assert row.get_sensitive() and row.get_selected() == 1 and copy.get_selected() == 1
     assert window.settings["renderer"] == saved[-1]["renderer"] == "vulkan"
     row.set_selected(0)
+    assert copy.get_selected() == 0
     assert window.settings["renderer"] == saved[-1]["renderer"] == "opengl"
     window.destroy()
 
