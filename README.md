@@ -1,21 +1,36 @@
-<p align="center">
-  The real macOS Roblox client, running on Linux through <a href="https://www.darlinghq.org">Darling</a>.
-  improved by aubree.wtf with patches and more, originally created by narizy, credits to them.
+<h1 align="center">
+ Cider, by CiderHQ.
+</h1>
+ 
+ <p align="center">
+  The Roblox client meant for MacOS, running on Linux through <a href="https://www.darlinghq.org">Darling</a>, a compatability layer for using MacOS applications on Linux.
+  
+  improved by aubree.wtf and CiderHQ maintainers. with patches and more, Mac O' Blox, now Cider was originally created by narezy. Credits of the base to Cider go to narezy.
 </p>
 
 <p align="center">
   <a href="https://discord.gg/jCjHYYNq48"><img src="https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white" alt="Discord"></a>
 </p>
 
-<br>
+<h1 align="center">
+A.I. Disclaimer, do not use Cider if against the usage of A.I.
+</h1>
+
+###   Cider uses **Generative A.I.** for the maintaining and addition of features for Cider. Please do NOT complain in the CiderHQ [Discord server](https://discord.gg/jCjHYYNq48) if you are aginst the usage of Generative A.I.
+
+<h1 align="center">
+  Description
+</h1>
 
 Full graphics with antialiasing, sound, camera and mouse lock, a session that
 survives restarts, and a small launcher with fast flags. Roblox Studio too, in
-its Windows version through Wine. English and Russian.
+its Windows version through Wine. English and Russian. Cider is under the GPL v3 license. Do not make Cider proprietary, nor may any derivatives be closed source.
+Any derivatives must be also under the GPL v3 license, and cannot remove any copyright notices.
 
-## Cider migration
-
-Cider is the new name for MacOBlox. The terminal command and native package
+<h1 align="center">
+  Migration from Mac O' Blox to Cider
+</h1>
+Cider is the new, and preferred name for MacOBlox. The terminal command and native package
 name are **`ciderhq`**, the desktop ID is `org.ciderhq.Cider`, and the website
 is [ciderhq.org](https://ciderhq.org).
 
@@ -117,36 +132,44 @@ git -C ~/.local/share/CiderHQ reset --hard HEAD
 ```
 </details>
 
-## Questions
+<h1 align="center">
+  Frequently Asked Questions
+</h1>
+
+<details>
+<summary>Hey, this sounds like Gracejuice!</summary>
+
+Grapejuice and Cider are inherently similar because
+</details>
 
 <details>
 <summary>Is my account safe?</summary>
 
-You sign in inside Roblox itself, the launcher never sees your password. The
-session is stored only on your computer, in
+You sign in inside the Roblox client itself, the launcher and we at CiderHQ **NEVER** see your password since the
+session is stored locally, only on your computer, and not on a server. The cookie is located in
 `~/.darling/Users/$USER/Library/CiderHQ`. Do not share that folder, it works
-like a password. **Sign out** in the settings deletes it.
+like a fancy keycard to your account. We at CiderHQ will never ask for this folder, and anyone asking for this is a phishing attempt and should be reported.
+**Sign out** in the settings to delete it.
 
-Cider is not made by Roblox, using it is at your own risk.
+Cider is ***NOT*** affiliated nor endorsed by the Roblox Corporation, nor any siblings of Roblox. We are not liable for any suspensions of your account by using Cider. 
 </details>
 
 <details>
-<summary>Something does not work</summary>
+<summary>Hey.. Something doesn't work! </summary>
 
-When Roblox does not start, the launcher shows the error with a **Copy**
+In the rare, and *scary* event Roblox does not start, the launcher shows the error with a **Copy**
 button. Send it to the [Discord](https://discord.gg/jCjHYYNq48). The last
 error is also saved in `~/.cache/ciderhq/last-error.txt`.
+You can also send things like bug reports (i.e. Camera issues, and rendering bugs [like artifacting].)
 </details>
 
 <details>
 <summary>How do I sign in?</summary>
 
-Signing up and signing in with a password show a captcha in a web page, which
-Darling cannot display; Cider opens it in a window of its own instead
-(it needs WebKitGTK 6.0, which the installer brings along). Without that
-window, create the account on [roblox.com](https://www.roblox.com) first and
-sign in in Cider with **Quick Login**: Roblox shows a code, enter it on a
-phone or in a browser where you are already signed in.
+Currently, normally logging in will most likely work, though it relies on your distribution. If logging in like this does not work, continue with the following.
+
+Create or log into your Roblox account through a browser, phone, or S[REDACTED]r., then use the Quick Login feature in the login screen. This will show a code.
+Go to your browser or something like S[REDACTED]r and click the gear on the top right of your screen, and type in your code. (i.e. C1D3RHQ)
 </details>
 
 <details>
@@ -337,7 +360,7 @@ how to open the `roblox-studio-auth` link, choose **Roblox Studio (Cider)**.
 
 The Flatpak brings Darling along and runs it without root (see
 [flatpak/darling-noroot.c](flatpak/darling-noroot.c)), so nothing has to be
-installed on the system. Version 0.22 does not include a Flatpak bundle.
+installed on the system. Version 0.22 does not include a Flatpak bundle, as the Flatpak is temporarily discontinued to focus on better function on the native version.
 The last testing bundle is available in
 [release 0.19](https://github.com/CiderHQ-org/Cider/releases/tag/v0.19):
 
@@ -365,14 +388,14 @@ flatpak run --env=FLATPAK_USER_DIR=$HOME/.local/share/flatpak --command=flatpak-
 
 Darling runs macOS programs on Linux. Roblox needs a few things Darling does not
 have yet, so Cider adds a small library to the game: it connects the mouse,
-sound, OpenGL and network to Linux and fixes bugs along the way. Details are in
+sound, OpenGL (or Vulkan via Zink) and network to Linux and fixes bugs along the way. Details are in
 [docs/NOTES.md](docs/NOTES.md).
 </details>
 
 ## Credits
 
-Made by [Narezany](https://github.com/narezy). This version is maintained by
-[aubree.wtf](https://aubree.wtf), with stability and performance fixes.
+Made by [Narezy](https://github.com/narezy). This version is maintained by
+[aubree.wtf](https://aubree.wtf) and maintainers at CiderHQ, with stability + performance fixes, and added features.
 
 [Darling](https://www.darlinghq.org) · Tux by Larry Ewing and The GIMP ·
 [Comfortaa](https://github.com/alexeiva/comfortaa) font (SIL OFL) ·
@@ -380,4 +403,6 @@ Made by [Narezany](https://github.com/narezy). This version is maintained by
 [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) fonts in the launcher (SIL OFL) ·
 icons from [Simple Icons](https://simpleicons.org)
 
-Cider is MIT licensed. Not affiliated with Roblox Corporation.
+<h2 align="center">
+  Cider© 2026 is under CiderHQ via the GNU General Public License, and Roblox® is a registered trademarked of Roblox Corporation.
+</h2>
