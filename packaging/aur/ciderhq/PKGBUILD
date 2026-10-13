@@ -1,8 +1,8 @@
 # Maintainer: aubree.wtf <https://aubree.wtf/>
 pkgname=ciderhq
 # pacman sorts 0.23patch1 before 0.23, but 0.23.patch1 after it.
-_tag=0.23patch1
-pkgver=0.23.patch1
+_tag=0.23patch2
+pkgver=0.23.patch2
 pkgrel=1
 pkgdesc='Run the macOS Roblox client on Linux through Darling'
 arch=('x86_64')
@@ -25,7 +25,7 @@ provides=('macoblox')
 conflicts=('ciderhq-git' 'macoblox' 'macoblox-git')
 replaces=('macoblox')
 source=("$pkgname-$_tag.tar.gz::$_repo/releases/download/v$_tag/ciderhq-$_tag-source.tar.gz")
-sha256sums=('069054c61bf9e6060cb03bc146187f9b70054b5d9f5c7658798d236ff1d411e8')
+sha256sums=('904bf71d497ee5beb151bf146668d3947d2125b85a0dae52b16df58b9f7d48d0')
 
 build() {
   cd "Cider-$_tag"
