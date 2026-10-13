@@ -2731,6 +2731,7 @@ extern int CGAssociateMouseAndMouseCursorPosition(unsigned int connected);
 extern int CGWarpMouseCursorPosition(MacOBloxPoint position);
 #define MACOBLOX_LOCK_RADIUS 100.0
 #include "pointer_motion.h"
+#include "drag_cursor.h"
 static MacOBloxPointerMotion macoblox_pointer_motion;
 static volatile int macoblox_native_motion_active;
 static volatile int macoblox_pointer_grabbed;
@@ -2939,6 +2940,7 @@ extern int pipe(int[2]);
 extern long read(int, void*, unsigned long);
 extern int macoblox_cursor_overlay_update_at(int, unsigned long, int, int, int, unsigned long);
 extern int macoblox_cursor_overlay_update_selected(int, unsigned long, int, int, int, unsigned long, unsigned long);
+extern int macoblox_cursor_overlay_update_drag(int,unsigned long,int,int,int,unsigned long,unsigned long,int);
 extern void macoblox_cursor_overlay_select_image(unsigned long, const unsigned int*, unsigned int, unsigned int,
                                                 unsigned int, unsigned int);
 static volatile int macoblox_cursor_wanted_hidden;
@@ -2953,6 +2955,7 @@ static volatile int macoblox_input_focused = 1;
 static int macoblox_cursor_wake[2] = {-1, -1};
 static MacOBloxCursorSelection macoblox_window_cursor_selection;
 static volatile unsigned int macoblox_window_cursor_lock;
+static MacOBloxDragCursor macoblox_drag_cursor;
 static unsigned long long macoblox_input_now_ns(void) {
     struct { long seconds, nanoseconds; } now = {0, 0};
     long result;
@@ -2997,6 +3000,7 @@ static void* macoblox_xfixes_worker(void* unused) {
         unsigned long lock_generation = macoblox_cursor_lock_generation;
         unsigned long cursor_id = macoblox_window_cursor_selection.window == lock_window
             ? macoblox_window_cursor_selection.cursor : 0;
+        int right_drag=macoblox_drag_cursor_visible(&macoblox_drag_cursor);
         int changed = macoblox_cursor_selection_take(&macoblox_window_cursor_selection, &selected);
         macoblox_unlock(&macoblox_window_cursor_lock);
         if (changed) {
@@ -3007,9 +3011,9 @@ static void* macoblox_xfixes_worker(void* unused) {
                 }
             }
         }
-        if (!macoblox_cursor_overlay_update_selected(wanted, lock_window,
+        if (!macoblox_cursor_overlay_update_drag(wanted, lock_window,
                 __atomic_load_n(&macoblox_cursor_hide_depth, __ATOMIC_ACQUIRE) == 0,
-                lock_x, lock_y, lock_generation, cursor_id)) {
+                lock_x, lock_y, lock_generation, cursor_id,right_drag)) {
             static int reported;
             if (!reported) {
                 reported = 1;
@@ -3077,6 +3081,14 @@ static void macoblox_set_x_cursor_hidden(int hidden) {
 static void macoblox_cursor_changed(void) {
     if (__atomic_load_n(&macoblox_cursor_worker_ready, __ATOMIC_ACQUIRE))
         macoblox_wake_worker(macoblox_cursor_wake[1]);
+}
+static void macoblox_drag_cursor_update_buttons(unsigned buttons) {
+    macoblox_lock(&macoblox_window_cursor_lock);
+    int before=macoblox_drag_cursor_visible(&macoblox_drag_cursor);
+    macoblox_drag_cursor_buttons(&macoblox_drag_cursor,buttons);
+    int changed=before!=macoblox_drag_cursor_visible(&macoblox_drag_cursor);
+    macoblox_unlock(&macoblox_window_cursor_lock);
+    if(changed)macoblox_cursor_changed();
 }
 static void (*orig_cursor_hide)(id, SEL);
 static void hooked_cursor_hide(id self, SEL cmd) {
@@ -3287,10 +3299,12 @@ static void macoblox_update_x_input_state(id display, void* event) {
             else buttons &= ~(1u << button);
         }
     }
-    if (flags != macoblox_x_modifier_flags || buttons != macoblox_raw_buttons)
+    int buttons_changed = buttons != macoblox_raw_buttons;
+    if (flags != macoblox_x_modifier_flags || buttons_changed)
         macoblox_flush_raw_motion(display);
     macoblox_x_modifier_flags = flags;
     macoblox_raw_buttons = buttons;
+    if (buttons_changed) macoblox_drag_cursor_update_buttons(buttons);
 }
 
 static void macoblox_update_pointer_baseline(id display, void* event) {
@@ -3465,6 +3479,7 @@ static void macoblox_release_mouse_capture_inner(int restore) {
     macoblox_capture_generation = 0;
     macoblox_capture_attempted = macoblox_capture_error = 0;
     macoblox_lock(&macoblox_window_cursor_lock);
+    macoblox_drag_cursor_capture(&macoblox_drag_cursor,0);
     __atomic_store_n(&macoblox_cursor_lock_window, 0, __ATOMIC_RELEASE);
     macoblox_unlock(&macoblox_window_cursor_lock);
     macoblox_set_x_cursor_hidden(0);
@@ -3622,6 +3637,8 @@ static int macoblox_apply_mouse_capture_inner(int grab, int has_snapshot,
     macoblox_lock(&macoblox_window_cursor_lock);
     macoblox_cursor_lock_x = x;
     macoblox_cursor_lock_y = y;
+    macoblox_drag_cursor_buttons(&macoblox_drag_cursor,macoblox_raw_buttons);
+    macoblox_drag_cursor_capture(&macoblox_drag_cursor,1);
     macoblox_capture_generation = ++macoblox_cursor_lock_generation;
     __atomic_store_n(&macoblox_cursor_lock_window, handle, __ATOMIC_RELEASE);
     macoblox_unlock(&macoblox_window_cursor_lock);
@@ -5236,6 +5253,7 @@ static void macoblox_refresh_pointer_state(id self) {
     if (query && display && window && query(display, window, &root, &child, &rx, &ry, &x, &y, &state)) {
         macoblox_x_modifier_flags = macoblox_modifiers_for_x_state(state);
         macoblox_raw_buttons = macoblox_buttons_for_x_state(state);
+        macoblox_drag_cursor_update_buttons(macoblox_raw_buttons);
     }
 }
 static void hooked_post_x_event_inner(id self, SEL cmd, void* event) {

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Keep a visible software cursor at the right-click camera drag position on
+  Wayland and X11/Xwayland. Preserve the last visible cursor image when Roblox
+  hides it or selects a transparent cursor, with an arrow fallback. Camera
+  movement continues normally; releasing right-click or losing focus clears
+  the override. Pressing right-click during existing Shift Lock or first-person
+  capture keeps that capture's cursor policy.
+
 ## 0.24 — 2026-10-13
 
 - Repair native Wayland startup and game-join freezes caused by unsupported

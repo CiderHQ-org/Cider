@@ -41,4 +41,6 @@ clang -O2 -Wall -Wextra tests/hid_compat_test.c -o "$test_build/hid"
 "$test_build/hid"
 clang -O2 -Wall -Wextra tests/wayland_coordinates_test.c -o "$test_build/wayland-coordinates"
 "$test_build/wayland-coordinates"
+clang -O2 -Wall -Wextra tests/drag_cursor_test.c -o "$test_build/drag-cursor"
+"$test_build/drag-cursor"
 PYTHONPATH=launcher python3 -m unittest discover -s tests -p '*_test.py'

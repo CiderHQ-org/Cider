@@ -3,6 +3,7 @@
  * framebuffer readback and no X11 connection. */
 #include "wayland_bridge.h"
 #include "cursor_pixels.h"
+#include "drag_cursor.h"
 #include <SDL.h>
 #include <SDL_syswm.h>
 #include <wayland-client.h>
@@ -29,6 +30,7 @@ struct Window {
     wl_egl_window *surface;
     double x=0, y=0, anchor_x=0, anchor_y=0;
     bool capture=false, requested_capture=false, focused=false;
+    MacOBloxDragCursor drag_cursor{};
     wl_surface *wl_surface_handle=nullptr,*cursor_surface=nullptr;
     wl_subsurface *cursor_subsurface=nullptr;
     wl_buffer *shown_cursor=nullptr;
@@ -63,8 +65,8 @@ wl_compositor *compositor;
 wl_subcompositor *subcompositor;
 wl_shm *shm;
 wl_cursor_theme *cursor_theme;
-wl_buffer *cursor_buffer;
-int cursor_hot_x,cursor_hot_y,cursor_width,cursor_height;
+struct CursorFrame {wl_buffer *buffer=nullptr;int hot_x=0,hot_y=0,width=0,height=0;bool opaque=false;};
+CursorFrame cursor_frame,visible_cursor_frame;
 struct OwnedBuffer {wl_buffer *buffer;bool released=false,submitted=false;};
 std::vector<std::unique_ptr<OwnedBuffer>> owned_buffers;
 
@@ -78,7 +80,10 @@ void cursor_above_children(Window &window) {
 }
 
 void update_cursor(Window &window) {
-    bool visible=window.capture && window.focused && cursor_visible && cursor_buffer;
+    bool right_drag=macoblox_drag_cursor_visible(&window.drag_cursor);
+    const auto &frame=right_drag && (!cursor_visible || !cursor_frame.opaque)
+        ? visible_cursor_frame : cursor_frame;
+    bool visible=window.capture && window.focused && (cursor_visible || right_drag) && frame.buffer;
     if(!window.cursor_surface && visible && subcompositor && compositor) {
         window.cursor_surface=wl_compositor_create_surface(compositor);
         window.cursor_subsurface=wl_subcompositor_get_subsurface(subcompositor,window.cursor_surface,window.wl_surface_handle);
@@ -87,27 +92,28 @@ void update_cursor(Window &window) {
         cursor_above_children(window);
     }
     if(!window.cursor_surface)return;
-    int x=(int)window.anchor_x-cursor_hot_x,y=(int)window.anchor_y-cursor_hot_y;
-    if(visible && window.cursor_mapped && window.shown_cursor==cursor_buffer && window.cursor_x==x && window.cursor_y==y)return;
+    int x=(int)window.anchor_x-frame.hot_x,y=(int)window.anchor_y-frame.hot_y;
+    if(visible && window.cursor_mapped && window.shown_cursor==frame.buffer && window.cursor_x==x && window.cursor_y==y)return;
     if(!visible && !window.cursor_mapped)return;
     if(visible){
-        for(auto &owned:owned_buffers)if(owned->buffer==cursor_buffer){owned->submitted=true;owned->released=false;}
+        for(auto &owned:owned_buffers)if(owned->buffer==frame.buffer){owned->submitted=true;owned->released=false;}
         wl_subsurface_set_position(window.cursor_subsurface,x,y);
-        wl_surface_attach(window.cursor_surface,cursor_buffer,0,0);
-        wl_surface_damage(window.cursor_surface,0,0,cursor_width,cursor_height);
+        wl_surface_attach(window.cursor_surface,frame.buffer,0,0);
+        wl_surface_damage(window.cursor_surface,0,0,frame.width,frame.height);
     } else wl_surface_attach(window.cursor_surface,nullptr,0,0);
     wl_surface_commit(window.cursor_surface);
     /* Position is parent-synchronized even on a desynchronized subsurface. */
     wl_surface_commit(window.wl_surface_handle);
     wl_display_flush((wl_display *)native_display);
-    window.cursor_mapped=visible;window.shown_cursor=visible?cursor_buffer:nullptr;window.cursor_x=x;window.cursor_y=y;
+    window.cursor_mapped=visible;window.shown_cursor=visible?frame.buffer:nullptr;window.cursor_x=x;window.cursor_y=y;
 }
 void refresh_cursors(){for(auto &entry:windows)update_cursor(entry.second);}
 void system_cursor(const char *name) {
     auto cursor=cursor_theme?wl_cursor_theme_get_cursor(cursor_theme,name):nullptr;
     if(!cursor || !cursor->image_count)return;
-    auto image=cursor->images[0];cursor_buffer=wl_cursor_image_get_buffer(image);
-    cursor_hot_x=image->hotspot_x;cursor_hot_y=image->hotspot_y;cursor_width=image->width;cursor_height=image->height;
+    auto image=cursor->images[0];cursor_frame={wl_cursor_image_get_buffer(image),
+        (int)image->hotspot_x,(int)image->hotspot_y,(int)image->width,(int)image->height,true};
+    visible_cursor_frame=cursor_frame;
 }
 void registry_global(void *,wl_registry *registry,uint32_t id,const char *interface,uint32_t version) {
     if(!std::strcmp(interface,"wl_compositor"))compositor=(wl_compositor *)wl_registry_bind(registry,id,&wl_compositor_interface,std::min(version,4u));
@@ -115,6 +121,7 @@ void registry_global(void *,wl_registry *registry,uint32_t id,const char *interf
     else if(!std::strcmp(interface,"wl_shm"))shm=(wl_shm *)wl_registry_bind(registry,id,&wl_shm_interface,1);
 }
 void registry_remove(void *,wl_registry *,uint32_t){}
+void custom_cursor_surface(const std::vector<unsigned char> &,int,int,int,int);
 void initialize_cursor_surfaces() {
     auto display=(wl_display *)native_display;
     auto registry=wl_display_get_registry(display);
@@ -122,6 +129,14 @@ void initialize_cursor_surfaces() {
     wl_registry_add_listener(registry,&listener,nullptr);
     wl_display_roundtrip(display);wl_registry_destroy(registry);
     if(shm){cursor_theme=wl_cursor_theme_load(getenv("XCURSOR_THEME"),32,shm);system_cursor("left_ptr");}
+    if(shm && !cursor_frame.buffer) {
+        std::vector<unsigned char> pixels(10*17*4);
+        for(unsigned y=0;y<17;y++)for(unsigned x=0;x<10;x++) {
+            unsigned word=macoblox_drag_cursor_arrow(x,y);
+            std::memcpy(pixels.data()+(y*10+x)*4,&word,4);
+        }
+        custom_cursor_surface(pixels,10,17,0,0);
+    }
 }
 void custom_cursor_surface(const std::vector<unsigned char> &pixels,int width,int height,int hot_x,int hot_y) {
     if(!shm)return;
@@ -136,7 +151,10 @@ void custom_cursor_surface(const std::vector<unsigned char> &pixels,int width,in
     auto owned=std::make_unique<OwnedBuffer>();owned->buffer=buffer;
     static const wl_buffer_listener release={[](void *data,wl_buffer *){((OwnedBuffer *)data)->released=true;}};
     wl_buffer_add_listener(buffer,&release,owned.get());owned_buffers.push_back(std::move(owned));
-    cursor_buffer=buffer;cursor_width=width;cursor_height=height;cursor_hot_x=hot_x;cursor_hot_y=hot_y;
+    bool opaque=false;
+    for(size_t offset=3;offset<pixels.size();offset+=4)if(pixels[offset]){opaque=true;break;}
+    cursor_frame={buffer,hot_x,hot_y,width,height,opaque};
+    if(opaque)visible_cursor_frame=cursor_frame;
 }
 bool map_background(Window &window,int width,int height) {
     /* The parent needs a buffer to receive focus and to apply SDL's pending
@@ -252,6 +270,7 @@ void capture(Window &window,unsigned id,bool enabled) {
         std::fprintf(stderr,"[Cider Wayland] Relative pointer unavailable: %s\n",SDL_GetError());
     }
     window.capture=next;
+    macoblox_drag_cursor_capture(&window.drag_cursor,next);
     update_cursor(window);
     macoblox_wayland_event event{};event.type=MW_CAPTURE;event.window=id;event.button=next;
     push(event);
@@ -271,6 +290,14 @@ void translate(const SDL_Event &input) {
         event.type=input.type==SDL_MOUSEBUTTONDOWN?MW_DOWN:MW_UP;
         event.button=input.button.button;event.clicks=input.button.clicks;
         if(event.button>=4)event.button+=4; // match Darling's extra-button numbering
+        if(event.button<32) {
+            unsigned buttons=window.drag_cursor.buttons;
+            if(input.type==SDL_MOUSEBUTTONDOWN)buttons|=1u<<event.button;
+            else buttons&=~(1u<<event.button);
+            bool previous=macoblox_drag_cursor_visible(&window.drag_cursor);
+            macoblox_drag_cursor_buttons(&window.drag_cursor,buttons);
+            if(previous!=macoblox_drag_cursor_visible(&window.drag_cursor))update_cursor(window);
+        }
         break;
     case SDL_MOUSEWHEEL:
         event.type=MW_SCROLL;event.dx=input.wheel.preciseX;event.dy=input.wheel.preciseY;
@@ -296,6 +323,7 @@ void translate(const SDL_Event &input) {
             window.focused=true;event.type=MW_FOCUS;
             capture(window,found->first,window.requested_capture);break;
         case SDL_WINDOWEVENT_FOCUS_LOST:
+            macoblox_drag_cursor_buttons(&window.drag_cursor,0);
             window.focused=false;capture(window,found->first,false);event.type=MW_BLUR;break;
         case SDL_WINDOWEVENT_CLOSE:event.type=MW_CLOSE;break;
         default:return;
@@ -557,7 +585,7 @@ extern "C" const macoblox_wayland_api *macoblox_wayland_host_api() {
                 resize_backgrounds();
                 wl_display_dispatch_pending((wl_display *)native_display);
                 /* A release makes old cursor and background buffers safe to destroy. */
-                owned_buffers.erase(std::remove_if(owned_buffers.begin(),owned_buffers.end(),[](auto &buffer){if((buffer->released || !buffer->submitted) && buffer->buffer!=cursor_buffer){wl_buffer_destroy(buffer->buffer);return true;}return false;}),owned_buffers.end());
+                owned_buffers.erase(std::remove_if(owned_buffers.begin(),owned_buffers.end(),[](auto &buffer){if((buffer->released || !buffer->submitted) && buffer->buffer!=cursor_frame.buffer && buffer->buffer!=visible_cursor_frame.buffer){wl_buffer_destroy(buffer->buffer);return true;}return false;}),owned_buffers.end());
             }
             for(auto &entry:subwindows) {
                 if(entry.second.role)wl_subsurface_destroy(entry.second.role);
