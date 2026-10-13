@@ -17,10 +17,10 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "launcher"))
-from macoblox import display, graphics
+from macoblox import display, graphics, runtime
 
 
-def run_case(binary, build, output, negative):
+def run_case(binary, build, output, negative, renderer="vulkan", client="darling"):
     name = "failed-init-retry" if negative else "render"
     prefix = Path(tempfile.mkdtemp(prefix="macoblox-wayland-fixture-")) / "prefix"
     for relative in ("var/run", "var/db", "var/log", "var/tmp/launchd", "private/var/run",
@@ -35,8 +35,8 @@ def run_case(binary, build, output, negative):
             "library_path": str(prefix.parent / "missing-driver.so"), "api_version": "1.3.0"}}))
         overrides["VK_DRIVER_FILES"] = str(invalid)
     with patch.dict(os.environ, overrides):
-        values = graphics.renderer_environment("vulkan")
-        values.update(display.window_environment({"renderer": "vulkan", "display_backend": "wayland"},
+        values = graphics.renderer_environment(renderer)
+        values.update(display.window_environment({"renderer": renderer, "display_backend": "wayland"},
                                                  build / "libmacoblox-wayland.so"))
     values.update({"MACOBLOX_TRACE_WAYLAND": "1", "DYLD_FORCE_FLAT_NAMESPACE": "1",
                    "DYLD_INSERT_LIBRARIES": "/Volumes/SystemRoot" + str(build / "libMacOBloxShims.dylib"),
@@ -48,12 +48,15 @@ def run_case(binary, build, output, negative):
     arguments = ["/Volumes/SystemRoot" + str(binary)]
     if negative:
         arguments.append("--expect-init-failure")
-    command = ["darling", "shell", "/bin/bash", "-c",
+    elif renderer == "opengl":
+        arguments.append("--opengl")
+    command = [client, "shell", "/bin/bash", "-c",
                'unset DISPLAY MACOBLOX_WEB_SOCKET LD_PRELOAD; exec /usr/bin/env "$@"',
                "wayland-fixture", *[f"{key}={value}" for key, value in values.items()], *arguments]
     log_path = output / f"{name}.log"
     evidence = {"prefix": str(prefix), "no_auth": True, "display_unset": True,
-                "negative_control": negative, "generated_icd": values.get("VK_ADD_DRIVER_FILES")}
+                "negative_control": negative, "renderer": renderer,
+                "generated_icd": values.get("VK_ADD_DRIVER_FILES")}
     try:
         with log_path.open("w") as log:
             result = subprocess.run(command, env=environment, stdout=log, stderr=subprocess.STDOUT, timeout=45)
@@ -62,7 +65,7 @@ def run_case(binary, build, output, negative):
         evidence["error"] = str(error)
     finally:
         try:
-            result = subprocess.run(["darling", "shutdown"], env={**base, "DPREFIX": str(prefix)},
+            result = subprocess.run([client, "shutdown"], env={**base, "DPREFIX": str(prefix)},
                                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=15)
             evidence["scoped_shutdown_returncode"] = result.returncode
         except (OSError, subprocess.TimeoutExpired) as error:
@@ -74,7 +77,7 @@ def run_case(binary, build, output, negative):
     (output / f"{name}.json").write_text(json.dumps(evidence, indent=2) + "\n")
     print(json.dumps(evidence))
     for line in text.splitlines():
-        if any(token in line for token in ("_RENDERER", "INIT_FAILURE", "RETRY_", "IDENTITY_", "PUMP_", "PASS:", "FAIL:")):
+        if any(token in line for token in ("_RENDERER", "INIT_FAILURE", "RETRY_", "IDENTITY_", "PUMP_", "HID_PASS", "PASS:", "FAIL:")):
             print(line)
     return evidence["passed"]
 
@@ -82,10 +85,15 @@ def run_case(binary, build, output, negative):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build-dir", type=Path, required=True)
-    parser.add_argument("--sysroot", type=Path, default=Path(os.environ.get("DARLING_SYSROOT", "/usr/libexec/darling")))
+    parser.add_argument("--sysroot", type=Path)
+    parser.add_argument("--darling", help="Darling executable matching --sysroot; defaults to Cider's selected runtime")
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--compile-only", action="store_true")
+    parser.add_argument("--renderer", choices=("opengl", "vulkan"), default="vulkan")
     args = parser.parse_args()
+    selected = runtime.resolve_runtime()
+    sysroot = args.sysroot or Path(os.environ.get("DARLING_SYSROOT", selected["sysroot"]))
+    client = args.darling or selected["executable"]
     build = args.build_dir.resolve()
     for name in ("libMacOBloxShims.dylib", "libmacoblox-wayland.so"):
         if not (build / name).is_file():
@@ -94,10 +102,10 @@ def main():
     output.mkdir(parents=True, exist_ok=True)
     binary = output / "darling-wayland-render-test"
     result = subprocess.run(["clang", "-target", "x86_64-apple-darwin", "-fuse-ld=lld",
-                             "-isysroot", str(args.sysroot), "-mmacosx-version-min=11.0", "-fobjc-exceptions",
+                             "-isysroot", str(sysroot), "-mmacosx-version-min=11.0", "-fobjc-exceptions",
                              "-Wall", "-Wextra", str(ROOT / "tests/darling_wayland_render_test.m"),
                              "-framework", "AppKit", "-framework", "Foundation", "-framework", "OpenGL",
-                             "-framework", "CoreGraphics", "-o", str(binary)], timeout=30)
+                             "-framework", "CoreGraphics", "-framework", "IOKit", "-o", str(binary)], timeout=30)
     if result.returncode:
         return result.returncode
     if args.compile_only:
@@ -106,8 +114,8 @@ def main():
     if not os.environ.get("WAYLAND_DISPLAY"):
         parser.error("This fixture requires a running native Wayland desktop session")
     os.environ["XDG_CACHE_HOME"] = str(output / "driver-cache")
-    positive = run_case(binary, build, output, False)
-    negative = run_case(binary, build, output, True)
+    positive = run_case(binary, build, output, False, args.renderer, client)
+    negative = run_case(binary, build, output, True, "vulkan", client) if args.renderer == "vulkan" else True
     return 0 if positive and negative else 1
 
 

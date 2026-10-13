@@ -7,6 +7,7 @@ extern int printf(const char *, ...), fflush(void *);
 extern unsigned int alarm(unsigned int);
 extern char *strstr(const char *, const char *);
 extern int strcmp(const char *, const char *);
+static int require_zink = 1;
 typedef struct { double x, y; } Point;
 typedef struct { double width, height; } Size;
 typedef struct { Point origin; Size size; } Rect;
@@ -67,6 +68,13 @@ extern const unsigned char *glGetString(unsigned int);
 extern void glClearColor(float, float, float, float), glClear(unsigned int);
 extern void glReadPixels(int, int, int, int, unsigned int, unsigned int, void *);
 extern unsigned int glGetError(void);
+extern void *IOHIDManagerCreate(const void *, unsigned int);
+extern void IOHIDManagerSetDeviceMatching(void *, const void *);
+extern void IOHIDManagerSetDeviceMatchingMultiple(void *, const void *);
+extern int IOHIDManagerOpen(void *, unsigned int), IOHIDManagerClose(void *, unsigned int);
+extern const void *IOHIDManagerCopyDevices(void *);
+extern long CFSetGetCount(const void *);
+extern void CFRelease(const void *);
 
 static int render(NSOpenGLContext *context, const char *label) {
     [context makeCurrentContext];
@@ -74,7 +82,7 @@ static int render(NSOpenGLContext *context, const char *label) {
     const char *version = (const char *)glGetString(0x1F02);
     printf("%s_RENDERER %s; GL %s\n", label, renderer ? renderer : "none", version ? version : "none");
     fflush(0);
-    if (!renderer || !strstr(renderer, "zink") || strstr(renderer, "llvmpipe") ||
+    if (!renderer || (require_zink && !strstr(renderer, "zink")) || strstr(renderer, "llvmpipe") ||
         strstr(renderer, "lavapipe") || strstr(renderer, "softpipe")) return 0;
     glClearColor(.25f, .5f, .75f, 1);
     glClear(0x4000);
@@ -91,6 +99,7 @@ int main(int argc, char **argv) {
     alarm(10);
     [[NSAutoreleasePool alloc] init];
     int expect_failure = argc == 2 && !strcmp(argv[1], "--expect-init-failure");
+    require_zink = !(argc == 2 && !strcmp(argv[1], "--opengl"));
     int failures = 0;
     for (int attempt = 0; attempt < 2; attempt++) {
         @try { [NSDisplay currentDisplay]; }
@@ -107,6 +116,22 @@ int main(int argc, char **argv) {
         return failures != 2;
     }
     if (failures) return 1;
+    /* This exact call blocked a Roblox startup worker after its first frame.
+     * An empty native HID manager must still support open/copy/close. SDL
+     * provides the Wayland keyboard and mouse independently of IOKit. */
+    void *manager = IOHIDManagerCreate(0, 0);
+    if (!manager) return 1;
+    IOHIDManagerSetDeviceMatching(manager, 0);
+    IOHIDManagerSetDeviceMatchingMultiple(manager, 0);
+    if (IOHIDManagerOpen(manager, 0)) return 1;
+    const void *devices = IOHIDManagerCopyDevices(manager);
+    long count = devices ? CFSetGetCount(devices) : 0;
+    if (devices) CFRelease(devices);
+    int close = IOHIDManagerClose(manager, 0);
+    CFRelease(manager);
+    if (count || close) return 1;
+    printf("HID_PASS: native SDL input does not wait for unsupported IOKit discovery\n");
+    fflush(0);
     @try {
         [[NSApplication sharedApplication] finishLaunching];
         Rect rect = {{0, 0}, {320, 240}};
