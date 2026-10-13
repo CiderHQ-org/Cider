@@ -10,7 +10,7 @@ test scope, not accounts, join links or copies of user logs.
 | Claire, GTX 1060 | Runtime a8dae, Zink and MangoHud; one short log and one later frontend exit, without a native crash stack | Only Zink crashes are confirmed. Compare OpenGL without MangoHud, then collect diagnostics with debugger access enabled. Shader-availability warnings alone do not identify the crash. |
 | [Issue 25](https://github.com/CiderHQ-org/Cider/issues/25), duplicate typing | One keyDown/keyUp pair is reported, but text may insert twice | Enable **Trace text input**, reproduce, and collect diagnostics. It logs insertion counts and selection ranges, never typed text. Do not discard repeated keystrokes based on timing. |
 | [Issue 26](https://github.com/CiderHQ-org/Cider/issues/26), KDE windows | Wayland sizing and X11 closing symptoms; screenshot without a matching lifecycle log | Native Wayland remains experimental. Collect backend, scaling, window/close and lifecycle traces on the affected machine before assigning a cause. |
-| Native Wayland startup freeze, local RTX 3060 Ti | Runtime b0fcb070; native OpenGL initially renders, then RBX Worker A remains in `IOHIDManagerSetDeviceMatching` / `io_service_add_notification_bin` | Interpose the public HID manager matching APIs in native Wayland mode. The existing IOService notification interpose misses direct calls within IOKit. SDL supplies keyboard/mouse input; native HID controller discovery remains unsupported. |
+| Native Wayland startup freeze, local RTX 3060 Ti | Runtime b0fcb070; native OpenGL initially renders, then RBX Worker A remains in `IOHIDManagerSetDeviceMatching` / `io_service_add_notification_bin`. With manager matching repaired, the same worker blocks in `IOServiceGetMatchingServices`; its serialized matching class is `IOHIDDevice`. | Interpose the public HID manager matching APIs and return an empty HID-only service inventory in native Wayland mode. The existing IOService notification interpose misses direct calls within IOKit. SDL supplies keyboard/mouse input; native HID controller discovery remains unsupported. Unrelated service matching still delegates to Darling. |
 
 The old-library regression runs an exact copy of 4312's libsystem_m in a new
 private prefix using a user/mount/PID namespace. The fixture fails without the
@@ -21,7 +21,12 @@ math repair; it does not prove every supplied crash has the same cause.
 The Wayland HID reproducer runs the same manager create/match/open/copy/close
 sequence against the exact b0fcb070 archive in a disposable namespace. The
 unrepaired shim blocks at the first match and hits an eight-second alarm; the
-repaired shim returns with zero devices and successful open/close. The full
+repaired shim returns with zero devices and successful open/close. The
+HID-only service inventory reproducer separately blocks with only the manager
+repair, and returns success with an empty iterator after both repairs. Native
+ownership/routing checks verify that the consumed service dictionary is released
+once, manager matching arguments stay borrowed, and non-HID/X11 queries still
+delegate to Darling. The full
 AppKit fixture additionally passed native NVIDIA OpenGL and Mesa Zink core/
 compatibility contexts, Cocoa event/window identity and pixel readback with
 `DISPLAY` unset. Actual gameplay confirmation is separate from these fixtures.

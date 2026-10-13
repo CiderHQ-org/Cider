@@ -73,6 +73,9 @@ extern void IOHIDManagerSetDeviceMatching(void *, const void *);
 extern void IOHIDManagerSetDeviceMatchingMultiple(void *, const void *);
 extern int IOHIDManagerOpen(void *, unsigned int), IOHIDManagerClose(void *, unsigned int);
 extern const void *IOHIDManagerCopyDevices(void *);
+extern const void *IOServiceMatching(const char *);
+extern int IOServiceGetMatchingServices(unsigned int, const void *, unsigned int *);
+extern unsigned int IOIteratorNext(unsigned int);
 extern long CFSetGetCount(const void *);
 extern void CFRelease(const void *);
 
@@ -130,6 +133,10 @@ int main(int argc, char **argv) {
     int close = IOHIDManagerClose(manager, 0);
     CFRelease(manager);
     if (count || close) return 1;
+    const void *matching = IOServiceMatching("IOHIDDevice");
+    unsigned int iterator = 123;
+    if (!matching || IOServiceGetMatchingServices(0, matching, &iterator) || iterator ||
+        IOIteratorNext(iterator)) return 1;
     printf("HID_PASS: native SDL input does not wait for unsupported IOKit discovery\n");
     fflush(0);
     @try {

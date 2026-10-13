@@ -37,4 +37,6 @@ clang -O2 -Wall -Wextra tests/ulock_compat_test.c -o "$test_build/ulock"
 "$test_build/ulock"
 clang -O2 -Wall -Wextra tests/math_compat_test.c -lm -o "$test_build/math"
 "$test_build/math"
+clang -O2 -Wall -Wextra tests/hid_compat_test.c -o "$test_build/hid"
+"$test_build/hid"
 PYTHONPATH=launcher python3 -m unittest discover -s tests -p '*_test.py'
