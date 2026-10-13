@@ -51,7 +51,10 @@ attached and committed; resizing a child alone cannot pass. The preceding shim
 fails both parent-buffer checks despite receiving the Cocoa resize events.
 The repaired shim passes both checks on native NVIDIA OpenGL and Mesa Zink,
 including core/compatibility contexts, pixel readback, and fullscreen/restore.
-Manual Roblox border resizing still needs the user's confirmation.
+After restarting Cider with the repaired shim, the user confirmed that Roblox's
+outer border resizes and clicks remain aligned while joining a game on native
+Wayland. This confirms the local niri/NVIDIA case; other compositor and GPU
+reports still need their own validation.
 
 ## Hardware coverage
 
