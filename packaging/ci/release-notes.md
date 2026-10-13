@@ -1,26 +1,14 @@
-Cider 0.23patch1 is a small follow-up to 0.23.
+Cider 0.23patch2 repairs startup on older Darling installations and improves runtime update recovery.
 
-- **Discord Rich Presence** now uses CiderHQ's own Discord application with
-  the Cider logo, shows the Cider version on hover, and adds **Get Cider** and
-  **Game page** buttons. It also clears itself again shortly after a game
-  ends, to keep the status from sticking in Legcord and Vesktop.
-- **Install in terminal** (CiderDarling) now finds kitty, Alacritty, foot,
-  WezTerm, Ghostty, Konsole and other terminals itself, fixing "Unable to find
-  terminal required for application" on systems without `xdg-terminal-exec`.
-- Cider is now licensed under the **GNU GPL v3**. The original Mac O' Blox
-  MIT notice is kept in `LICENSES/MIT-MacOBlox.txt`.
+- Repair the recursive sincos math wrappers in the old 4312 runtime, including float/double and pi variants.
+- Preserve a live Roblox process when the Darling shell frontend disconnects with Error Code 1.
+- Add **Use previous CiderDarling and restart**, keeping the current prefix and sign-in.
+- Resume interrupted runtime downloads and verify cached downloads before reuse.
+- Add **Collect hardware report** and `ciderhq --hardware-report --graphics`, plus numeric text-input tracing for duplicate typing.
+- Keep the crash handler available when freeze diagnostics are enabled.
 
-Install the package for your distro:
+The old-library math regression passes with the production shim. Launcher regressions and all three distro builds must succeed before this release publishes. This release does not claim the remaining Claire Zink crash, duplicate-typing report or KDE native Wayland sizing report is resolved; affected-machine retesting is still needed.
 
-- Arch Linux, CachyOS and compatible derivatives: the `.pkg.tar.zst` package
-  with `sudo pacman -U ./ciderhq-*.pkg.tar.zst`.
-- Ubuntu 24.04+, Debian 13+ and compatible derivatives: the `.deb` package
-  with `sudo apt install ./ciderhq_*.deb`.
-- Current Fedora and compatible derivatives: the binary `.rpm` package
-  with `sudo dnf install ./ciderhq-*.x86_64.rpm`.
+Install the package matching your distribution: `.pkg.tar.zst` for Arch derivatives, `.deb` for Ubuntu 24.04+/Debian 13+, or the binary `.rpm` for current Fedora. Packages include the launcher and prebuilt shims; select either Darling provider in the launcher. CiderDarling runtime updates download separately.
 
-Arch and RPM packages are versioned `0.23.patch1` so package managers treat
-them as an upgrade from 0.23. Source installs update from the launcher as usual.
-
-The source archive, AUR recipe and source RPM are also attached. `SHA256SUMS`
-records every attached package and source archive.
+The source archive, Arch recipe and source RPM are attached, with `SHA256SUMS` for verification.

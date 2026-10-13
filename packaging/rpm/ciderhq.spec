@@ -1,7 +1,7 @@
 # rpm sorts 0.23patch1 before 0.23, but 0.23.patch1 after it.
-%global upstream_version 0.23patch1
+%global upstream_version 0.23patch2
 Name:           ciderhq
-Version:        0.23.patch1
+Version:        0.23.patch2
 Release:        1%{?dist}
 Summary:        Run the macOS Roblox client on Linux through Darling
 License:        GPL-3.0-only AND MIT AND OFL-1.1
@@ -89,6 +89,10 @@ python3 -m compileall -q -d "%{_datadir}/ciderhq/launcher" "%{buildroot}%{_datad
 %{_datadir}/mime/packages/org.ciderhq.Cider.xml
 
 %changelog
+* Tue Oct 13 2026 Cider maintainers <noreply@aubree.wtf> - 0.23.patch2-1
+- Repair old-runtime sincos recursion and preserve live guests after shell disconnects.
+- Add runtime rollback, resumable downloads and local hardware coverage reports.
+
 * Mon Oct 12 2026 Cider maintainers <noreply@aubree.wtf> - 0.23.patch1-1
 - Relicense under the GPL v3 and show CiderHQ's Discord presence.
 - Find terminals without xdg-terminal-exec for runtime installs.

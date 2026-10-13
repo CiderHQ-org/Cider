@@ -135,11 +135,13 @@ int main(void) {
     check_physical(physical, 254, 142.875);
     assert(!setenv("MACOBLOX_DPI_SCALE", "2", 1));
     physical = macoblox_CGDisplayScreenSize(42);
-    check_physical(physical, 127, 71.4375);
+    /* UI scaling leaves the rendering pixels and physical monitor size
+     * unchanged. This prevents input/display geometry from scaling twice. */
+    check_physical(physical, 254, 142.875);
     assert(macoblox_CGDisplayBounds(42).width == 960);
     assert(!setenv("MACOBLOX_DPI_SCALE", "1.25", 1));
     physical = macoblox_CGDisplayScreenSize(999);
-    check_physical(physical, 203.2, 114.3);
+    check_physical(physical, 254, 142.875);
     const char *bad_scale[] = {"", "nan", "NaN", "inf", "Infinity", "0", "-2", "+2", "0.5",
                               "4.01", "4.000000000000000000000000001", "2garbage", " 2", "2 ",
                               "1,25", "2e0", "0x1p1", "2.", "2..0", "99999999999999999999999999999999999",

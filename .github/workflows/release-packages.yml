@@ -47,6 +47,22 @@ jobs:
           path: dist/
           if-no-files-found: error
 
+  regressions:
+    name: Launcher regressions
+    needs: source
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.source.outputs.revision }}
+      - name: Test with isolated settings and fake services
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang
+          config=$(mktemp -d)
+          XDG_CONFIG_HOME="$config/config" XDG_CACHE_HOME="$config/cache" \
+            XDG_DATA_HOME="$config/data" DPREFIX="$config/prefix" bash tests/run.sh
+
   build:
     name: Package (${{ matrix.flavor }})
     needs: source
@@ -87,7 +103,7 @@ jobs:
           if-no-files-found: error
 
   publish:
-    needs: [source, build]
+    needs: [source, regressions, build]
     if: github.event_name == 'push' || inputs.publish
     runs-on: ubuntu-24.04
     permissions:

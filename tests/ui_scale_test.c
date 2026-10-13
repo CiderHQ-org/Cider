@@ -21,6 +21,11 @@ static const char *method_getTypeEncoding(Method);
 static IMP method_getImplementation(Method);
 static IMP method_setImplementation(Method, IMP);
 static void write_str(const char *);
+static int input_allowed = 1, input_hooks = 1;
+static double input_factor = 1;
+static int macoblox_input_scale_allowed(void) { return input_allowed; }
+static void macoblox_input_scale_set(double scale) { input_factor = scale; }
+static int macoblox_install_input_scale_hooks(void) { return input_hooks; }
 #include "../ui_scale_hook.h"
 
 static const char *encoding = "{Settings=^vfiiiB^vBII}16@0:8";
@@ -86,11 +91,13 @@ static void reset(void) {
     assert(!__atomic_load_n(&macoblox_surface_scale_install_state, __ATOMIC_RELAXED) ||
            __atomic_load_n(&macoblox_surface_scale_install_state, __ATOMIC_RELAXED) == 2);
     macoblox_surface_scale_install_state = macoblox_surface_scale_invalid_warned = 0;
+    macoblox_surface_scale_applied_logged = macoblox_surface_scale_override_warned = 0;
     macoblox_original_surface_settings = 0;
     macoblox_requested_surface_scale = 0;
     requested = 2; present = own = 1; installs = calls = logs = throws = 0;
     encoding = "{Settings=^vfiiiB^vBII}16@0:8";
     installed = 0;
+    input_allowed = input_hooks = 1; input_factor = 1;
     memset(&baseline, 0xa5, sizeof baseline);
     baseline.scale = 1;
     baseline.enabled = 1; baseline.other_enabled = 0;
@@ -154,7 +161,7 @@ int main(void) {
     pthread_t threads[24];
     for (size_t i = 0; i < 24; ++i) assert(!pthread_create(&threads[i], 0, install_thread, 0));
     for (size_t i = 0; i < 24; ++i) assert(!pthread_join(threads[i], 0));
-    assert(installs == 1 && calls == 1 && logs == 1 && installed);
+    assert(installs == 1 && calls == 1 && logs == 2 && installed);
     struct { uint64_t first; MacOBloxSurfaceSettings value; uint64_t last; } returned =
         {.first = UINT64_C(0x1122334455667788), .last = UINT64_C(0x8877665544332211)};
     returned.value = ((MacOBloxSurfaceSettings (*)(id, SEL))installed)(expected_object, expected_selector);
@@ -167,6 +174,11 @@ int main(void) {
     baseline.scale = 1;
     for (int i = 0; i < 3; ++i)
         assert(macoblox_scaled_surface_settings(expected_object, expected_selector).scale == 2);
+    assert(input_factor == 2);
+    input_allowed = 0;
+    assert(macoblox_scaled_surface_settings(expected_object, expected_selector).scale == 1);
+    assert(input_factor == 1);
+    input_allowed = 1;
     int previous_logs = logs;
     baseline.scale = NAN;
     for (int i = 0; i < 3; ++i)

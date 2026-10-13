@@ -86,7 +86,9 @@ def save_selection(selection, path=None, current=None):
     data["schema_version"] = 1
     _validate_selection(data)
     path = Path(path) if path is not None else selection_path()
-    history = remembered_runtimes(read_selection(path))
+    saved = read_selection(path)
+    history = remembered_runtimes(saved)
+    previous = saved.get('previous_ciderdarling') if saved else None
     if current is not None:
         snapshot = {key: current[key] for key in SELECTION_KEYS}
         snapshot["schema_version"] = 1
@@ -95,6 +97,17 @@ def save_selection(selection, path=None, current=None):
             history[current["runtime"]] = {key: current[key] for key in SELECTION_KEYS}
         except ValueError:
             pass  # The initial fallback may only have a missing client on PATH.
+    old_cider = history.get('ciderdarling')
+    if (data['runtime'] == 'ciderdarling' and old_cider
+            and old_cider['sysroot'] != data['sysroot']):
+        previous = dict(old_cider, schema_version=1)
+    if previous:
+        try:
+            previous = _validate_selection(previous)
+            if previous['runtime'] == 'ciderdarling':
+                data['previous_ciderdarling'] = {key: previous[key] for key in (*SELECTION_KEYS, 'schema_version')}
+        except ValueError:
+            pass
     history[data["runtime"]] = {key: data[key] for key in SELECTION_KEYS}
     data["runtimes"] = {variant: dict(entry, schema_version=1) for variant, entry in history.items()}
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -110,6 +123,25 @@ def save_selection(selection, path=None, current=None):
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)
+
+
+def rollback_candidate(current, path=None):
+    """A usable previous installation; never change or migrate a prefix."""
+    saved = read_selection(Path(path) if path is not None else selection_path())
+    candidate = saved.get('previous_ciderdarling') if saved else None
+    try:
+        candidate = _validate_selection(candidate)
+        client, root = Path(candidate['executable']), Path(candidate['sysroot'])
+        data = metadata(root)
+        if (candidate['runtime'] != 'ciderdarling' or current['runtime'] != 'ciderdarling'
+                or root.resolve() == Path(current['sysroot']).resolve()
+                or not client.is_file() or not os.access(client, os.X_OK)
+                or client.resolve().parent.parent / 'libexec/darling' != root.resolve()
+                or data.get('architecture') != 'x86_64'):
+            return None
+        return {key: candidate[key] for key in (*SELECTION_KEYS, 'schema_version')} | {'prefix': current['prefix']}
+    except (OSError, ValueError, KeyError):
+        return None
 
 
 def remember_runtime(entry, path=None):

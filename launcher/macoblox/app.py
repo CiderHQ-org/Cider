@@ -1477,6 +1477,10 @@ class SettingsPage(Adw.Bin):
         collect = _button_row(_("Collect diagnostics"))
         collect.connect("activated", lambda *_args: window.collect_diagnostics())
         diagnostics.add(collect)
+        hardware = _button_row(_("Collect hardware report"))
+        hardware.set_tooltip_text(_("Tests GPU rendering, MSAA, CPU limits and window resources. Saves a local report."))
+        hardware.connect('activated', lambda *_args: window.collect_hardware_report())
+        diagnostics.add(hardware)
         logs = _button_row(_("Open logs folder"))
         logs.connect("activated", lambda *_args: self.open_logs())
         diagnostics.add(logs)
@@ -1680,7 +1684,7 @@ class SettingsPage(Adw.Bin):
                 self.window.end(resume_pending=False)
                 _toast(self.window.toasts, _("Close Roblox first"))
                 return
-            choice = runtime.installed_runtimes(core.DARLING_RUNTIME).get(selected)
+            choice = self._installed_runtime_choices().get(selected)
             if choice is None:
                 self.refresh_runtime_choices()
                 raise RuntimeError(_("Install this runtime with Cider's installer before switching."))
@@ -1697,6 +1701,32 @@ class SettingsPage(Adw.Bin):
             if saved:
                 details = _("Runtime saved. Close and reopen Cider to apply it.") + "\n\n" + details
             _error_dialog(self.window, _("Could not switch Darling runtime"), details)
+
+    def rollback_runtime(self):
+        if os.environ.get('FLATPAK_ID') or not self.window.begin('switching runtime'):
+            return
+        saved = False
+        try:
+            if core.roblox_pids():
+                _toast(self.window.toasts, _("Close Roblox first"))
+                return
+            choice = runtime.rollback_candidate(core.DARLING_RUNTIME)
+            if choice is None:
+                raise RuntimeError(_("The previous CiderDarling installation is unavailable."))
+            self.flush()
+            core.save_settings(self.window.settings)
+            runtime.save_selection(choice, current=core.DARLING_RUNTIME)
+            saved = True
+            self.window._stop_web()
+            self.window._stop_rpc()
+            _restart_launcher()
+        except (OSError, RuntimeError, ValueError) as error:
+            details = str(error)
+            if saved:
+                details = _("Runtime saved. Close and reopen Cider to apply it.") + '\n\n' + details
+            _error_dialog(self.window, _("Could not switch Darling runtime"), details)
+        finally:
+            self.window.end(resume_pending=False)
 
     RENDERER_CODES = ("opengl", "vulkan")
 
@@ -1810,7 +1840,11 @@ class SettingsPage(Adw.Bin):
         return self._synced_switch(
             "allow_debugger", _("Allow freeze diagnostics"),
             _("MACOBLOX_ALLOW_DEBUGGER. Lets Collect diagnostics read the game's thread stacks; "
-              "turn on before starting the game."))
+              "keeps the crash handler available. Turn on before starting the game."))
+
+    def _text_input_trace_row(self):
+        return self._synced_switch('trace_text_input', _("Trace text input"),
+            _("Records insertion counts and selection ranges to diagnose duplicate typing. No typed text is logged. Applies on next launch."))
 
     def _ciderdarling_page(self):
         window, settings = self.window, self.window.settings
@@ -1840,6 +1874,10 @@ class SettingsPage(Adw.Bin):
         automatic.connect('notify::active', lambda row, *_args: window.set_setting(
             'auto_check_ciderdarling_updates', row.get_active()))
         about.add(automatic)
+        self.cider_rollback_row = _button_row(_("Use previous CiderDarling and restart"))
+        self.cider_rollback_row.set_tooltip_text(_("Keeps this prefix and sign-in. The previous installation must still exist."))
+        self.cider_rollback_row.connect('activated', lambda *_args: self.rollback_runtime())
+        about.add(self.cider_rollback_row)
         page.add(about)
 
         graphics = Adw.PreferencesGroup(title=_("Graphics"))
@@ -1875,9 +1913,14 @@ class SettingsPage(Adw.Bin):
             "cider_verbose_server_log", row.get_active()))
         diagnostics.add(verbose)
         diagnostics.add(self._allow_debugger_row())
+        diagnostics.add(self._text_input_trace_row())
         collect = _button_row(_("Collect diagnostics"))
         collect.connect("activated", lambda *_args: window.collect_diagnostics())
         diagnostics.add(collect)
+        hardware = _button_row(_("Collect hardware report"))
+        hardware.set_tooltip_text(_("Tests GPU rendering, MSAA, CPU limits and window resources. Saves a local report."))
+        hardware.connect('activated', lambda *_args: window.collect_hardware_report())
+        diagnostics.add(hardware)
         prefix = _button_row(_("Open prefix folder"))
         prefix.connect("activated", lambda *_args: self.open_prefix())
         diagnostics.add(prefix)
@@ -1906,6 +1949,12 @@ class SettingsPage(Adw.Bin):
         self.cider_update_button.set_visible(update)
         self.cider_update_button.set_sensitive(self.window.runtime_install_job is None)
         self.cider_check_button.set_sensitive(not self.window.cider_update_checking)
+        try:
+            previous = runtime.rollback_candidate(core.DARLING_RUNTIME)
+        except (OSError, RuntimeError, ValueError):
+            previous = None
+        self.cider_rollback_row.set_visible(previous is not None)
+        self.cider_rollback_row.set_sensitive(self.window.runtime_install_job is None)
         active = core.DARLING_RUNTIME["runtime"] == "ciderdarling"
         self.cider_active_row.set_subtitle(
             self._runtime_labels["ciderdarling"] if active else
@@ -3071,6 +3120,30 @@ class LauncherWindow(Adw.ApplicationWindow):
                 runtime.remember_runtime(choice)
         except (OSError, RuntimeError, ValueError) as error:
             print("Could not remember the installed CiderDarling:", error)
+
+    def collect_hardware_report(self):
+        if not self.begin('collecting hardware report'):
+            return
+        def worker():
+            path, error = None, None
+            try:
+                if core.roblox_pids():
+                    raise RuntimeError(_("Close Roblox first"))
+                from . import hardware_report
+                path = hardware_report.collect(graphics=True)
+            except (OSError, RuntimeError, ValueError) as exception:
+                error = str(exception)
+            GLib.idle_add(done, path, error)
+        def done(path, error):
+            self.end(resume_pending=False)
+            if error:
+                _error_dialog(self, _("Could not collect hardware report"), error)
+            else:
+                dialog = Adw.AlertDialog(heading=_("Hardware report saved"), body=str(path))
+                dialog.add_response('ok', _("OK"))
+                dialog.present(self)
+            return False
+        threading.Thread(target=worker, daemon=True).start()
 
     def set_language(self, code):
         if code == i18n.language():

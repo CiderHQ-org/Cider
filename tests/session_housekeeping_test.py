@@ -181,6 +181,50 @@ class SessionHousekeepingTests(unittest.TestCase):
         self.assertGreaterEqual(time.monotonic() - started, 0.5)
         terminate.assert_called_once_with([7], wait=1)
 
+    def test_frontend_exit_keeps_a_live_guest_and_finishes_after_it_disappears(self):
+        session = bare_session()
+        session.process = Mock()
+        session.process.poll.return_value = 1
+        session.started_at = time.monotonic()
+        session.log_path = self.base / 'launch.log'
+        session.log_path.write_text('startup\n')
+        with patch.object(core, 'roblox_pids', return_value=[7]), \
+                patch.object(core, '_process_state', return_value='S'), \
+                patch.object(core, '_prefix_namespaces', return_value={'fixture'}), \
+                patch.object(core, '_roblox_process_in_prefix', return_value=True), \
+                patch.object(core, '_kill_crash_handlers'), \
+                patch.object(session, 'finish') as finish:
+            self.assertIsNone(session.poll())
+            self.assertIsNone(session.poll())
+            finish.assert_not_called()
+            self.assertEqual(session.log_path.read_text().count('frontend_detached'), 1)
+        session.gone_since = time.monotonic() - 1
+        with patch.object(core, 'roblox_pids', return_value=[]), \
+                patch.object(core, '_prefix_namespaces', return_value=set()), \
+                patch.object(core, '_process_state', return_value=None), \
+                patch.object(session, 'finish') as finish:
+            self.assertEqual(session.poll(), -1)
+            finish.assert_called_once_with('roblox_disappeared')
+
+    def test_dead_or_zombie_guest_does_not_hide_a_real_frontend_failure(self):
+        for state in (None, 'Z'):
+            session = bare_session()
+            session.process = Mock()
+            session.process.poll.return_value = 1
+            with patch.object(core, 'roblox_pids', return_value=[7]), \
+                    patch.object(core, '_process_state', return_value=state), \
+                    patch.object(session, 'finish') as finish:
+                self.assertEqual(session.poll(), 1)
+                finish.assert_called_once_with('frontend_exit', frontend_status=1)
+
+    def test_debugging_keeps_the_crash_handler_available(self):
+        session = bare_session(dict(core.DEFAULT_SETTINGS, allow_debugger=True))
+        with patch.object(core, '_kill_crash_handlers') as kill, \
+                patch.object(core.time, 'sleep') as sleep:
+            session._suppress_crash_handler()
+            kill.assert_not_called()
+            sleep.assert_not_called()
+
     def test_server_ip_comes_from_the_newest_logs_tail(self):
         home = self.base / "home"
         logs = home / "Library/Logs/Roblox"

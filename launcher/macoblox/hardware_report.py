@@ -1,0 +1,86 @@
+"""Collect local hardware coverage without account data or uploads."""
+import argparse
+import json
+import os
+from pathlib import Path
+import platform
+import subprocess
+import sys
+import tempfile
+import time
+
+from . import __version__, gpus
+
+STAGES = ('startup', 'join', 'leave', 'shutdown', 'fullscreen', 'suspend_resume')
+
+
+def collect(output_dir=None, *, graphics=False, gameplay=None):
+    from . import core
+    output_dir = Path(output_dir) if output_dir else core.CACHE_DIR / 'diagnostics'
+    output_dir.mkdir(parents=True, exist_ok=True)
+    environment = dict(os.environ)
+    for key in ('LD_PRELOAD', 'DYLD_INSERT_LIBRARIES', 'DYLD_LIBRARY_PATH', 'DYLD_FRAMEWORK_PATH', 'DPREFIX'):
+        environment.pop(key, None)
+    prefix = Path(core.DARLING_SYSROOT).parent.parent
+    doctor = prefix / 'bin/ciderdarling-doctor'
+    matrix = prefix / 'libexec/ciderdarling/hardware-matrix.py'
+    probe = prefix / 'libexec/ciderdarling/cider-gl-probe'
+    report = {'schema_version': 1, 'cider_version': __version__,
+              'timestamp': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+              'architecture': platform.machine(), 'kernel': platform.release(),
+              'allowed_cpus': len(os.sched_getaffinity(0)), 'gpus': gpus.enumerate_gpus(),
+              'runtime': core.DARLING_RUNTIME.get('metadata') or {'name': core.DARLING_RUNTIME['runtime']},
+              'desktop': {'wayland': bool(os.environ.get('WAYLAND_DISPLAY')), 'x11': bool(os.environ.get('DISPLAY'))},
+              'coverage': {'host_graphics': 'not_run', 'gameplay': {stage: 'not_tested' for stage in STAGES}}}
+    if gameplay:
+        for stage, result in gameplay.items():
+            if stage not in STAGES or result not in ('pass', 'fail', 'not_tested'):
+                raise ValueError('Invalid gameplay observation')
+        report['coverage']['gameplay'].update(gameplay)
+        report['coverage']['gameplay_source'] = 'user_reported; not inferred from host probes'
+    if doctor.is_file():
+        try:
+            result = subprocess.run([sys.executable, str(doctor), '--json', '--sysroot', str(core.DARLING_SYSROOT)],
+                                    env=environment, capture_output=True, text=True, timeout=15)
+            if result.returncode or len(result.stdout) > 1024 * 1024:
+                raise ValueError('Runtime hardware inventory failed')
+            report['host'] = json.loads(result.stdout)
+        except (OSError, ValueError, subprocess.SubprocessError) as error:
+            report['inventory_error'] = str(error)
+    if graphics:
+        if not (matrix.is_file() and probe.is_file()):
+            report['coverage']['host_graphics'] = 'unavailable'
+        else:
+            with tempfile.TemporaryDirectory(prefix='cider-hardware-') as directory:
+                path = Path(directory) / 'matrix.json'
+                try:
+                    result = subprocess.run([sys.executable, str(matrix), '--probe', str(probe), '--frames', '120',
+                                             '--output', str(path)], env=environment, capture_output=True,
+                                            text=True, timeout=300)
+                    if not path.is_file() or path.stat().st_size > 1024 * 1024:
+                        raise ValueError('Hardware matrix did not produce a bounded report')
+                    report['graphics_matrix'] = json.loads(path.read_bytes())
+                    report['coverage']['host_graphics'] = 'pass' if result.returncode == 0 else 'fail'
+                except (OSError, ValueError, subprocess.SubprocessError) as error:
+                    report['coverage']['host_graphics'] = 'error'
+                    report['graphics_error'] = str(error)
+    descriptor, name = tempfile.mkstemp(prefix='cider-hardware-', suffix='.json', dir=output_dir)
+    with os.fdopen(descriptor, 'w') as output:
+        json.dump(report, output, indent=2)
+        output.write('\n')
+    return Path(name)
+
+
+def cli(argv):
+    parser = argparse.ArgumentParser(prog='ciderhq --hardware-report', description=__doc__)
+    parser.add_argument('--output', type=Path, help='Report directory; existing files are preserved')
+    parser.add_argument('--graphics', action='store_true', help='Run host GPU, MSAA, 1/2 CPU and lifecycle checks')
+    parser.add_argument('--gameplay', action='append', default=[], metavar='STAGE=pass|fail|not_tested',
+                        help='Record an observation separately from automated host results: ' + ', '.join(STAGES))
+    args = parser.parse_args(argv)
+    try:
+        gameplay = dict(value.split('=', 1) for value in args.gameplay)
+        print(collect(args.output, graphics=args.graphics, gameplay=gameplay))
+        return 0
+    except (OSError, ValueError) as error:
+        parser.error(str(error))

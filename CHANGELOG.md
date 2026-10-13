@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+## 0.23patch2 — 2026-10-13
+
+- Repair recursive `__sincos*_stret` math wrappers in old Darling builds from
+  Cider's shim, including the 4312 CiderDarling build in the AMD startup reports.
+  Volatile sine/cosine calls prevent Clang from recreating the recursion.
+- Keep monitoring a live selected-prefix Roblox process when `darling shell`
+  disconnects with status 1. Previously the launcher treated this as a game
+  failure and terminated that still-running guest (issue #27).
+- Remember the previous CiderDarling installation and offer **Use previous
+  CiderDarling and restart** in Settings. Retain the current prefix and sign-in;
+  reject missing or damaged installations and block switching during a game.
+- Resume interrupted runtime downloads and reuse checksum-verified downloads.
+  A failed archive download keeps the selection and does not start a long
+  source build automatically; `--from-source` remains available.
+- Add **Collect hardware report** and `ciderhq --hardware-report --graphics`.
+  Reports separate GPU/MSAA/CPU-limit/lifecycle probes from user-reported
+  gameplay observations; diagnostics include basic hardware inventory.
+- Keep Roblox's crash handler available when **Allow freeze diagnostics** is
+  enabled. Add **Trace text input** for numeric insertion/selection diagnostics.
+- Require launcher regressions as well as all distro package builds before
+  publishing Cider packages. Remaining Zink crashes, duplicate typing and KDE
+  Wayland sizing/closing reports still require affected-machine confirmation.
+
 - The launcher's Website link shows a bundled globe icon. It used the
   icon theme's `web-browser-symbolic`, which KDE's Breeze does not have, so
   Breeze users saw a missing-icon symbol.

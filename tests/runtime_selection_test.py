@@ -175,6 +175,29 @@ class RuntimeSelectionTests(unittest.TestCase):
         self.assertEqual(self.selection.read_bytes(), before)
         self.assertEqual(list(self.selection.parent.glob(".runtime-*")), [])
 
+    def test_update_preserves_rollback_and_prefix_and_rejects_missing_previous_runtime(self):
+        self.install_cider_metadata()
+        old = self.select()
+        old['prefix'] = str(self.base / 'custom sign-in prefix')
+        runtime.save_selection(old, self.selection)
+        newer_root = self.base / 'newer'
+        (newer_root / 'bin').mkdir(parents=True)
+        (newer_root / 'bin/darling').write_text('#!/bin/sh\nexit 0\n')
+        (newer_root / 'bin/darling').chmod(0o755)
+        target = dict(old, executable=str(newer_root / 'bin/darling'), sysroot=str(newer_root / 'libexec/darling'))
+        runtime.save_selection(target, self.selection, current=old)
+        self.assertEqual(runtime.rollback_candidate(target, self.selection), old)
+        # Saving the same version again and switching providers retain it.
+        runtime.save_selection(target, self.selection)
+        self.assertEqual(runtime.rollback_candidate(target, self.selection), old)
+        regular = dict(old, runtime='regular', executable=str(self.stock / 'bin/darling'),
+                       sysroot=str(self.stock / 'libexec/darling'))
+        runtime.save_selection(regular, self.selection, current=target)
+        self.assertEqual(runtime.rollback_candidate(target, self.selection), old)
+        self.assertIsNone(runtime.rollback_candidate(regular, self.selection))
+        Path(old['executable']).unlink()
+        self.assertIsNone(runtime.rollback_candidate(target, self.selection))
+
     def test_switch_remembers_initial_runtime_without_installer_config(self):
         self.install_cider_metadata()
         original = self.resolve()

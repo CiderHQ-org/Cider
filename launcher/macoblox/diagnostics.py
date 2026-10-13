@@ -25,6 +25,7 @@ import shutil
 import struct
 import subprocess
 import sys
+import tempfile
 import tarfile
 import time
 from pathlib import Path
@@ -412,6 +413,15 @@ def collect(output_dir=None, *, gdb=False, symbolize=True, interval=SAMPLE_INTER
     if metadata:
         summary.append(f"CiderDarling revision {metadata.get('source_revision', '?')}")
         files["runtime-metadata.json"] = json.dumps(metadata, indent=2) + "\n"
+    # Inventory is quick and does not execute graphics or read auth data.
+    # Full GPU scenarios remain an explicit hardware-report action.
+    from . import hardware_report
+    try:
+        with tempfile.TemporaryDirectory(prefix='cider-diagnostics-hardware-') as directory:
+            report = hardware_report.collect(directory)
+            files['hardware.json'] = report.read_bytes()
+    except (OSError, ValueError):
+        pass
 
     pids = core.roblox_pids()
     summary.append(f"Roblox processes: {', '.join(map(str, pids)) or 'none running'}")

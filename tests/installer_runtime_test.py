@@ -142,6 +142,41 @@ printf '%s|%s|%s' "$DARLING_RUNTIME" "$PREFIX" "$DARLING_EXECUTABLE"
         self.assertEqual(output, f'ciderdarling|{self.base}/custom prefix|{self.base}/runtime with spaces/bin/darling')
         self.assertEqual(self.checked('DARLING_RUNTIME=regular; load_darling_selection; printf "%s" "$PREFIX"'), str(self.base / '.darling'))
 
+    def test_runtime_update_records_previous_installation_for_rollback(self):
+        self.checked('''
+DARLING_RUNTIME=ciderdarling
+DARLING_EXECUTABLE="$FIXTURE/old/bin/darling"; DARLING_SYSROOT="$FIXTURE/old/libexec/darling"
+PREFIX="$FIXTURE/custom prefix"
+save_darling_selection
+DARLING_EXECUTABLE="$FIXTURE/new/bin/darling"; DARLING_SYSROOT="$FIXTURE/new/libexec/darling"
+save_darling_selection remember
+''')
+        saved = runtime.read_selection(self.base / 'config/ciderhq/runtime.json')
+        self.assertEqual(saved['previous_ciderdarling']['sysroot'], str(self.base / 'old/libexec/darling'))
+        self.assertEqual(saved['previous_ciderdarling']['prefix'], saved['prefix'])
+
+    def test_runtime_download_resumes_and_reuses_only_a_verified_archive(self):
+        import hashlib
+        digest = hashlib.sha256(b'abcdef').hexdigest()
+        common = f'''name=fixture; digest={digest}
+curl() {{
+  local output=''
+  while (($#)); do [[ $1 == -o ]] && {{ output=$2; shift; }}; shift; done
+  if [[ ! -e "$FIXTURE/interrupted" ]]; then
+    printf abc > "$output"; touch "$FIXTURE/interrupted"; return 18
+  fi
+  printf def >> "$output"
+}}
+'''
+        result = self.shell(common + 'download_ciderdarling_archive "$FIXTURE/download" "$name" https://fixture/archive "$digest"')
+        self.assertEqual(result.returncode, 1)
+        part = self.base / 'cache/ciderhq/installer/downloads/fixture.tar.xz.part'
+        self.assertEqual(part.read_bytes(), b'abc')
+        self.checked(common + 'download_ciderdarling_archive "$FIXTURE/download" "$name" https://fixture/archive "$digest"')
+        self.assertEqual((self.base / 'download').read_bytes(), b'abcdef')
+        self.checked(f'curl() {{ exit 94; }}; download_ciderdarling_archive "$FIXTURE/again" fixture https://fixture/archive {digest}')
+        self.assertEqual((self.base / 'again').read_bytes(), b'abcdef')
+
     def test_metadata_reuse_and_no_upstream_package_fallback(self):
         output = self.checked('''
 DARLING_RUNTIME=ciderdarling; load_darling_selection
@@ -344,8 +379,19 @@ setcap() { printf 'setcap %s\\n' "$*" >> "$FIXTURE/commands"; }
         downloads = (self.base / 'downloads').read_text().split()
         self.assertEqual(downloads, [
             f'https://github.com/CiderHQ-org/CiderDarling/releases/download/bin-{revision[:12]}/'
-            f'ciderdarling-{revision}-x86_64-arch.{suffix}' for suffix in ('tar.xz', 'json')])
+            f'ciderdarling-{revision}-x86_64-arch.{suffix}' for suffix in ('json', 'tar.xz')])
         self.assertIn('cap_sys_admin=ep', (self.base / 'commands').read_text())
+
+    def test_prebuilt_rejects_unavailable_cxx_symbol_generations(self):
+        revision, digest = self.prebuilt_fixture()
+        manifest_path = self.base / 'release' / f'ciderdarling-{revision}-x86_64-arch.json'
+        original = json.loads(manifest_path.read_bytes())
+        for field in ('min_glibcxx', 'min_cxxabi', 'min_libgcc'):
+            manifest_path.write_text(json.dumps(dict(original, **{field: '999.0'})))
+            result = self.shell(self.PREBUILT_STUBS + f'CIDER_DARLING_PREBUILT_ARCH={digest}\n'
+                                'try_ciderdarling_prebuilt pacman')
+            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+            self.assertFalse((self.base / 'versions' / revision).exists())
 
     def test_prebuilt_runtime_falls_back_or_stops_safely(self):
         revision, digest = self.prebuilt_fixture()

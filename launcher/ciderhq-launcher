@@ -39,6 +39,10 @@ if sys.argv[1:2] == ["--collect-diagnostics"]:
         sys.exit(1)
     sys.exit(diagnostics.collect_cli(sys.argv[2:]))
 
+if sys.argv[1:2] == ['--hardware-report']:
+    from macoblox import hardware_report
+    sys.exit(hardware_report.cli(sys.argv[2:]))
+
 # `ciderhq --ciderdarling-settings` opens Settings -> CiderDarling, also in an
 # already running launcher (the CiderDarling Settings menu entry).
 page = None

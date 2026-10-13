@@ -38,6 +38,10 @@ extern void macoblox_wait_end(int);
 #include "math_compat.h"
 DYLD_INTERPOSE(macoblox_exp10, __exp10)
 DYLD_INTERPOSE(macoblox_exp10f, __exp10f)
+DYLD_INTERPOSE(macoblox_sincosf, __sincosf_stret)
+DYLD_INTERPOSE(macoblox_sincos, __sincos_stret)
+DYLD_INTERPOSE(macoblox_sincospif, __sincospif_stret)
+DYLD_INTERPOSE(macoblox_sincospi, __sincospi_stret)
 
 /* Sleep without darlingserver: a direct Linux nanosleep, where usleep and
  * nanosleep cost two darlingserver requests each (see above). Same interface:

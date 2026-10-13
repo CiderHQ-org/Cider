@@ -159,11 +159,13 @@ for key in ('executable', 'sysroot', 'prefix'):
     data[key] = str(Path(data[key]).absolute())
 history = {}
 active = None
+previous = None
 if mode == 'remember' and not path.exists():
     sys.exit(0)
 if path.exists():
     if path.stat().st_size > 16384: raise ValueError('saved runtime file is too large')
     old = json.loads(path.read_text())
+    previous = old.get('previous_ciderdarling') if isinstance(old, dict) else None
     entries = old.get('runtimes', {}) if isinstance(old, dict) else {}
     candidates = [*entries.values(), old] if isinstance(entries, dict) else [old]
     for entry in candidates:
@@ -174,10 +176,19 @@ if path.exists():
             history[entry['runtime']] = {key: entry[key] for key in ('schema_version', 'runtime', 'executable', 'sysroot', 'prefix')}
             if entry is old:
                 active = dict(history[entry['runtime']])
+old_cider = history.get('ciderdarling')
+if data['runtime'] == 'ciderdarling' and old_cider and old_cider['sysroot'] != data['sysroot']:
+    previous = dict(old_cider)
 history[data['runtime']] = dict(data)
 if mode == 'remember' and active is not None and active['runtime'] != data['runtime']:
     data = active
 data['runtimes'] = history
+if (isinstance(previous, dict) and previous.get('schema_version') == 1
+        and previous.get('runtime') == 'ciderdarling'
+        and all(isinstance(previous.get(key), str) and Path(previous[key]).is_absolute()
+                and not any(c in previous[key] for c in '\n\r\0')
+                for key in ('executable', 'sysroot', 'prefix'))):
+    data['previous_ciderdarling'] = {key: previous[key] for key in ('schema_version', 'runtime', 'executable', 'sysroot', 'prefix')}
 path.parent.mkdir(parents=True, exist_ok=True)
 temporary = None
 try:
@@ -968,6 +979,10 @@ ciderdarling_manifest_matches() {
   python3 - "$1" "$2" "$3" "$CIDER_DARLING_REVISION" "$CIDER_DARLING_MANIFEST" <<'PY'
 import json
 import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
 import sys
 path, archive, digest, revision, series = sys.argv[1:]
 try:
@@ -979,7 +994,24 @@ try:
              and data.get("archive") == archive and data.get("archive_sha256") == digest
              and data.get("install_prefix") == f"/opt/ciderdarling/{revision}"
              and key(data.get("min_glibc", "0")) <= key(glibc))
-except (OSError, ValueError, AttributeError, TypeError, IndexError):
+    # Match the host's actual symbol generations before unpacking a runtime.
+    # libstdc++ can be too old even on a host with a sufficient glibc.
+    listing = subprocess.run([shutil.which('ldconfig') or '/sbin/ldconfig', '-p'],
+                             capture_output=True, text=True, timeout=5).stdout
+    for soname, families in [('libstdc++.so.6', ('GLIBCXX', 'CXXABI')), ('libgcc_s.so.1', ('GCC',))]:
+        library = next((line.split('=>', 1)[1].strip() for line in listing.splitlines()
+                        if soname in line and 'x86-64' in line and '=>' in line), None)
+        if library and Path(library).stat().st_size <= 32 * 1024**2:
+            content = Path(library).read_bytes()
+        else:
+            content = b''
+        fields = {'GLIBCXX': 'min_glibcxx', 'CXXABI': 'min_cxxabi', 'GCC': 'min_libgcc'}
+        for family in families:
+            needed = data.get(fields[family], '0')
+            versions = re.findall(rb'(?<![A-Z])' + family.encode() + rb'_([0-9]+(?:\.[0-9]+)+)', content)
+            available = max((key(value.decode()) for value in versions), default=(0,))
+            valid = valid and key(needed) <= available
+except (OSError, ValueError, AttributeError, TypeError, IndexError, subprocess.SubprocessError):
     valid = False
 sys.exit(0 if valid else 1)
 PY
@@ -988,6 +1020,35 @@ PY
 # Ownership survives only an unpack by root: bin/darling must stay setuid root.
 ciderdarling_client_is_setuid_root() {
   [[ $(stat -c '%u %a' -- "$1" 2>/dev/null) == '0 4755' ]]
+}
+
+download_ciderdarling_archive() {
+  local output=$1 name=$2 url=$3 digest=$4 folder part
+  folder=$CACHE_HOME/ciderhq/installer/downloads
+  mkdir -p -- "$folder"
+  chmod 700 -- "$folder"
+  part=$folder/$name.tar.xz.part
+  # Serialize only downloads of this exact immutable release. The partial
+  # file survives terminal closure and never contains guest/account data.
+  (
+    flock -n 9 || { say "This runtime download is already running in another terminal."; exit 1; }
+    [[ ! -L $part && ( ! -e $part || -f $part ) ]] || exit 1
+    if [[ -s $part ]] && printf '%s  %s\n' "$digest" "$part" | sha256sum -c --quiet - 2>/dev/null; then
+      cp -- "$part" "$output"
+      exit
+    fi
+    if ! curl -fL --progress-bar --retry 3 --retry-delay 2 --connect-timeout 15 \
+        --continue-at - -o "$part" "$url"; then
+      say "Download interrupted. Rerun to resume the saved partial download."
+      exit 1
+    fi
+    if ! printf '%s  %s\n' "$digest" "$part" | sha256sum -c --quiet -; then
+      rm -f -- "$part"
+      say "The CiderDarling download does not match its pinned checksum; the invalid cached download was removed."
+      exit 1
+    fi
+    cp -- "$part" "$output"
+  ) 9> "$folder/$name.lock"
 }
 
 # Install the pinned revision's prebuilt archive into CIDER_DARLING_INSTALL.
@@ -1014,11 +1075,14 @@ try_ciderdarling_prebuilt() {
   mkdir -p -- "$CACHE_HOME/ciderhq/installer"
   work=$(umask 077; mktemp -d "$CACHE_HOME/ciderhq/installer/prebuilt-XXXXXX")
   say "Downloading prebuilt CiderDarling ${CIDER_DARLING_REVISION:0:12} ($flavor)"
-  if ! curl -fL --progress-bar -o "$work/$name.tar.xz" "$url/$name.tar.xz" ||
-     ! curl -fsSL -o "$work/$name.json" "$url/$name.json"; then
+  if ! curl -fsSL --retry 3 --connect-timeout 15 -o "$work/$name.json" "$url/$name.json"; then
     rm -rf -- "$work"
     say "The prebuilt download is unavailable; building from source."
     return 1
+  fi
+  if ! download_ciderdarling_archive "$work/$name.tar.xz" "$name" "$url/$name.tar.xz" "$digest"; then
+    rm -rf -- "$work"
+    die "The runtime download did not finish. Rerun to resume it, or use --from-source to compile. Your selected runtime is unchanged."
   fi
   if ! printf '%s  %s\n' "$digest" "$work/$name.tar.xz" | sha256sum -c --quiet -; then
     rm -rf -- "$work"

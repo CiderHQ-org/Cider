@@ -136,6 +136,7 @@ DEFAULT_SETTINGS = {
     "enable_custom_mods": True,
     # Lets diagnostics read the game's thread stacks under Yama ptrace_scope=1.
     "allow_debugger": False,
+    "trace_text_input": False,
     # CiderDarling only (Settings -> CiderDarling); see ciderdarling_variables.
     "cider_trace": False,
     "cider_verbose_server_log": False,
@@ -2343,6 +2344,7 @@ class RobloxSession:
         self.gpu_adapter = None
         self._gpu_environment = None
         self.trace_path = None
+        self._frontend_detached = False
         # Launch log lines collected before the log exists.
         self.notes = []
         # A sentinel left over from a quit that outlived the launcher must not
@@ -2430,7 +2432,7 @@ class RobloxSession:
         variables.extend(self.ciderdarling_variables())
         # Selection diagnostics record lengths/ranges only and are enabled
         # explicitly for a reported typing issue, without changing settings.
-        if os.environ.get("MACOBLOX_TRACE_TEXT_INPUT") == "1":
+        if self.settings.get('trace_text_input', False) or os.environ.get("MACOBLOX_TRACE_TEXT_INPUT") == "1":
             variables.append("MACOBLOX_TRACE_TEXT_INPUT=1")
         # Cocoa URL delivery diagnostics are opt-in and stay outside URI
         # handling. They are copied verbatim into the Darling process so a
@@ -2615,10 +2617,13 @@ class RobloxSession:
                                             stdout=log, stderr=subprocess.STDOUT,
                                             start_new_session=True)
         self.started_at = time.monotonic()
-        threading.Thread(target=self._suppress_crash_handler, daemon=True).start()
+        if not self.settings.get('allow_debugger', False):
+            threading.Thread(target=self._suppress_crash_handler, daemon=True).start()
 
     def _suppress_crash_handler(self):
         """Terminate RobloxCrashHandler after initial handshake to prevent exit hangs and slow crash logs."""
+        if self.settings.get('allow_debugger', False):
+            return
         for _ in range(20):
             time.sleep(1)
             if not self.process or self.process.poll() is not None:
@@ -2633,8 +2638,25 @@ class RobloxSession:
         """None while running, otherwise the exit status (or -1 if unknown)."""
         status = self.process.poll() if self.process else -1
         if status is not None:
-            self.finish("frontend_exit", frontend_status=status)
-            return status
+            # darling shell can disconnect while the guest it launched is
+            # alive. Treating that status as Roblox's exit killed the game
+            # during startup (issue #27: status=1 with a live prefix player).
+            players = roblox_pids(("RobloxPlayer",))
+            players = [pid for pid in players if _process_state(pid) not in (None, 'Z')]
+            if not players and not self._frontend_detached:
+                self.finish("frontend_exit", frontend_status=status)
+                return status
+            if players:
+                self.game_pids = players
+                self.seen_roblox = True
+                if not self._frontend_detached:
+                    self._frontend_detached = True
+                    if self.log_path:
+                        try:
+                            with open(self.log_path, 'ab', buffering=0) as log:
+                                log.write(f'\n[Cider Lifecycle] frontend_detached status={status} live_players={len(players)}; monitoring guest\n'.encode())
+                        except OSError:
+                            pass
         if self.audio:
             self.audio.keep_playing()
         # The shim touches the sentinel when Roblox starts terminating
@@ -2645,7 +2667,8 @@ class RobloxSession:
             self.finish("quit_sentinel")
             return -1
         # Suppress any crash handler to prevent slow dumps and exit blockage
-        if self.seen_roblox and time.monotonic() - self.started_at > 3:
+        if (not self.settings.get('allow_debugger', False) and self.seen_roblox
+                and time.monotonic() - self.started_at > 3):
             _kill_crash_handlers()
 
         # darling shell can outlive a Roblox that was killed; watch the game

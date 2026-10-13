@@ -254,4 +254,32 @@ with context, patch.object(app, '_launch_runtime_terminal', return_value=True):
     assert not page.ciderdarling_update_needed(), 'A custom/newer runtime must not be downgraded'
 
 temporary.cleanup()
-print("PASS: GTK switches and terminal installation; custom prefixes persist; busy/game, missing runtimes, failed saves/installs and Flatpak are protected; restart does not replay a URI")
+# Rollback rechecks the stored old installation and preserves the prefix.
+old_root = base / 'older runtime'
+(old_root / 'bin').mkdir(parents=True)
+old_client = old_root / 'bin/darling'
+old_client.write_text('#!/bin/sh\nexit 0\n'); old_client.chmod(0o755)
+old_metadata = old_root / 'libexec/darling/usr/share/ciderdarling/runtime.json'
+old_metadata.parent.mkdir(parents=True)
+old_metadata.write_text(json.dumps({'schema_version': 1, 'name': 'CiderDarling', 'architecture': 'x86_64'}))
+old = dict(choices['ciderdarling'], executable=str(old_client), sysroot=str(old_root / 'libexec/darling'))
+runtime.save_selection(old, selection_file)
+runtime.save_selection(choices['ciderdarling'], selection_file)
+context, window = fixture()
+with context:
+    page = window.settings_page
+    assert page.cider_rollback_row.get_visible()
+    before, count = selection_file.read_bytes(), len(restarts)
+    window.busy = 'building'
+    page.rollback_runtime()
+    assert selection_file.read_bytes() == before and len(restarts) == count
+    window.busy = None
+    with patch.object(core, 'roblox_pids', return_value=[99]):
+        page.rollback_runtime()
+    assert selection_file.read_bytes() == before and window.busy is None
+    page.rollback_runtime()
+    saved = runtime.read_selection(selection_file)
+    assert saved['sysroot'] == old['sysroot'] and saved['prefix'] == choices['ciderdarling']['prefix']
+    assert len(restarts) == count + 1
+
+print("PASS: GTK runtime switching, terminal installation, rollback, custom prefixes, busy/game guards and Flatpak protection")
