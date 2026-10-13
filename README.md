@@ -225,7 +225,7 @@ Grapejuice and Cider are inherently similar because Grapejuice used Wine to run 
 You sign in inside the Roblox client itself, the launcher and we at CiderHQ **NEVER** see your password since the
 session is stored locally, only on your computer, and not on a server. The cookie is located in
 `~/.darling/Users/$USER/Library/CiderHQ`. Do not share that folder, it works
-like a fancy keycard to your account. We at CiderHQ will never ask for this folder, and anyone asking for this is a phishing attempt and should be reported.
+like a fancy keycard to your account. We at CiderHQ will never ask for this folder, and anyone asking for this is a phishing attempt and should be reported, not only to the service you're on, but also ping (Don't DM) anyone with the "Cool and awesome" role in the [Discord](https://discord.gg/jCjHYYNq48) and above, so we can "take care (ban)" them from the server, or make a PSA in the [Discord](https://discord.gg/jCjHYYNq48) to make sure they don't get another persons account.
 **Sign out** in the settings to delete it.
 
 Cider is ***NOT*** affiliated nor endorsed by the Roblox Corporation, nor any siblings of Roblox. We are not liable for any suspensions of your account by using Cider. 
@@ -252,8 +252,8 @@ Go to your browser or something like S[REDACTED]r and click the gear on the top 
 <details>
 <summary>Images or servers do not load</summary>
 
-Some providers break Roblox's addresses. In **Settings → DNS for Roblox** pick
-Quad9 or Cloudflare. Only Roblox uses it, the rest of the system keeps its DNS.
+Some providers make some of Roblox's addresses inaccessible. In Cider's settings, go to DNS, and choose from the dropdown. Your current options are Google (8.8.8.8), Cloudflare (1.1.1.1), Quad9 (9.9.9.9), and your currrent system-wide DNS. Only Cider uses it, The rest of your computer keeps it's current DNS. 
+
 </details>
 
 <details>
@@ -427,8 +427,7 @@ the launch log, without recording typed content. It is disabled by default.
 <summary>Native Wayland (experimental)</summary>
 
 **Settings → Environment → Game → Window backend** defaults to **X11 / Xwayland**.
-Native Wayland is available for experiments. Version 0.19 repairs separate EGL
-view surfaces, window lookup and NVIDIA driver discovery, but full Roblox
+Native Wayland is available as an option, but is currently experimental, so full function is not promised as of now. Version 0.19 and upwards repairs separate EGL view surfaces, window lookup and NVIDIA driver discovery, but full Roblox
 presentation is still unfinished. Use X11 / Xwayland for normal gameplay.
 </details>
 
@@ -442,7 +441,7 @@ how to open the `roblox-studio-auth` link, choose **Roblox Studio (Cider)**.
 </details>
 
 <details>
-<summary>Flatpak (testing)</summary>
+<summary>Flatpak (Discontinued)</summary>
 
 The Flatpak brings Darling along and runs it without root (see
 [flatpak/darling-noroot.c](flatpak/darling-noroot.c)), so nothing has to be
