@@ -10,6 +10,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -18,6 +19,33 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "launcher"))
 from macoblox import display, graphics, runtime
+
+
+def parent_resize_evidence(text):
+    """Compare Cocoa sizes with actual committed SHM buffers on xdg parents."""
+    buffers, pending, committed, parents, checks = {}, {}, {}, set(), []
+    ident = r"[#@](\d+)"
+    for line in text.splitlines():
+        match = re.search(r"get_xdg_surface\(new id xdg_surface" + ident +
+                          r", wl_surface" + ident + r"\)", line)
+        if match:
+            parents.add(match[2])
+        match = re.search(r"create_buffer\(new id wl_buffer" + ident +
+                          r", \d+, (\d+), (\d+), \d+, [01]\)", line)
+        if match:
+            buffers[match[1]] = (int(match[2]), int(match[3]))
+        match = re.search(r"wl_surface" + ident + r"\.attach\(wl_buffer" + ident + r",", line)
+        if match and match[2] in buffers:
+            pending[match[1]] = buffers[match[2]]
+        match = re.search(r"wl_surface" + ident + r"\.commit\(\)", line)
+        if match and match[1] in pending:
+            committed[match[1]] = pending.pop(match[1])
+        match = re.search(r"RESIZE_EXPECT ([01]) (\d+) (\d+)", line)
+        if match:
+            expected = (int(match[2]), int(match[3]))
+            checks.append({"fullscreen": bool(int(match[1])), "expected": expected,
+                           "parent_committed": any(committed.get(parent) == expected for parent in parents)})
+    return checks
 
 
 def run_case(binary, build, output, negative, renderer="vulkan", client="darling"):
@@ -38,7 +66,7 @@ def run_case(binary, build, output, negative, renderer="vulkan", client="darling
         values = graphics.renderer_environment(renderer)
         values.update(display.window_environment({"renderer": renderer, "display_backend": "wayland"},
                                                  build / "libmacoblox-wayland.so"))
-    values.update({"MACOBLOX_TRACE_WAYLAND": "1", "DYLD_FORCE_FLAT_NAMESPACE": "1",
+    values.update({"MACOBLOX_TRACE_WAYLAND": "1", "WAYLAND_DEBUG": "client", "DYLD_FORCE_FLAT_NAMESPACE": "1",
                    "DYLD_INSERT_LIBRARIES": "/Volumes/SystemRoot" + str(build / "libMacOBloxShims.dylib"),
                    "MESA_SHADER_CACHE_DIR": str(output / "mesa-cache"),
                    "__GL_SHADER_DISK_CACHE_PATH": str(output / "nvidia-cache")})
@@ -72,12 +100,16 @@ def run_case(binary, build, output, negative, renderer="vulkan", client="darling
             evidence["shutdown_error"] = str(error)
     text = log_path.read_text(errors="replace") if log_path.is_file() else ""
     expected = "RETRY_PASS failures=2" if negative else "PASS: Native Wayland AppKit"
+    if not negative:
+        evidence["resize_checks"] = parent_resize_evidence(text)
+    resize_passed = negative or (len(evidence["resize_checks"]) == 2 and
+                                 all(check["parent_committed"] for check in evidence["resize_checks"]))
     evidence["passed"] = (evidence.get("returncode") == 0 and expected in text and
-                          evidence.get("scoped_shutdown_returncode") == 0)
+                          evidence.get("scoped_shutdown_returncode") == 0 and resize_passed)
     (output / f"{name}.json").write_text(json.dumps(evidence, indent=2) + "\n")
     print(json.dumps(evidence))
     for line in text.splitlines():
-        if any(token in line for token in ("_RENDERER", "INIT_FAILURE", "RETRY_", "IDENTITY_", "PUMP_", "POINTER_PASS", "HID_PASS", "PASS:", "FAIL:")):
+        if any(token in line for token in ("_RENDERER", "INIT_FAILURE", "RETRY_", "IDENTITY_", "PUMP_", "POINTER_PASS", "HID_PASS", "RESIZE_", "PASS:", "FAIL:")):
             print(line)
     return evidence["passed"]
 

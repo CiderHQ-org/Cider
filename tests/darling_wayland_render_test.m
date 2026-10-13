@@ -37,6 +37,7 @@ typedef struct { Point origin; Size size; } Rect;
 @end
 @interface CGWindow : NSObject
 + (id)windowWithWindowNumber:(long)number;
+- (void)setStyleMask:(unsigned long)style;
 @end
 @interface NSDate : NSObject
 + (id)date;
@@ -51,6 +52,8 @@ typedef struct { Point origin; Size size; } Rect;
 @end
 @interface NSView : NSObject
 - (id)initWithFrame:(Rect)rect;
+- (void)setFrame:(Rect)rect;
+- (void)setAutoresizingMask:(unsigned long)mask;
 @end
 @interface NSOpenGLPixelFormat : NSObject
 - (id)initWithAttributes:(const unsigned int *)attributes;
@@ -60,6 +63,7 @@ typedef struct { Point origin; Size size; } Rect;
 - (void)setView:(id)view;
 - (void)makeCurrentContext;
 - (void)flushBuffer;
+- (void)update;
 @end
 @interface NSString : NSObject
 - (const char *)UTF8String;
@@ -100,6 +104,12 @@ static int render(NSOpenGLContext *context, const char *label) {
         if ((int)pixel[i] < expected[i] - 2 || (int)pixel[i] > expected[i] + 2) return 0;
     [context flushBuffer];
     return glGetError() == 0;
+}
+
+static void pump(NSDisplay *display) {
+    for (int i = 0; i < 12; i++)
+        [display nextEventMatchingMask:~0ULL untilDate:[NSDate dateWithTimeIntervalSinceNow:.02]
+                                inMode:@"NSDefaultRunLoopMode" dequeue:1];
 }
 
 int main(int argc, char **argv) {
@@ -150,6 +160,7 @@ int main(int argc, char **argv) {
         Rect rect = {{37, 91}, {320, 240}};
         NSWindow *window = [[NSWindow alloc] initWithContentRect:rect styleMask:0 backing:2 defer:0];
         NSView *view = [[NSView alloc] initWithFrame:(Rect){{0,0},rect.size}];
+        [view setAutoresizingMask:18]; // width and height follow the client area
         [window setContentView:view];
         [window makeKeyAndOrderFront:0];
         long number = [window windowNumber];
@@ -187,6 +198,28 @@ int main(int argc, char **argv) {
         if (!format || !second) return 1;
         [second setView:view];
         if (!render(second, "COMPAT") || !render(first, "CORE_AGAIN")) return 1;
+        /* Fullscreen is compositor-driven even on tiling desktops, where a
+         * client-requested width may be constrained. Use only this fixture's
+         * window, then restore it. The runner checks actual parent-buffer
+         * attachments and commits in the no-auth Wayland protocol trace. */
+        Rect normal = [window frame];
+        for (int fullscreen = 1; fullscreen >= 0; fullscreen--) {
+            [platform setStyleMask:fullscreen ? 1UL << 14 : 0];
+            pump(display);
+            Rect resized = [window frame];
+            if (fullscreen && resized.size.width == normal.size.width &&
+                resized.size.height == normal.size.height) return 1;
+            printf("RESIZE_EXPECT %d %d %d\n", fullscreen,
+                   (int)resized.size.width, (int)resized.size.height);
+            fflush(0);
+            [view setFrame:(Rect){{0,0},resized.size}];
+            [first update];
+            if (!render(first, fullscreen ? "FULLSCREEN" : "RESTORED")) return 1;
+            Point point = [window mouseLocationOutsideOfEventStream], screen = [NSEvent mouseLocation];
+            if (point.x != screen.x-resized.origin.x || point.y != screen.y-resized.origin.y) return 1;
+        }
+        printf("RESIZE_PASS: compositor resize and restore keep rendering and pointer coordinates valid\n");
+        fflush(0);
         printf("PASS: Native Wayland AppKit concurrent core/compat views and pixel readback\n");
         fflush(0);
         return 0;

@@ -13,6 +13,7 @@ test scope, not accounts, join links or copies of user logs.
 | Native Wayland startup freeze, local RTX 3060 Ti | Runtime b0fcb070; native OpenGL initially renders, then RBX Worker A remains in `IOHIDManagerSetDeviceMatching` / `io_service_add_notification_bin`. With manager matching repaired, the same worker blocks in `IOServiceGetMatchingServices`; its serialized matching class is `IOHIDDevice`. | Interpose the public HID manager matching APIs and return an empty HID-only service inventory in native Wayland mode. The existing IOService notification interpose misses direct calls within IOKit. SDL supplies keyboard/mouse input; native HID controller discovery remains unsupported. Unrelated service matching still delegates to Darling. |
 | Native Wayland game-join freeze | Menu works after HID repair; a game-join worker blocks in `IOServiceGetMatchingService`. The serialized class is `IOPlatformExpertDevice`. | Return the absent-service result only for this unsupported Apple hardware service in native mode, preserving matching-dictionary ownership and delegation for other classes/X11. |
 | Native Wayland vertical mouse offset | Clicks land above/below the cursor; `NSEvent.mouseLocation` flips window-local Wayland Y using the whole display height, while `NSWindow.mouseLocationOutsideOfEventStream` uses window height. | Preserve Cocoa's virtual window origin and share a locked numeric pointer/frame snapshot. Screen/window locations and Quartz warp requests now roundtrip through the same logical coordinates. |
+| Native Wayland outer window stays fixed, local niri | User confirms game joins and clicks align, but the image resizes inside a fixed border. A no-auth protocol trace configures 954×1032 while the parent retains its initial 320×240 SHM buffer. | Map the parent at SDL's actual initial size, then update its opaque background and commit geometry on compositor size changes. Coalesce updates per SDL event batch; game views continue using EGL subsurfaces. |
 
 The old-library regression runs an exact copy of 4312's libsystem_m in a new
 private prefix using a user/mount/PID namespace. The fixture fails without the
@@ -31,7 +32,8 @@ once, manager matching arguments stay borrowed, and non-HID/X11 queries still
 delegate to Darling. The full
 AppKit fixture additionally passed native NVIDIA OpenGL and Mesa Zink core/
 compatibility contexts, Cocoa event/window identity and pixel readback with
-`DISPLAY` unset. Actual gameplay confirmation is separate from these fixtures.
+`DISPLAY` unset. The user separately confirmed that the menu remains responsive,
+games now finish joining, and clicks align with the cursor on the local machine.
 
 The singular Apple-platform reproducer blocks with the preceding shim and
 returns no service after the scoped repair. Coordinate tests cover differing
@@ -40,6 +42,16 @@ values, and rejection of nonfinite/out-of-window warps. The real AppKit fixture
 checks that screen-relative and window-relative mouse locations agree. Physical
 global window placement is unavailable to ordinary Wayland clients; Cocoa's
 virtual origin is used consistently for conversions within Cider.
+
+The resize fixture enters and leaves fullscreen on its own window, allowing
+the tiling compositor to choose the actual sizes. It checks rendering and
+pointer conversions after each transition. The runner additionally examines
+the no-auth Wayland protocol trace: a matching parent buffer must actually be
+attached and committed; resizing a child alone cannot pass. The preceding shim
+fails both parent-buffer checks despite receiving the Cocoa resize events.
+The repaired shim passes both checks on native NVIDIA OpenGL and Mesa Zink,
+including core/compatibility contexts, pixel readback, and fullscreen/restore.
+Manual Roblox border resizing still needs the user's confirmation.
 
 ## Hardware coverage
 

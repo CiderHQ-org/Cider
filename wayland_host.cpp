@@ -34,6 +34,7 @@ struct Window {
     wl_buffer *shown_cursor=nullptr;
     int cursor_x=0,cursor_y=0;
     bool cursor_mapped=false;
+    int background_width=0,background_height=0,pending_width=0,pending_height=0;
     std::vector<unsigned> drawable_stack;
 };
 struct Subwindow {
@@ -137,24 +138,47 @@ void custom_cursor_surface(const std::vector<unsigned char> &pixels,int width,in
     wl_buffer_add_listener(buffer,&release,owned.get());owned_buffers.push_back(std::move(owned));
     cursor_buffer=buffer;cursor_width=width;cursor_height=height;cursor_hot_x=hot_x;cursor_hot_y=hot_y;
 }
-void map_initial_frame(wl_surface *surface,int width,int height) {
-    /* A compositor cannot focus an unbuffered toplevel. AppKit waits for that
-     * focus before starting the game renderer, so map one initial SHM frame.
-     * Subsequent frames are EGL buffers; no game frames pass through SHM. */
-    if(!shm)return;
-    int fd=memfd_create("macoblox-wayland-initial-frame",MFD_CLOEXEC);if(fd<0)return;
-    size_t size=(size_t)width*height*4;if(ftruncate(fd,size)<0){close(fd);return;}
-    auto pixels=(unsigned int *)mmap(nullptr,size,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
-    if(pixels==MAP_FAILED){close(fd);return;}
-    std::fill_n(pixels,(size_t)width*height,0xff000000u);
+bool map_background(Window &window,int width,int height) {
+    /* The parent needs a buffer to receive focus and to apply SDL's pending
+     * xdg window geometry. Game views render independently on desynchronized
+     * EGL subsurfaces, so their swaps cannot commit the parent's resize.
+     * Keep this opaque background at the configured logical client size.
+     * A fresh memfd is zero-filled; XRGB makes those pixels opaque black
+     * without touching every page. No game frames pass through SHM. */
+    if(!shm || width<1 || height<1 || width>16384 || height>16384)return false;
+    if(window.background_width==width && window.background_height==height) {
+        wl_surface_commit(window.wl_surface_handle);
+        return true;
+    }
+    int fd=memfd_create("macoblox-wayland-background",MFD_CLOEXEC);if(fd<0)return false;
+    size_t size=(size_t)width*height*4;if(ftruncate(fd,size)<0){close(fd);return false;}
     auto pool=wl_shm_create_pool(shm,fd,size);
-    auto buffer=wl_shm_pool_create_buffer(pool,0,width,height,width*4,WL_SHM_FORMAT_ARGB8888);
-    wl_shm_pool_destroy(pool);munmap(pixels,size);close(fd);
+    if(!pool){close(fd);return false;}
+    auto buffer=wl_shm_pool_create_buffer(pool,0,width,height,width*4,WL_SHM_FORMAT_XRGB8888);
+    wl_shm_pool_destroy(pool);close(fd);
+    if(!buffer)return false;
     auto owned=std::make_unique<OwnedBuffer>();owned->buffer=buffer;owned->submitted=true;
     static const wl_buffer_listener release={[](void *data,wl_buffer *){((OwnedBuffer *)data)->released=true;}};
     wl_buffer_add_listener(buffer,&release,owned.get());owned_buffers.push_back(std::move(owned));
-    wl_surface_attach(surface,buffer,0,0);wl_surface_damage(surface,0,0,width,height);wl_surface_commit(surface);
-    wl_display_flush((wl_display *)native_display);
+    wl_surface_attach(window.wl_surface_handle,buffer,0,0);
+    wl_surface_damage(window.wl_surface_handle,0,0,width,height);
+    wl_surface_commit(window.wl_surface_handle);
+    window.background_width=width;window.background_height=height;
+    if(getenv("MACOBLOX_TRACE_WAYLAND"))std::fprintf(stderr,"[Cider Wayland] Committed background (%dx%d)\n",width,height);
+    return true;
+}
+void resize_backgrounds() {
+    bool committed=false;
+    for(auto &entry:windows) {
+        auto &window=entry.second;
+        if(!window.pending_width || !window.pending_height)continue;
+        /* Coalesce all size events in this SDL batch into one allocation. */
+        if(!map_background(window,window.pending_width,window.pending_height))
+            std::fprintf(stderr,"[Cider Wayland] Could not resize window background (%dx%d)\n",window.pending_width,window.pending_height);
+        else committed=true;
+        window.pending_width=window.pending_height=0;
+    }
+    if(committed)wl_display_flush((wl_display *)native_display);
 }
 
 void enqueue(std::function<void()> operation) {
@@ -262,7 +286,11 @@ void translate(const SDL_Event &input) {
     case SDL_WINDOWEVENT:
         switch(input.window.event) {
         case SDL_WINDOWEVENT_SIZE_CHANGED:
+            if(input.window.data1<1 || input.window.data2<1 || input.window.data1>16384 || input.window.data2>16384)return;
             wl_egl_window_resize(window.surface,input.window.data1,input.window.data2,0,0);
+            if(window.background_width) {
+                window.pending_width=input.window.data1;window.pending_height=input.window.data2;
+            }
             event.type=MW_RESIZE;event.x=input.window.data1;event.y=input.window.data2;break;
         case SDL_WINDOWEVENT_FOCUS_GAINED:
             window.focused=true;event.type=MW_FOCUS;
@@ -293,7 +321,17 @@ unsigned create_window(int width,int height,bool bootstrap=false) {
     native_window.window=window;native_window.surface=egl_window;
     windows.emplace(id,std::move(native_window));
     windows.at(id).wl_surface_handle=info.info.wl.surface;
-    if(!bootstrap)map_initial_frame(info.info.wl.surface,width,height);
+    if(!bootstrap) {
+        /* SDL can receive a tiling compositor's initial configure before
+         * SDL_CreateWindow returns; use that size for the first parent buffer. */
+        int actual_width,actual_height;SDL_GetWindowSize(window,&actual_width,&actual_height);
+        auto &entry=windows.at(id);
+        if(!map_background(entry,actual_width,actual_height)) {
+            failure="Could not map native Wayland window background";
+            wl_egl_window_destroy(egl_window);SDL_DestroyWindow(window);windows.erase(id);return 0;
+        }
+        wl_display_flush((wl_display *)native_display);
+    }
     std::fprintf(stderr,"[Cider Wayland] Created window %u (%dx%d)\n",id,width,height);
     return id;
 }
@@ -516,8 +554,9 @@ extern "C" const macoblox_wayland_api *macoblox_wayland_host_api() {
                 SDL_Event event;if(SDL_WaitEventTimeout(&event,10))translate(event);
                 /* Bound each batch so a fast mouse cannot starve commands. */
                 for(unsigned count=0;count<256 && SDL_PollEvent(&event);count++)translate(event);
+                resize_backgrounds();
                 wl_display_dispatch_pending((wl_display *)native_display);
-                /* A release makes old cursor images safe to destroy. */
+                /* A release makes old cursor and background buffers safe to destroy. */
                 owned_buffers.erase(std::remove_if(owned_buffers.begin(),owned_buffers.end(),[](auto &buffer){if((buffer->released || !buffer->submitted) && buffer->buffer!=cursor_buffer){wl_buffer_destroy(buffer->buffer);return true;}return false;}),owned_buffers.end());
             }
             for(auto &entry:subwindows) {
