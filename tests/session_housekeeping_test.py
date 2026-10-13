@@ -23,6 +23,7 @@ class SessionHousekeepingTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.base = Path(self.temporary.name)
+        self.patch("QUIT_SENTINEL", self.base / "game-closing")
 
     def patch(self, name, value):
         context = patch.object(core, name, value)
@@ -145,7 +146,8 @@ class SessionHousekeepingTests(unittest.TestCase):
             self.assertIsNone(session._create_trace_file(log))
             self.assertIn("trace unavailable", session.notes[-1])
         session, _variables = self.ciderdarling("regular", cider_trace=True)
-        self.assertIsNone(session._create_trace_file(self.base / "launch-20261012-120001.log"))
+        with patch.object(core, "DARLING_RUNTIME", dict(core.DARLING_RUNTIME, runtime="regular")):
+            self.assertIsNone(session._create_trace_file(self.base / "launch-20261012-120001.log"))
 
     def test_server_from_another_installation_is_found(self):
         root = Path(self.temporary.name)
