@@ -1,5 +1,6 @@
 import hashlib
 from pathlib import Path
+import struct
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -52,6 +53,21 @@ class TransportPatchTests(unittest.TestCase):
             for site in release.sites + release.compatible_changes:
                 self.assertEqual(len(site.original), len(site.patched))
                 self.assertTrue(0 <= site.offset < release.size - len(site.original))
+
+    def test_near_dummy_branch_preserves_target_and_instruction_span(self):
+        # 743 uses a six-byte conditional branch. Replacing it with a
+        # five-byte JMP must adjust rel32 and pad the remaining byte.
+        branches = [site for release in transport.RELEASES for site in release.sites
+                    if site.original.startswith(b"\x0f\x85")]
+        self.assertTrue(branches)
+        for site in branches:
+            with self.subTest(site=site.name):
+                self.assertEqual(len(site.original), 6)
+                self.assertEqual(site.patched[:1], b"\xe9")
+                self.assertEqual(site.patched[5:], b"\x90")
+                original_target = site.offset + 6 + struct.unpack("<i", site.original[2:])[0]
+                patched_target = site.offset + 5 + struct.unpack("<i", site.patched[1:5])[0]
+                self.assertEqual(patched_target, original_target)
 
 
 if __name__ == "__main__":

@@ -520,6 +520,34 @@ not used as test containers. Authenticated tests used authorized copies in
   with four errors per unpatched launch. Both repaired source variants also
   compiled after the client's CB-to-std140 rewrite on a real Mesa GL driver.
 
+### Roblox 0.743 game joins
+
+The 2026-10-13 diagnosis used Roblox 0.743.0.7431129 with CiderDarling
+`b0fcb0700dc1322cf8a840e69ccd469fecd0f0e7`, native Wayland and NVIDIA Zink.
+The join HTTP request succeeded, but the unsupported executable selected
+RbxTransport despite the local FastFlags. Opening its Data channel failed
+after ten seconds; the application continued emitting heartbeats afterward.
+
+Add the verified transport manifest for official deployment
+`version-f641ec9ebf6145c3`. The pristine CDN executable is 126,617,760 bytes
+with SHA-256 `eca680dd03cd93981b1bbd3a5b628c7be9533f81abad541d1e2f572ea06ffa88`.
+The user's startup-throttle modification at `0x11c9a7c` accounts for the
+different launch-log hash and is normalized before manifest verification.
+The selection function at `0x4bf0193` and fallback gate at `0x5576c8f`
+retain their prior semantics. The dummy paths changed: bypass the shared
+configuration construction with a six-byte JMP/NOP replacement at
+`0x5578aa3`, preserving its `0x5578c8a` destination, and bypass the separate
+early-connect construction at `0x5578c91` (destination `0x5578cf5`).
+
+Verification covered all 32 partial-patch/throttle combinations on the real
+CDN executable, idempotence and rejection of unexpected modifications.
+An isolated copied-client run with a rebuilt shim, separate prefix and XDG
+directories selected RakNet, received a connection acceptance in about
+222 ms and created a Replicator. The user confirmed the join worked and
+reported manually closing the test. This establishes the connection repair;
+extended gameplay stability was not measured. The installed client and
+runtime were not modified.
+
 ### Leaving a game
 
 The latest user log shows about 6.6 seconds between starting the menu render
