@@ -4,6 +4,7 @@
 #include <unistd.h>
 
 static int wayland, services, single, multiple, released_matching, fail_strings;
+static int platform_services;
 static const char *provider;
 static const int matching_dictionary;
 int macoblox_wayland_enabled(void) { return wayland; }
@@ -18,6 +19,11 @@ int IOServiceGetMatchingServices(unsigned master, const void *d, unsigned *itera
     if (d) released_matching++;
     if (iterator) *iterator = 77;
     return -9;
+}
+unsigned IOServiceGetMatchingService(unsigned master, const void *d) {
+    assert(master == 17 && d == &matching_dictionary); platform_services++;
+    released_matching++;
+    return 91;
 }
 const void *CFStringCreateWithCString(const void *a, const char *s, unsigned encoding) {
     assert(!a && encoding == 0x08000100); return fail_strings ? 0 : s;
@@ -61,5 +67,16 @@ int main(void) {
     fail_strings = 1;
     assert(native_hid_inventory(17, &matching_dictionary, &iterator) == -9);
     assert(services == 5 && released_matching == 6);
+    fail_strings = 0;
+    provider = "IOPlatformExpertDevice";
+    assert(native_platform_service(17, &matching_dictionary) == 0);
+    assert(platform_services == 0 && released_matching == 7);
+    provider = "IODisplayConnect";
+    assert(native_platform_service(17, &matching_dictionary) == 91);
+    assert(platform_services == 1 && released_matching == 8);
+    provider = "IOPlatformExpertDevice";
+    wayland = 0;
+    assert(native_platform_service(17, &matching_dictionary) == 91);
+    assert(platform_services == 2 && released_matching == 9);
     puts("PASS: HID-only inventory, matching ownership, borrowed manager arguments and X11 delegation");
 }

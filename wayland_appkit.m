@@ -2,12 +2,13 @@
  * Darling runtime packages do not include SDK headers. */
 #include "wayland_bridge.h"
 #include "cursor_pixels.h"
+#include "wayland_coordinates.h"
 typedef unsigned long NSUInteger;
 typedef long NSInteger;
 typedef signed char BOOL;
-typedef struct {double x,y;} NSPoint;
-typedef struct {double width,height;} NSSize;
-typedef struct {NSPoint origin;NSSize size;} NSRect;
+typedef MacOBloxWaylandPoint NSPoint;
+typedef MacOBloxWaylandSize NSSize;
+typedef MacOBloxWaylandRect NSRect;
 typedef struct objc_class *Class;
 typedef struct objc_method *Method;
 typedef void (*IMP)(void);
@@ -134,7 +135,13 @@ static const struct macoblox_wayland_api *api;
 static BOOL initialized;
 static NSMutableArray *windows;
 static unsigned modifiers;
-static NSPoint pointer;
+static struct {NSPoint point;NSRect frame;unsigned window;} pointer_state;
+static volatile unsigned pointer_lock;
+static void lock_pointer(void){while(__atomic_exchange_n(&pointer_lock,1,__ATOMIC_ACQUIRE))__asm__ volatile("pause");}
+static void unlock_pointer(void){__atomic_store_n(&pointer_lock,0,__ATOMIC_RELEASE);}
+static __typeof__(pointer_state) pointer_snapshot(void){lock_pointer();__typeof__(pointer_state) value=pointer_state;unlock_pointer();return value;}
+static void pointer_frame(unsigned window,NSRect frame){lock_pointer();if(!pointer_state.window)pointer_state.window=window;if(pointer_state.window==window)pointer_state.frame=frame;unlock_pointer();}
+static void pointer_event(unsigned window,NSRect frame,NSPoint point){lock_pointer();pointer_state.window=window;pointer_state.frame=frame;pointer_state.point=point;unlock_pointer();}
 static volatile unsigned captured;
 static BOOL capture_requested;
 
@@ -233,9 +240,10 @@ static BOOL subwindow_frame(MacOBloxWaylandWindow *parent,NSRect value,int *x,in
 @implementation MacOBloxWaylandWindow
 - (id)initWithOwner:(NSWindow *)window {
     if(!(self=[super init]))return nil;
-    initialize();owner=window;frame=[window frame];frame.origin=(NSPoint){0,0};style=[window styleMask];
+    initialize();owner=window;frame=[window frame];style=[window styleMask];
     handle=api->create(frame.size.width,frame.size.height);
     if(!handle)[NSException raise:@"NSWindowServerCommunicationException" format:@"Native Wayland window failed: %s",api->error()];
+    pointer_frame(handle,frame);
     /* Non-owning registration: NSWindow owns its platformWindow. */
     [windows addObject:[NSNumber numberWithLong:(long)self]];
     return self;
@@ -250,7 +258,7 @@ static BOOL subwindow_frame(MacOBloxWaylandWindow *parent,NSRect value,int *x,in
 - (void)setStyleMask:(NSUInteger)value{style=value;api->action(handle,MW_FULLSCREEN,(style&(1UL<<14))!=0,0,0);}
 - (void)setTitle:(NSString *)title{api->action(handle,MW_TITLE,0,0,[title UTF8String]);}
 - (void)setFrame:(NSRect)value {
-    frame=value;frame.origin=(NSPoint){0,0};
+    frame=value;pointer_frame(handle,frame);
     api->action(handle,MW_RESIZE_WINDOW,value.size.width,value.size.height,0);
 }
 - (void)setLevel:(int)value{}
@@ -276,7 +284,12 @@ static BOOL subwindow_frame(MacOBloxWaylandWindow *parent,NSRect value,int *x,in
 - (void)flashWindow{}
 - (void)addEntriesToDeviceDictionary:(id)entries{}
 - (void *)cglContext{return 0;}
-- (NSPoint)mouseLocationOutsideOfEventStream{return (NSPoint){pointer.x,frame.size.height-pointer.y};}
+- (NSPoint)mouseLocationOutsideOfEventStream{
+    __typeof__(pointer_state) value=pointer_snapshot();
+    if(value.window==handle)return (NSPoint){value.point.x,value.frame.size.height-value.point.y};
+    NSPoint global=macoblox_wayland_cocoa_point(value.point,value.frame);
+    return (NSPoint){global.x-frame.origin.x,global.y-frame.origin.y};
+}
 - (id)createSubWindowWithFrame:(NSRect)value{return [[[MacOBloxWaylandSubwindow alloc] initWithParent:self frame:value] autorelease];}
 - (id)cgContext {
     if(!bitmap){const void *color=CGColorSpaceCreateDeviceRGB();bitmap=CGBitmapContextCreate(0,frame.size.width>0?frame.size.width:1,frame.size.height>0?frame.size.height:1,8,0,color,0x2002);CGColorSpaceRelease(color);}
@@ -285,6 +298,7 @@ static BOOL subwindow_frame(MacOBloxWaylandWindow *parent,NSRect value,int *x,in
 - (void)invalidate {
     if(!handle)return;
     [self hideWindow];api->action(handle,MW_DESTROY,0,0,0);
+    lock_pointer();if(pointer_state.window==handle)pointer_state=(__typeof__(pointer_state)){0};unlock_pointer();
     [windows removeObject:[NSNumber numberWithLong:(long)self]];
     handle=0;owner=nil;if(bitmap)CGContextRelease(bitmap);bitmap=0;
 }
@@ -362,7 +376,7 @@ static BOOL subwindow_frame(MacOBloxWaylandWindow *parent,NSRect value,int *x,in
 - (BOOL)setMode:(id)mode forScreen:(int)index{return NO;}
 - (NSRect)insetRect:(NSRect)frame forNativeWindowBorderWithStyle:(NSUInteger)style{return frame;}
 - (NSRect)outsetRect:(NSRect)frame forNativeWindowBorderWithStyle:(NSUInteger)style{return frame;}
-- (NSPoint)mouseLocation{int w,h;double hz;api->screen(&w,&h,&hz);return (NSPoint){pointer.x,h-pointer.y};}
+- (NSPoint)mouseLocation{__typeof__(pointer_state) value=pointer_snapshot();return macoblox_wayland_cocoa_point(value.point,value.frame);}
 - (NSUInteger)currentModifierFlags{return modifiers;}
 - (NSArray *)orderedWindowNumbers{return @[];}
 - (double)textCaretBlinkInterval{return 0.5;}
@@ -420,9 +434,8 @@ static BOOL subwindow_frame(MacOBloxWaylandWindow *parent,NSRect value,int *x,in
     api->cursor(CGBitmapContextGetData(context),size.width,size.height,CGBitmapContextGetBytesPerRow(context),cursor->hot.x,cursor->hot.y,0);CGContextRelease(context);
 }
 - (void)grabMouse:(BOOL)value {
-    capture_requested=value;
-    MacOBloxWaylandWindow *window=(MacOBloxWaylandWindow *)[[[NSApplication sharedApplication] keyWindow] platformWindow];
-    unsigned handle=window?window->handle:0;
+    __atomic_store_n(&capture_requested,value,__ATOMIC_RELEASE);
+    unsigned handle=pointer_snapshot().window;
     /* Host acknowledgement determines actual capture; preserve intent on blur. */
     if(!value) {
         unsigned old=__atomic_exchange_n(&captured,0,__ATOMIC_ACQ_REL);
@@ -431,9 +444,14 @@ static BOOL subwindow_frame(MacOBloxWaylandWindow *parent,NSRect value,int *x,in
     } else if(handle)api->action(handle,MW_LOCK,1,0,0);
 }
 - (void)warpMouse:(NSPoint)position {
-    MacOBloxWaylandWindow *window=(MacOBloxWaylandWindow *)[[[NSApplication sharedApplication] keyWindow] platformWindow];
-    if(!window)return;int w,h;double hz;api->screen(&w,&h,&hz);
-    api->action(window->handle,MW_WARP,position.x,position.y-(h-window->frame.size.height),0);
+    __typeof__(pointer_state) value=pointer_snapshot();
+    if(!value.window)return;int w,h;double hz;api->screen(&w,&h,&hz);
+    NSPoint local;
+    if(!macoblox_wayland_local_warp(position,value.frame,h,&local))return;
+    api->action(value.window,MW_WARP,local.x,local.y,0);
+    if(macoblox_wayland_captured()){
+        lock_pointer();if(pointer_state.window==value.window)pointer_state.point=local;unlock_pointer();
+    }
 }
 - (void)pump:(id)timer {
     static BOOL pumping;if(pumping)return;pumping=YES;
@@ -447,12 +465,13 @@ static BOOL subwindow_frame(MacOBloxWaylandWindow *parent,NSRect value,int *x,in
             if(!window || !window->owner)continue;
             NSWindow *owner=window->owner;modifiers=input.modifiers;
             if(input.type==MW_CAPTURE){__atomic_store_n(&captured,input.button?input.window:0,__ATOMIC_RELEASE);continue;}
-            if(input.type==MW_RESIZE){window->frame.size=(NSSize){input.x,input.y};if(window->bitmap)CGContextRelease(window->bitmap);window->bitmap=0;[owner platformWindow:window frameChanged:window->frame didSize:YES];continue;}
+            if(input.type==MW_RESIZE){window->frame.size=(NSSize){input.x,input.y};pointer_frame(window->handle,window->frame);if(window->bitmap)CGContextRelease(window->bitmap);window->bitmap=0;[owner platformWindow:window frameChanged:window->frame didSize:YES];continue;}
             if(input.type==MW_CLOSE){[owner performClose:nil];continue;}
-            if(input.type==MW_FOCUS){[owner platformWindowActivated:window displayIfNeeded:YES];if(capture_requested)[self grabMouse:YES];continue;}
+            if(input.type==MW_FOCUS){pointer_event(input.window,window->frame,(NSPoint){input.x,input.y});[owner platformWindowActivated:window displayIfNeeded:YES];if(__atomic_load_n(&capture_requested,__ATOMIC_ACQUIRE))[self grabMouse:YES];continue;}
             if(input.type==MW_BLUR){
                 __atomic_store_n(&captured,0,__ATOMIC_RELEASE);
-                NSPoint location={pointer.x,window->frame.size.height-pointer.y};
+                NSPoint point=pointer_snapshot().point;
+                NSPoint location={point.x,window->frame.size.height-point.y};
                 for(unsigned button=1;button<32;button++)if(window->buttons&(1u<<button)){
                     NSEvent *up=[NSEvent mouseEventWithType:button==1?2:button==3?4:26 location:location modifierFlags:0 window:owner clickCount:1 deltaX:0 deltaY:0];[up _setButtonNumber:button];[[NSApplication sharedApplication] sendEvent:up];
                 }
@@ -462,9 +481,10 @@ static BOOL subwindow_frame(MacOBloxWaylandWindow *parent,NSRect value,int *x,in
             if(input.type==MW_KEY_DOWN || input.type==MW_KEY_UP){
                 if(input.key==0xffff)continue;NSString *text=[NSString stringWithUTF8String:input.text];
                 unsigned type=(input.key>=54 && input.key<=62)?12:input.type==MW_KEY_DOWN?10:11;
-                [self postEvent:[NSEvent keyEventWithType:type location:pointer modifierFlags:modifiers timestamp:[NSDate timeIntervalSinceReferenceDate] windowNumber:[owner windowNumber] context:nil characters:text charactersIgnoringModifiers:text isARepeat:input.repeat keyCode:input.key] atStart:NO];continue;
+                NSPoint point=pointer_snapshot().point;
+                [self postEvent:[NSEvent keyEventWithType:type location:(NSPoint){point.x,window->frame.size.height-point.y} modifierFlags:modifiers timestamp:[NSDate timeIntervalSinceReferenceDate] windowNumber:[owner windowNumber] context:nil characters:text charactersIgnoringModifiers:text isARepeat:input.repeat keyCode:input.key] atStart:NO];continue;
             }
-            pointer=(NSPoint){input.x,input.y};NSPoint location={pointer.x,window->frame.size.height-pointer.y};unsigned type=5;
+            pointer_event(input.window,window->frame,(NSPoint){input.x,input.y});NSPoint location={input.x,window->frame.size.height-input.y};unsigned type=5;
             if(input.type==MW_DOWN || input.type==MW_UP){if(input.button<32){if(input.type==MW_DOWN)window->buttons|=1u<<input.button;else window->buttons&=~(1u<<input.button);}type=input.button==1?(input.type==MW_DOWN?1:2):input.button==3?(input.type==MW_DOWN?3:4):(input.type==MW_DOWN?25:26);}
             else if(input.type==MW_SCROLL)type=22;
             else type=(window->buttons&(1u<<1))?6:(window->buttons&(1u<<3))?7:window->buttons?27:5;

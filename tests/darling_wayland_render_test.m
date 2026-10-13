@@ -27,6 +27,8 @@ typedef struct { Point origin; Size size; } Rect;
 - (void)makeKeyAndOrderFront:(id)sender;
 - (long)windowNumber;
 - (id)platformWindow;
+- (Rect)frame;
+- (Point)mouseLocationOutsideOfEventStream;
 @end
 @interface NSDisplay : NSObject
 + (id)currentDisplay;
@@ -41,6 +43,7 @@ typedef struct { Point origin; Size size; } Rect;
 + (id)dateWithTimeIntervalSinceNow:(double)seconds;
 @end
 @interface NSEvent : NSObject
++ (Point)mouseLocation;
 + (id)keyEventWithType:(unsigned long)type location:(Point)point modifierFlags:(unsigned long)flags timestamp:(double)timestamp windowNumber:(long)number context:(id)context characters:(id)text charactersIgnoringModifiers:(id)plain isARepeat:(unsigned char)repeat keyCode:(unsigned short)key;
 - (unsigned long)type;
 - (long)windowNumber;
@@ -75,6 +78,7 @@ extern int IOHIDManagerOpen(void *, unsigned int), IOHIDManagerClose(void *, uns
 extern const void *IOHIDManagerCopyDevices(void *);
 extern const void *IOServiceMatching(const char *);
 extern int IOServiceGetMatchingServices(unsigned int, const void *, unsigned int *);
+extern unsigned int IOServiceGetMatchingService(unsigned int, const void *);
 extern unsigned int IOIteratorNext(unsigned int);
 extern long CFSetGetCount(const void *);
 extern void CFRelease(const void *);
@@ -137,13 +141,15 @@ int main(int argc, char **argv) {
     unsigned int iterator = 123;
     if (!matching || IOServiceGetMatchingServices(0, matching, &iterator) || iterator ||
         IOIteratorNext(iterator)) return 1;
+    matching = IOServiceMatching("IOPlatformExpertDevice");
+    if (!matching || IOServiceGetMatchingService(0, matching)) return 1;
     printf("HID_PASS: native SDL input does not wait for unsupported IOKit discovery\n");
     fflush(0);
     @try {
         [[NSApplication sharedApplication] finishLaunching];
-        Rect rect = {{0, 0}, {320, 240}};
+        Rect rect = {{37, 91}, {320, 240}};
         NSWindow *window = [[NSWindow alloc] initWithContentRect:rect styleMask:0 backing:2 defer:0];
-        NSView *view = [[NSView alloc] initWithFrame:rect];
+        NSView *view = [[NSView alloc] initWithFrame:(Rect){{0,0},rect.size}];
         [window setContentView:view];
         [window makeKeyAndOrderFront:0];
         long number = [window windowNumber];
@@ -164,6 +170,11 @@ int main(int argc, char **argv) {
             [display nextEventMatchingMask:~0ULL untilDate:[NSDate dateWithTimeIntervalSinceNow:.02]
                                     inMode:@"NSDefaultRunLoopMode" dequeue:1];
         printf("PUMP_PASS: Native AppKit event pump preserves Cocoa window identity\n");
+        fflush(0);
+        Rect frame = [window frame];
+        Point local = [window mouseLocationOutsideOfEventStream], global = [NSEvent mouseLocation];
+        if (local.x != global.x-frame.origin.x || local.y != global.y-frame.origin.y) return 1;
+        printf("POINTER_PASS: Cocoa global and window pointer locations agree\n");
         fflush(0);
         unsigned int core[] = {99, 0x3200, 8, 24, 5, 0}, compat[] = {8, 24, 5, 0};
         id format = [[NSOpenGLPixelFormat alloc] initWithAttributes:core];

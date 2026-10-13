@@ -77,7 +77,7 @@ def run_case(binary, build, output, negative, renderer="vulkan", client="darling
     (output / f"{name}.json").write_text(json.dumps(evidence, indent=2) + "\n")
     print(json.dumps(evidence))
     for line in text.splitlines():
-        if any(token in line for token in ("_RENDERER", "INIT_FAILURE", "RETRY_", "IDENTITY_", "PUMP_", "HID_PASS", "PASS:", "FAIL:")):
+        if any(token in line for token in ("_RENDERER", "INIT_FAILURE", "RETRY_", "IDENTITY_", "PUMP_", "POINTER_PASS", "HID_PASS", "PASS:", "FAIL:")):
             print(line)
     return evidence["passed"]
 

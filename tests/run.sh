@@ -39,4 +39,6 @@ clang -O2 -Wall -Wextra tests/math_compat_test.c -lm -o "$test_build/math"
 "$test_build/math"
 clang -O2 -Wall -Wextra tests/hid_compat_test.c -o "$test_build/hid"
 "$test_build/hid"
+clang -O2 -Wall -Wextra tests/wayland_coordinates_test.c -o "$test_build/wayland-coordinates"
+"$test_build/wayland-coordinates"
 PYTHONPATH=launcher python3 -m unittest discover -s tests -p '*_test.py'

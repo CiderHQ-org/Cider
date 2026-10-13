@@ -11,6 +11,8 @@ test scope, not accounts, join links or copies of user logs.
 | [Issue 25](https://github.com/CiderHQ-org/Cider/issues/25), duplicate typing | One keyDown/keyUp pair is reported, but text may insert twice | Enable **Trace text input**, reproduce, and collect diagnostics. It logs insertion counts and selection ranges, never typed text. Do not discard repeated keystrokes based on timing. |
 | [Issue 26](https://github.com/CiderHQ-org/Cider/issues/26), KDE windows | Wayland sizing and X11 closing symptoms; screenshot without a matching lifecycle log | Native Wayland remains experimental. Collect backend, scaling, window/close and lifecycle traces on the affected machine before assigning a cause. |
 | Native Wayland startup freeze, local RTX 3060 Ti | Runtime b0fcb070; native OpenGL initially renders, then RBX Worker A remains in `IOHIDManagerSetDeviceMatching` / `io_service_add_notification_bin`. With manager matching repaired, the same worker blocks in `IOServiceGetMatchingServices`; its serialized matching class is `IOHIDDevice`. | Interpose the public HID manager matching APIs and return an empty HID-only service inventory in native Wayland mode. The existing IOService notification interpose misses direct calls within IOKit. SDL supplies keyboard/mouse input; native HID controller discovery remains unsupported. Unrelated service matching still delegates to Darling. |
+| Native Wayland game-join freeze | Menu works after HID repair; a game-join worker blocks in `IOServiceGetMatchingService`. The serialized class is `IOPlatformExpertDevice`. | Return the absent-service result only for this unsupported Apple hardware service in native mode, preserving matching-dictionary ownership and delegation for other classes/X11. |
+| Native Wayland vertical mouse offset | Clicks land above/below the cursor; `NSEvent.mouseLocation` flips window-local Wayland Y using the whole display height, while `NSWindow.mouseLocationOutsideOfEventStream` uses window height. | Preserve Cocoa's virtual window origin and share a locked numeric pointer/frame snapshot. Screen/window locations and Quartz warp requests now roundtrip through the same logical coordinates. |
 
 The old-library regression runs an exact copy of 4312's libsystem_m in a new
 private prefix using a user/mount/PID namespace. The fixture fails without the
@@ -30,6 +32,14 @@ delegate to Darling. The full
 AppKit fixture additionally passed native NVIDIA OpenGL and Mesa Zink core/
 compatibility contexts, Cocoa event/window identity and pixel readback with
 `DISPLAY` unset. Actual gameplay confirmation is separate from these fixtures.
+
+The singular Apple-platform reproducer blocks with the preceding shim and
+returns no service after the scoped repair. Coordinate tests cover differing
+window/display heights, nonzero/negative window origins, fractional logical
+values, and rejection of nonfinite/out-of-window warps. The real AppKit fixture
+checks that screen-relative and window-relative mouse locations agree. Physical
+global window placement is unavailable to ordinary Wayland clients; Cocoa's
+virtual origin is used consistently for conversions within Cider.
 
 ## Hardware coverage
 
