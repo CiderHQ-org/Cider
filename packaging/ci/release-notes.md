@@ -1,13 +1,11 @@
-Cider 0.23patch2 repairs startup on older Darling installations and improves runtime update recovery.
+Cider 0.24 fixes native Wayland startup and game-join freezes, mouse positioning, and window resizing.
 
-- Repair the recursive sincos math wrappers in the old 4312 runtime, including float/double and pi variants.
-- Preserve a live Roblox process when the Darling shell frontend disconnects with Error Code 1.
-- Add **Use previous CiderDarling and restart**, keeping the current prefix and sign-in.
-- Resume interrupted runtime downloads and verify cached downloads before reuse.
-- Add **Collect hardware report** and `ciderhq --hardware-report --graphics`, plus numeric text-input tracing for duplicate typing.
-- Keep the crash handler available when freeze diagnostics are enabled.
+- Skip unsupported Darling HID discovery and Apple platform service queries that blocked startup and game joining. SDL supplies keyboard and mouse input.
+- Align clicks with the visible cursor and preserve consistent window coordinates after resizing.
+- Resize the parent Wayland buffer and commit window geometry so the outer border follows the game image.
+- Rename the launcher backend option to **Wayland**, removing its experimental label. Select it under **Settings → Environment → Game → Window backend**; changes apply on the next launch.
 
-The old-library math regression passes with the production shim. Launcher regressions and all three distro builds must succeed before this release publishes. This release does not claim the remaining Claire Zink crash, duplicate-typing report or KDE native Wayland sizing report is resolved; affected-machine retesting is still needed.
+Roblox joining, aligned clicks and border resizing are confirmed on the local niri/NVIDIA setup. Native OpenGL and Vulkan/Zink regression fixtures verify core/compatibility rendering, pointer conversions and actual parent-buffer commits through fullscreen and restore. Launcher regressions and all three distro package builds must pass before publication. Separate Zink crash and duplicate-typing reports remain under investigation.
 
 Install the package matching your distribution: `.pkg.tar.zst` for Arch derivatives, `.deb` for Ubuntu 24.04+/Debian 13+, or the binary `.rpm` for current Fedora. Packages include the launcher and prebuilt shims; select either Darling provider in the launcher. CiderDarling runtime updates download separately.
 

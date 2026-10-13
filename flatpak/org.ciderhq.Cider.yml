@@ -18,7 +18,7 @@ cleanup:
 finish-args:
   - --share=network
   - --share=ipc
-  # Default X11/Xwayland and experimental native Wayland; the launcher is GTK.
+  # Default X11/Xwayland and optional native Wayland; the launcher is GTK.
   - --socket=x11
   - --socket=wayland
   - --socket=pulseaudio

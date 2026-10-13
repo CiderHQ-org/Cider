@@ -1,8 +1,7 @@
 # Maintainer: aubree.wtf <https://aubree.wtf/>
 pkgname=ciderhq
-# pacman sorts 0.23patch1 before 0.23, but 0.23.patch1 after it.
-_tag=0.23patch2
-pkgver=0.23.patch2
+_tag=0.24
+pkgver=0.24
 pkgrel=1
 pkgdesc='Run the macOS Roblox client on Linux through Darling'
 arch=('x86_64')

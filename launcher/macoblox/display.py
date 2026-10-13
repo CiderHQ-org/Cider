@@ -1,4 +1,4 @@
-"""Window backend selection; native Wayland remains an explicit experiment."""
+"""Window backend selection for X11/Xwayland and native Wayland."""
 import ctypes
 import math
 import os
@@ -25,9 +25,9 @@ def window_environment(settings, helper):
     if backend != "wayland":
         raise ValueError(f"Unknown window backend: {backend}")
     if not os.environ.get("WAYLAND_DISPLAY"):
-        raise RuntimeError("Experimental Wayland requires a Wayland desktop session. Select X11 in Settings.")
+        raise RuntimeError("Wayland requires a Wayland desktop session. Select X11 in Settings.")
     if not Path(helper).is_file():
-        raise RuntimeError("The experimental Wayland helper is missing. Install SDL2/Wayland development libraries and rebuild, or select X11.")
+        raise RuntimeError("The Wayland helper is missing. Install SDL2/Wayland development libraries and rebuild, or select X11.")
     values = {"MACOBLOX_WAYLAND": "1", "EGL_PLATFORM": "wayland",
               "MACOBLOX_WAYLAND_HELPER": str(helper)}
     if settings.get("renderer", "opengl") == "vulkan":
@@ -37,7 +37,7 @@ def window_environment(settings, helper):
 
 
 class WaylandProbeWindow:
-    """The same Linux helper and EGL surface used by the experimental client."""
+    """The same Linux helper and EGL surface used by the Wayland client."""
     def __init__(self):
         pointer, uint, integer = ctypes.c_void_p, ctypes.c_uint, ctypes.c_int
         display = ctypes.CFUNCTYPE(pointer)
@@ -64,7 +64,7 @@ class WaylandProbeWindow:
         value = get_api()
         # Check only the ABI header before reading newly added function slots.
         if not value or ctypes.cast(value, ctypes.POINTER(uint)).contents.value != 3:
-            raise RuntimeError("Experimental Wayland helper failed to initialize or is outdated. Rebuild Cider before using Native Wayland.")
+            raise RuntimeError("Wayland helper failed to initialize or is outdated. Rebuild Cider before using Wayland.")
         self.api = value.contents
         self.native = self.api.display()
         self.children = set()

@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+## 0.24 — 2026-10-13
+
+- Repair native Wayland startup and game-join freezes caused by unsupported
+  Darling IOKit HID discovery and Apple platform service queries. SDL continues
+  to provide keyboard and mouse input.
+- Align Wayland mouse clicks with the visible cursor using the window height
+  and a consistent virtual Cocoa window origin. Keep warp/capture requests
+  independent of AppKit calls on rendering threads.
+- Resize the parent Wayland background and commit window geometry when the
+  compositor changes the client size. The outer border now follows the game
+  image; game views keep rendering on independent EGL subsurfaces.
+- Rename the launcher backend option to **Wayland** and remove the experimental
+  wording from its settings, errors and launch logs.
+- Add regressions for IOKit query ownership/delegation, pointer conversions,
+  and actual parent-buffer commits during fullscreen and restore. Native
+  OpenGL and Vulkan/Zink checks pass on the local NVIDIA/niri setup; Roblox
+  joining, aligned clicks and border resizing are confirmed on that machine.
+
 ## 0.23patch2 — 2026-10-13
 
 - Repair recursive `__sincos*_stret` math wrappers in old Darling builds from

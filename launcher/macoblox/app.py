@@ -1289,8 +1289,8 @@ class SettingsPage(Adw.Bin):
         backend_codes = ["x11", "wayland"]
         backend = Adw.ComboRow(
             title=_("Window backend"),
-            subtitle=_("Native Wayland is experimental and incomplete. Applies on next launch."),
-            model=Gtk.StringList.new([_("X11 / Xwayland"), _("Native Wayland (experimental)")]))
+            subtitle=_("Applies on next launch."),
+            model=Gtk.StringList.new([_("X11 / Xwayland"), _("Wayland")]))
         selected_backend = settings.get("display_backend", "x11")
         backend.set_selected(backend_codes.index(selected_backend) if selected_backend in backend_codes else 0)
         backend.connect("notify::selected", lambda row, _pspec: window.set_setting(

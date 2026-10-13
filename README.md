@@ -424,11 +424,13 @@ the launch log, without recording typed content. It is disabled by default.
 </details>
 
 <details>
-<summary>Native Wayland (experimental)</summary>
+<summary>Wayland</summary>
 
 **Settings → Environment → Game → Window backend** defaults to **X11 / Xwayland**.
-Native Wayland is available as an option, but is currently experimental, so full function is not promised as of now. Version 0.19 and upwards repairs separate EGL view surfaces, window lookup and NVIDIA driver discovery, but full Roblox
-presentation is still unfinished. Use X11 / Xwayland for normal gameplay.
+Select **Wayland** to use native windows with OpenGL or Vulkan/Zink. Cider 0.24
+repairs startup and game-join freezes, aligns mouse clicks with the cursor, and
+keeps the outer window size in sync with the game. Backend changes apply on the
+next launch.
 </details>
 
 <details>

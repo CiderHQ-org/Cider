@@ -2564,7 +2564,7 @@ class RobloxSession:
             log.write(f"Darling selection: {DARLING_RUNTIME['runtime']}; {DARLING_EXECUTABLE}; root {DARLING_SYSROOT}\n".encode())
             log.write(f"Renderer requested: {renderer_name}\n".encode())
             log.write(f"MangoHud requested: {'Enabled' if self.settings.get('mangohud', False) else 'Disabled'}\n".encode())
-            log.write(f"Window backend: {'Native Wayland (experimental)' if env.get('MACOBLOX_WAYLAND') == '1' else 'X11 / Xwayland'}\n".encode())
+            log.write(f"Window backend: {'Wayland' if env.get('MACOBLOX_WAYLAND') == '1' else 'X11 / Xwayland'}\n".encode())
             if self.gpu_adapter:
                 name = self.gpu_adapter["name"].replace("\n", " ").replace("\r", " ")[:200]
                 log.write(f"Graphics card requested: {name}; PCI {self.gpu_adapter['pci']}\n".encode())

@@ -67,6 +67,11 @@
     <control>keyboard</control>
   </supports>
   <releases>
+    <release version="0.24" date="2026-10-13">
+      <description>
+        <p>Fixes native Wayland startup and game-join freezes, aligns mouse clicks with the cursor, and repairs outer window resizing. The launcher backend option is now named Wayland. Arch, Debian/Ubuntu and Fedora packages include the fixes.</p>
+      </description>
+    </release>
     <release version="0.22Patch1" date="2026-10-12">
       <description>
         <p>New CiderHQ logo, runtime selection, server detection and installer compatibility fixes.</p>
