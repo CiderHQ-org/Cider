@@ -1,11 +1,11 @@
-Cider 0.24 fixes native Wayland startup and game-join freezes, mouse positioning, and window resizing.
+Cider 0.24p1 fixes Error 256 when joining games after Roblox updated to 0.743.
 
-- Skip unsupported Darling HID discovery and Apple platform service queries that blocked startup and game joining. SDL supplies keyboard and mouse input.
-- Align clicks with the visible cursor and preserve consistent window coordinates after resizing.
-- Resize the parent Wayland buffer and commit window geometry so the outer border follows the game image.
-- Rename the launcher backend option to **Wayland**, removing its experimental label. Select it under **Settings → Environment → Game → Window backend**; changes apply on the next launch.
+- Add verified transport compatibility for **Roblox 0.743.0.7431129**. The updated client moved the networking code and selected RbxTransport despite the saved flags. Cider now applies the inspected RakNet fixes for this build, including both shared-config and legacy dummy-connection paths.
+- Keep the cursor visible while holding right-click to move the camera on Wayland and X11/Xwayland. Releasing right-click or losing focus clears the cursor override; existing Shift Lock and first-person cursor behavior is preserved.
 
-Roblox joining, aligned clicks and border resizing are confirmed on the local niri/NVIDIA setup. Native OpenGL and Vulkan/Zink regression fixtures verify core/compatibility rendering, pointer conversions and actual parent-buffer commits through fullscreen and restore. Launcher regressions and all three distro package builds must pass before publication. Separate Zink crash and duplicate-typing reports remain under investigation.
+The reporter confirms game joining works on Roblox 0.743 after the fix. Validation includes the official executable, all 32 transport/startup-throttle patch combinations, native x86_64 branch checks, 20 native fixtures and 199 Python tests. Complete executable checksum validation and atomic patching remain in place; unsupported builds are left unchanged.
+
+**Update Cider, then close and reopen the launcher before starting Roblox.**
 
 Install the package matching your distribution: `.pkg.tar.zst` for Arch derivatives, `.deb` for Ubuntu 24.04+/Debian 13+, or the binary `.rpm` for current Fedora. Packages include the launcher and prebuilt shims; select either Darling provider in the launcher. CiderDarling runtime updates download separately.
 

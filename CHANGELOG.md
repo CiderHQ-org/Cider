@@ -1,7 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.24p1 — 2026-10-13
 
+- Add verified RakNet compatibility for Roblox **0.743.0.7431129**
+  (`version-f641ec9ebf6145c3`). The new executable was unsupported and selected
+  RbxTransport despite the saved flags, causing Error 256 under Darling.
+  Inspect the relocated transport/fallback code and skip both shared-config
+  and legacy dummy connections introduced by the new caller layout. Retain
+  complete normalized SHA-256 checks, atomic replacement and compatibility
+  with the relocated startup-throttle patch. The reporter confirms game
+  joining works after applying the fix to Roblox 0.743.
 - Keep a visible software cursor at the right-click camera drag position on
   Wayland and X11/Xwayland. Preserve the last visible cursor image when Roblox
   hides it or selects a transparent cursor, with an arrow fallback. Camera

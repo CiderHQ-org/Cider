@@ -1,7 +1,8 @@
 # Maintainer: aubree.wtf <https://aubree.wtf/>
 pkgname=ciderhq
-_tag=0.24
-pkgver=0.24
+# Keep the release tag; pacman sorts 0.24.p1 after 0.24.
+_tag=0.24p1
+pkgver=0.24.p1
 pkgrel=1
 pkgdesc='Run the macOS Roblox client on Linux through Darling'
 arch=('x86_64')

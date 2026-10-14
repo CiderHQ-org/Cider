@@ -1,3 +1,11 @@
+ciderhq (0.24p1-1) unstable; urgency=medium
+
+  * Repair Roblox 0.743 Error 256 with verified RakNet transport patches.
+  * Skip shared-config and legacy dummy connections; preserve checksum checks.
+  * Keep the cursor visible during right-button camera dragging.
+
+ -- Cider maintainers <noreply@aubree.wtf>  Tue, 13 Oct 2026 21:50:00 -0500
+
 ciderhq (0.24-1) unstable; urgency=medium
 
   * Repair native Wayland startup and game-join freezes in IOKit queries.

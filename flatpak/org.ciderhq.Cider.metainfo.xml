@@ -67,6 +67,11 @@
     <control>keyboard</control>
   </supports>
   <releases>
+    <release version="0.24p1" date="2026-10-13">
+      <description>
+        <p>Repairs Error 256 when joining Roblox 0.743 with verified RakNet transport compatibility. Keeps the cursor visible during right-button camera dragging on Wayland and X11. Arch, Debian/Ubuntu and Fedora packages include these fixes.</p>
+      </description>
+    </release>
     <release version="0.24" date="2026-10-13">
       <description>
         <p>Fixes native Wayland startup and game-join freezes, aligns mouse clicks with the cursor, and repairs outer window resizing. The launcher backend option is now named Wayland. Arch, Debian/Ubuntu and Fedora packages include the fixes.</p>

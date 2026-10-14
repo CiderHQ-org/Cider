@@ -1,6 +1,6 @@
-%global upstream_version 0.24
+%global upstream_version 0.24p1
 Name:           ciderhq
-Version:        0.24
+Version:        0.24.p1
 Release:        1%{?dist}
 Summary:        Run the macOS Roblox client on Linux through Darling
 License:        GPL-3.0-only AND MIT AND OFL-1.1
@@ -88,6 +88,11 @@ python3 -m compileall -q -d "%{_datadir}/ciderhq/launcher" "%{buildroot}%{_datad
 %{_datadir}/mime/packages/org.ciderhq.Cider.xml
 
 %changelog
+* Tue Oct 13 2026 Cider maintainers <noreply@aubree.wtf> - 0.24.p1-1
+- Repair Roblox 0.743 Error 256 with verified RakNet compatibility.
+- Skip shared-config and legacy dummy connections; retain full checksum validation.
+- Keep the cursor visible during right-button camera dragging.
+
 * Tue Oct 13 2026 Cider maintainers <noreply@aubree.wtf> - 0.24-1
 - Repair native Wayland startup and game-join freezes, pointer coordinates and window resizing.
 - Rename the launcher backend option to Wayland.

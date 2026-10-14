@@ -1,7 +1,7 @@
 # Maintainer: aubree.wtf <https://aubree.wtf/>
 pkgname=ciderhq-git
 _name=Cider
-pkgver=0.24.r0
+pkgver=0.24.1.r0
 pkgrel=1
 pkgdesc="Run the macOS Roblox client on Linux through Darling"
 arch=('x86_64')
@@ -28,8 +28,9 @@ sha256sums=('SKIP')
 
 pkgver() {
   cd "$_name"
+  # Numeric patch suffixes sort after the previous 0.24.rN git builds.
   git describe --tags --long --match 'v[0-9]*' --abbrev=7 |
-    sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g'
+    sed 's/^v//;s/^\([0-9][0-9.]*\)p\([0-9][0-9]*\)/\1.\2/;s/\([^-]*-g\)/r\1/;s/-/./g'
 }
 
 build() {
