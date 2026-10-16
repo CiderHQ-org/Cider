@@ -243,6 +243,10 @@ static BOOL subwindow_frame(MacOBloxWaylandWindow *parent,NSRect value,int *x,in
     initialize();owner=window;frame=[window frame];style=[window styleMask];
     handle=api->create(frame.size.width,frame.size.height);
     if(!handle)[NSException raise:@"NSWindowServerCommunicationException" format:@"Native Wayland window failed: %s",api->error()];
+    /* NSWindow can request fullscreen before lazily creating its platform
+     * window. Apply that initial state too; retaining only the Cocoa bit
+     * leaves Roblox reporting fullscreen on a decorated, windowed surface. */
+    if(style&(1UL<<14))api->action(handle,MW_FULLSCREEN,1,0,0);
     pointer_frame(handle,frame);
     /* Non-owning registration: NSWindow owns its platformWindow. */
     [windows addObject:[NSNumber numberWithLong:(long)self]];

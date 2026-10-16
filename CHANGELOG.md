@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Apply native Wayland fullscreen requests made before the platform window
+  exists. Previously Cocoa retained the fullscreen flag while the native
+  window stayed decorated and resizable. A real AppKit regression reproduces
+  that mismatch under private KWin and checks initial fullscreen plus repeated
+  fullscreen/windowed toggles with the repair.
+
 - Warn once per launch when Roblox actually selects a game transport other
   than RakNet. Explain that the Roblox update broke game compatibility,
   games might fail or show Error 256, and users should update Cider or wait
