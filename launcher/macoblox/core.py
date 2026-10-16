@@ -31,6 +31,7 @@ from .i18n import _
 from .rootless_scope import rootless_process_in_prefix
 from .paths import migrate_directory, user_directory
 from .runtime import resolve_runtime, guest_variables
+from .transport_monitor import TransportMonitor
 
 PROJECT = Path(__file__).resolve().parents[2]
 # Everything the launcher writes: the project folder for a git checkout, the
@@ -2345,6 +2346,7 @@ class RobloxSession:
         self._gpu_environment = None
         self.trace_path = None
         self._frontend_detached = False
+        self.transport_monitor = TransportMonitor()
         # Launch log lines collected before the log exists.
         self.notes = []
         # A sentinel left over from a quit that outlived the launcher must not
@@ -2636,6 +2638,7 @@ class RobloxSession:
 
     def poll(self):
         """None while running, otherwise the exit status (or -1 if unknown)."""
+        self.transport_monitor.poll(self.log_path)
         status = self.process.poll() if self.process else -1
         if status is not None:
             # darling shell can disconnect while the guest it launched is

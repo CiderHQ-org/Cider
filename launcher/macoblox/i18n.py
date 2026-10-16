@@ -6,6 +6,10 @@ LANGUAGES = {"en": "English", "ru": "Русский"}
 _language = "en"
 
 RU = {
+    "Roblox update broke game compatibility": "Обновление Roblox нарушило совместимость с играми",
+    "Roblox is no longer using RakNet. The latest Roblox update has broken game connection compatibility with Cider. Games might not work or may show Error 256.\n\nCheck for a Cider update. If a fix is not available yet, wait for a Cider compatibility patch.":
+        "Roblox больше не использует RakNet. Последнее обновление Roblox нарушило совместимость игровых подключений с Cider. Игры могут не работать или выдавать ошибку 256.\n\nПроверьте обновления Cider. Если исправление ещё не доступно, дождитесь патча совместимости для Cider.",
+    "View log": "Посмотреть журнал",
     "Check for CiderDarling updates": "Проверить обновления CiderDarling",
     "Check for CiderDarling updates automatically": "Автоматически проверять обновления CiderDarling",
     "Checks in the background. Install an available update in a separate terminal.":

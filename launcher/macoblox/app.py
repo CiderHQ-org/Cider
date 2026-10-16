@@ -2680,6 +2680,8 @@ class LauncherWindow(Adw.ApplicationWindow):
         self.rpc = None
         self.game_tracker = None
         self.current_game_info = None
+        self._transport_warning_session = None
+        self._transport_warning_dialog = None
         # One long operation at a time: starting, updating, building,
         # restarting Darling or signing out. They share the client and Darling.
         self.busy = None
@@ -3413,6 +3415,9 @@ class LauncherWindow(Adw.ApplicationWindow):
             return
         self._stop_rpc()
         self.session = session
+        if self._transport_warning_dialog is not None:
+            self._transport_warning_dialog.close()
+        self._transport_warning_session = None
         core.clear_last_error()
         if session.launch_uri:
             # A newer click may have replaced pending-uri while Darling was
@@ -3434,9 +3439,45 @@ class LauncherWindow(Adw.ApplicationWindow):
         GLib.timeout_add(1000, self._watch, session)
 
     def _hide_while_playing(self):
-        if self.session and self.settings.get("hide_launcher_on_launch", True):
+        if (self.session and self.settings.get("hide_launcher_on_launch", True)
+                and self._transport_warning_dialog is None):
             self.set_visible(False)
         return False
+
+    def _show_transport_warning(self, session):
+        if (self.session is not session or self._transport_warning_session is session
+                or not session.transport_monitor.warning_transport):
+            return
+        self._transport_warning_session = session
+        dialog = Adw.AlertDialog(
+            heading=_("Roblox update broke game compatibility"),
+            body=_("Roblox is no longer using RakNet. The latest Roblox update has broken "
+                   "game connection compatibility with Cider. Games might not work or may "
+                   "show Error 256.\n\nCheck for a Cider update. If a fix is not available yet, "
+                   "wait for a Cider compatibility patch."))
+        self._transport_warning_dialog = dialog
+        dialog.add_response("close", _("Close"))
+        dialog.add_response("logs", _("View log"))
+        dialog.add_response("updates", _("Check for updates"))
+        dialog.set_default_response("close")
+        dialog.set_close_response("close")
+
+        def response(_dialog, choice):
+            if self._transport_warning_dialog is dialog:
+                self._transport_warning_dialog = None
+            if self._transport_warning_session is not session or self.session not in (session, None):
+                return
+            if choice == "logs":
+                self.play_page.show_logs(session.log_path)
+            elif choice == "updates":
+                self.stack.set_visible_child_name("settings")
+                self.settings_page.set_tab("env")
+                self.settings_page.check_launcher_update()
+
+        dialog.connect("response", response)
+        self.set_visible(True)
+        self.present()
+        dialog.present(self)
 
     def _watch(self, session):
         # A timer belongs to one launch. It must never start polling a new
@@ -3475,6 +3516,7 @@ class LauncherWindow(Adw.ApplicationWindow):
             self._watch_inflight = None
         if self.session is not session:
             return False
+        self._show_transport_warning(session)
         if status is None:
             # Active game: track playtime
             self.settings["playtime_seconds"] = self.settings.get("playtime_seconds", 0) + 1
@@ -3525,7 +3567,8 @@ class LauncherWindow(Adw.ApplicationWindow):
             GLib.idle_add(self.handle_uri, pending)
         failed = status not in (0, -1)
         # A failure is always shown, even with the launcher set to stay closed.
-        if failed or self.settings.get("show_launcher_after_exit", True):
+        if (failed or self.settings.get("show_launcher_after_exit", True)
+                or self._transport_warning_dialog is not None):
             self.set_visible(True)
             self.present()
         else:

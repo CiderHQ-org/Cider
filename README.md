@@ -342,6 +342,14 @@ If compatibility says **unsupported client**, share those lines and the full
 launch log so that deployment can be inspected. Unsupported executables are
 left unchanged.
 
+Cider also monitors Roblox's actual transport selection during each launch.
+If Roblox selects a transport other than RakNet, Cider brings the launcher
+forward and warns that games might not work or may show Error 256. The warning
+offers **View log** and **Check for updates**; if no Cider fix is available yet,
+wait for a compatibility patch. It appears once per launch, including when
+Discord presence is disabled. An unsupported-client header alone does not
+trigger it.
+
 Restoring an older client backup can trigger Roblox's required-update check.
 The launcher follows the deployment requested by the client; downgrading is
 not a lasting repair. If the compatibility patch is already applied and the

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Warn once per launch when Roblox actually selects a game transport other
+  than RakNet. Explain that the Roblox update broke game compatibility,
+  games might fail or show Error 256, and users should update Cider or wait
+  for a compatibility patch. Offer log and update-check actions, show the
+  warning even with the launcher hidden or Discord presence disabled, and
+  keep unsupported-version headers alone from triggering a false alarm.
+
 - Support Roblox **0.743.0.7431134** (`version-212bac6bdccd4673`) in the
   verified RakNet compatibility patch. This hotfix relocates the transport
   and dummy-connection code, so the previous build's patch was correctly
