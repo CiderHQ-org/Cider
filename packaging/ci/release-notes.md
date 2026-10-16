@@ -1,11 +1,14 @@
-Cider 0.24p1 fixes Error 256 when joining games after Roblox updated to 0.743.
+Cider 0.25 adds a compatibility warning for Roblox networking updates and repairs initial fullscreen on native Wayland.
 
-- Add verified transport compatibility for **Roblox 0.743.0.7431129**. The updated client moved the networking code and selected RbxTransport despite the saved flags. Cider now applies the inspected RakNet fixes for this build, including both shared-config and legacy dummy-connection paths.
-- Keep the cursor visible while holding right-click to move the camera on Wayland and X11/Xwayland. Releasing right-click or losing focus clears the cursor override; existing Shift Lock and first-person cursor behavior is preserved.
+- **Roblox 0.743.0.7431134:** add checksum-verified RakNet compatibility for the latest hotfix. Game joining is confirmed on the reporting machine.
+- **Connection warning:** if Roblox actually selects a transport other than RakNet, Cider warns that the update broke game compatibility, games might fail or show Error 256, and users should update Cider or wait for a compatibility patch. The warning appears once per launch even when the launcher is hidden or Discord presence is disabled, with log and update-check buttons. An unsupported-client header alone does not trigger it.
+- **Native Wayland fullscreen:** apply fullscreen requests made before the native window exists. This repairs the case where Roblox reports fullscreen but the window remains decorated and resizable. The old code reproduces the mismatch in KWin; the fix passes initial fullscreen and repeated toggles at 100% and 150% scaling.
 
-The reporter confirms game joining works on Roblox 0.743 after the fix. Validation includes the official executable, all 32 transport/startup-throttle patch combinations, native x86_64 branch checks, 20 native fixtures and 199 Python tests. Complete executable checksum validation and atomic patching remain in place; unsupported builds are left unchanged.
+Validation includes the official Roblox executable, all 32 transport/startup-throttle patch combinations, native x86_64 branch checks, 20 native fixtures, 207 Python tests, and the actual GTK warning on a disposable display. Complete executable checksum validation and atomic patching remain in place; unsupported builds are left unchanged.
 
-**Update Cider, then close and reopen the launcher before starting Roblox.**
+**Known issue:** the brief freeze after leaving a game remains unresolved and is deferred to a later update.
+
+**Update Cider, then fully close and reopen the launcher before starting Roblox.**
 
 Install the package matching your distribution: `.pkg.tar.zst` for Arch derivatives, `.deb` for Ubuntu 24.04+/Debian 13+, or the binary `.rpm` for current Fedora. Packages include the launcher and prebuilt shims; select either Darling provider in the launcher. CiderDarling runtime updates download separately.
 

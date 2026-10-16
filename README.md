@@ -441,7 +441,10 @@ the launch log, without recording typed content. It is disabled by default.
 Select **Wayland** to use native windows with OpenGL or Vulkan/Zink. Cider 0.24
 repairs startup and game-join freezes, aligns mouse clicks with the cursor, and
 keeps the outer window size in sync with the game. Backend changes apply on the
-next launch.
+next launch. Cider 0.25 also applies fullscreen requests made before the native
+window exists, fixing a mismatch where Roblox reported fullscreen while the
+window stayed decorated. Initial fullscreen and repeated toggles are checked
+under KWin at 100% and 150% scaling.
 </details>
 
 <details>

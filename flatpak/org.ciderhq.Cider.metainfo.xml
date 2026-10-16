@@ -67,6 +67,11 @@
     <control>keyboard</control>
   </supports>
   <releases>
+    <release version="0.25" date="2026-10-15">
+      <description>
+        <p>Supports Roblox 0.743.0.7431134, warns when Roblox selects a transport other than RakNet, and applies initial fullscreen requests to native Wayland windows. The brief pause after leaving a game remains under investigation.</p>
+      </description>
+    </release>
     <release version="0.24p1" date="2026-10-13">
       <description>
         <p>Repairs Error 256 when joining Roblox 0.743 with verified RakNet transport compatibility. Keeps the cursor visible during right-button camera dragging on Wayland and X11. Arch, Debian/Ubuntu and Fedora packages include these fixes.</p>

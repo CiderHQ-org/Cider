@@ -1,6 +1,6 @@
-%global upstream_version 0.24p1
+%global upstream_version 0.25
 Name:           ciderhq
-Version:        0.24.p1
+Version:        0.25
 Release:        1%{?dist}
 Summary:        Run the macOS Roblox client on Linux through Darling
 License:        GPL-3.0-only AND MIT AND OFL-1.1
@@ -88,6 +88,11 @@ python3 -m compileall -q -d "%{_datadir}/ciderhq/launcher" "%{buildroot}%{_datad
 %{_datadir}/mime/packages/org.ciderhq.Cider.xml
 
 %changelog
+* Thu Oct 15 2026 Cider maintainers <noreply@aubree.wtf> - 0.25-1
+- Support Roblox 0.743.0.7431134 with checksum-verified transport compatibility.
+- Warn when Roblox selects a transport other than RakNet.
+- Apply initial fullscreen requests to native Wayland windows.
+
 * Tue Oct 13 2026 Cider maintainers <noreply@aubree.wtf> - 0.24.p1-1
 - Repair Roblox 0.743 Error 256 with verified RakNet compatibility.
 - Skip shared-config and legacy dummy connections; retain full checksum validation.

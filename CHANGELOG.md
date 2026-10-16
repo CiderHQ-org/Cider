@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.25 — 2026-10-15
 
 - Apply native Wayland fullscreen requests made before the platform window
   exists. Previously Cocoa retained the fullscreen flag while the native
@@ -21,6 +21,9 @@
   rejected and Error 256 returned. Verify the new executable against the
   official archive and retain complete normalized SHA-256 validation,
   atomic replacement and compatibility with the startup-throttle patch.
+
+The brief freeze after leaving a game remains unresolved and is deferred to a
+later update.
 
 ## 0.24p1 — 2026-10-13
 
