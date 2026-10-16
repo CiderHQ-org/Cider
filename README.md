@@ -333,9 +333,10 @@ original relative deltas.
 <summary>Error 256 or an unknown connection error when joining a server</summary>
 
 Update Cider and restart Roblox. The launcher applies verified RakNet
-compatibility patches for Roblox **0.741.0.7411056**, **0.742.0.7421053** and
-**0.743.0.7431129**. Roblox updates can relocate these patches; saved transport
-flags alone do not prevent the 0.743 connection failure under Darling.
+compatibility patches for Roblox **0.741.0.7411056**, **0.742.0.7421053**,
+**0.743.0.7431129** and **0.743.0.7431134**. Roblox updates can relocate these
+patches; saved transport flags alone do not prevent the 0.743 connection failure
+under Darling.
 The launch log includes **RakNet compatibility** and your **CURRENT Roblox version**.
 If compatibility says **unsupported client**, share those lines and the full
 launch log so that deployment can be inspected. Unsupported executables are

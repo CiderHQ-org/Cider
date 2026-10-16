@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Support Roblox **0.743.0.7431134** (`version-212bac6bdccd4673`) in the
+  verified RakNet compatibility patch. This hotfix relocates the transport
+  and dummy-connection code, so the previous build's patch was correctly
+  rejected and Error 256 returned. Verify the new executable against the
+  official archive and retain complete normalized SHA-256 validation,
+  atomic replacement and compatibility with the startup-throttle patch.
+
 ## 0.24p1 — 2026-10-13
 
 - Add verified RakNet compatibility for Roblox **0.743.0.7431129**
