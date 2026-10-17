@@ -1,12 +1,28 @@
 # Changelog
 
-## Unreleased
+## 0.30 — 2026-10-17
 
-- Experimental VR: Roblox's own VR mode in a headset through the host's OpenXR
-  runtime (WiVRn for Meta Quest, Monado). Turn it on in **Settings → VR**. The
-  VR home menu, games, head tracking, Touch/Index controllers, vibration and
-  recentering work; render resolution and a desktop mirror are adjustable.
-  Requires the OpenXR loader and a running runtime with the headset connected.
+- **Experimental VR.** Play in Roblox's own VR mode on a headset connected
+  through the host's OpenXR runtime: WiVRn for Meta Quest, Monado for PC
+  headsets. Turn it on in the new **Settings → VR** tab, start the runtime with
+  the headset connected, then play. The macOS client still contains Roblox's
+  VR mode; Cider supplies the OpenXR device the Mac build leaves out. The VR
+  home menu, games, head tracking, Touch/Index controllers, vibration and
+  recentering work. OpenXR paces each frame, and each image is submitted with
+  the head pose Roblox drew it from, so tracking stays smooth. Render
+  resolution (70% of the headset's recommendation by default) and a
+  side-by-side mirror in the game window are adjustable; the headset keeps the
+  refresh rate chosen in the runtime. Requires the OpenXR loader. Tested on a
+  Quest 2 with WiVRn 26.9; details are in [docs/VR.md](docs/VR.md).
+
+- Fix duplicated typed characters and an unreliable Control key with native
+  Wayland. Chat and search no longer insert a key twice; Ctrl shortcuts
+  (select all, copy, cut, paste, word navigation and deletion) work, and focus
+  changes release held modifiers.
+
+- The website shows VR gameplay and the VR settings tab.
+
+The brief freeze after leaving a game remains unresolved.
 
 ## 0.25 — 2026-10-15
 

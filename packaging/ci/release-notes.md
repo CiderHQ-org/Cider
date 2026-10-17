@@ -1,12 +1,11 @@
-Cider 0.25 adds a compatibility warning for Roblox networking updates and repairs initial fullscreen on native Wayland.
+Cider 0.30 adds experimental VR: Roblox's own VR mode on a headset, through your OpenXR runtime.
 
-- **Roblox 0.743.0.7431134:** add checksum-verified RakNet compatibility for the latest hotfix. Game joining is confirmed on the reporting machine.
-- **Connection warning:** if Roblox actually selects a transport other than RakNet, Cider warns that the update broke game compatibility, games might fail or show Error 256, and users should update Cider or wait for a compatibility patch. The warning appears once per launch even when the launcher is hidden or Discord presence is disabled, with log and update-check buttons. An unsupported-client header alone does not trigger it.
-- **Native Wayland fullscreen:** apply fullscreen requests made before the native window exists. This repairs the case where Roblox reports fullscreen but the window remains decorated and resizable. The old code reproduces the mismatch in KWin; the fix passes initial fullscreen and repeated toggles at 100% and 150% scaling.
+- **VR headsets (experimental):** the macOS Roblox client still contains Roblox's VR mode, and Cider now supplies the OpenXR device it was missing. Meta Quest headsets work through WiVRn, PC headsets through Monado. The VR home menu, games, head tracking, Touch/Index controllers, vibration and recentering work. Turn it on in **Settings → VR**, start the runtime with the headset connected, then play. Render resolution and a desktop mirror are adjustable; the headset keeps the refresh rate chosen in the runtime. Needs the OpenXR loader (`openxr` on Arch, `libopenxr-loader1` on Debian/Ubuntu). Tested on a Quest 2 with WiVRn 26.9 at a steady 72 Hz.
+- **Native Wayland typing:** chat and search no longer insert a key twice, and Ctrl shortcuts (select all, copy, cut, paste, word navigation and deletion) work again.
 
-Validation includes the official Roblox executable, all 32 transport/startup-throttle patch combinations, native x86_64 branch checks, 20 native fixtures, 207 Python tests, and the actual GTK warning on a disposable display. Complete executable checksum validation and atomic patching remain in place; unsupported builds are left unchanged.
+Validation includes the vendored OpenXR ABI against the Khronos headers, the shim's client lookups against Roblox 0.743.0.7431134, a native OpenXR session test with controllers and vibration, the launcher's runtime discovery, and in-headset play with recordings.
 
-**Known issue:** the brief freeze after leaving a game remains unresolved and is deferred to a later update.
+**Known issue:** the brief freeze after leaving a game remains unresolved.
 
 **Update Cider, then fully close and reopen the launcher before starting Roblox.**
 

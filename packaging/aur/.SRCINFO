@@ -1,6 +1,6 @@
 pkgbase = ciderhq-git
 	pkgdesc = Run the macOS Roblox client on Linux through Darling
-	pkgver = 0.25.r0
+	pkgver = 0.30.r0
 	pkgrel = 1
 	url = https://ciderhq.org
 	arch = x86_64

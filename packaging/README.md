@@ -1,6 +1,6 @@
 # Native distro packages
 
-These are package recipes for the Cider **0.25** release. Each package
+These are package recipes for the Cider **0.30** release. Each package
 builds the shim and native Wayland helper during packaging, installs desktop
 and link handlers, and downloads Roblox on first setup. Personal settings and
 sign-in are stored in the user's directories. The website and user logs are
@@ -43,7 +43,7 @@ and the appropriate Vulkan driver.
 
 ## Prepare sources
 
-The release workflow attaches `ciderhq-0.25-source.tar.gz` and pins its checksum
+The release workflow attaches `ciderhq-0.30-source.tar.gz` and pins its checksum
 in `release.json` after publication. For release builds,
 use the source preparation command below. To package local source edits:
 
@@ -61,12 +61,12 @@ From the Cider checkout:
 ./packaging/prepare-source.sh "$PWD/work/native-packages"
 ```
 
-This downloads the checksum-verified 0.25 release and places the Debian
+This downloads the checksum-verified 0.30 release and places the Debian
 overlay and RPM inputs in a new output directory. It requires `curl`, `tar`
 and `sha256sum`. To use an already downloaded release archive:
 
 ```bash
-./packaging/prepare-source.sh "$PWD/work/native-packages" /path/to/ciderhq-0.25-source.tar.gz
+./packaging/prepare-source.sh "$PWD/work/native-packages" /path/to/ciderhq-0.30-source.tar.gz
 ```
 
 The output directory must not already exist. Arch builds use their own AUR
@@ -82,7 +82,7 @@ Then install the packaging tools and native development dependencies:
 ```bash
 sudo apt install build-essential debhelper dh-python python3 clang lld \
   pkg-config libsdl2-dev libwayland-dev
-cd work/native-packages/Cider-0.25
+cd work/native-packages/Cider-0.30
 dpkg-buildpackage -b -us -uc
 ```
 
@@ -91,7 +91,7 @@ one directory above the source directory. Install using `apt`, which resolves
 dependencies from the configured repositories:
 
 ```bash
-sudo apt install ../ciderhq_0.25-1_amd64.deb
+sudo apt install ../ciderhq_0.30-1_amd64.deb
 ```
 
 The recipe uses debhelper for Python bytecode and desktop/icon/MIME cache

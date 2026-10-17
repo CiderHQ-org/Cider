@@ -67,6 +67,11 @@
     <control>keyboard</control>
   </supports>
   <releases>
+    <release version="0.30" date="2026-10-17">
+      <description>
+        <p>Adds experimental VR: Roblox's own VR mode on a headset through an OpenXR runtime such as WiVRn (Meta Quest) or Monado, with head tracking, controllers, vibration and recentering, configured in the new VR settings tab. Fixes duplicated typing and an unreliable Control key with native Wayland.</p>
+      </description>
+    </release>
     <release version="0.25" date="2026-10-15">
       <description>
         <p>Supports Roblox 0.743.0.7431134, warns when Roblox selects a transport other than RakNet, and applies initial fullscreen requests to native Wayland windows. The brief pause after leaving a game remains under investigation.</p>
