@@ -6,7 +6,7 @@ LANGUAGES = {"en": "English", "ru": "Русский"}
 _language = "en"
 
 RU = {
-    "VR": "VR",
+    "VR headset": "VR-шлем",
     "Experimental. Plays in Roblox's own VR mode on a headset connected through an OpenXR runtime such as WiVRn (Meta Quest) or Monado. Applies on next launch.":
         "Экспериментально. Запускает собственный VR-режим Roblox на шлеме, подключённом через среду OpenXR, например WiVRn (Meta Quest) или Monado. Применяется при следующем запуске.",
     "VR headset (OpenXR)": "VR-шлем (OpenXR)",

@@ -451,7 +451,7 @@ under KWin at 100% and 150% scaling.
 <summary>VR headsets (experimental)</summary>
 
 Roblox's macOS client still contains Roblox's VR mode; Cider supplies the
-OpenXR device the Mac build leaves out. Turn on **Settings → Environment → VR →
+OpenXR device the Mac build leaves out. Turn on **Settings → VR →
 VR headset (OpenXR)**, start your OpenXR runtime with the headset connected,
 then play. Meta Quest headsets work through [WiVRn](https://github.com/WiVRn/WiVRn);
 PC headsets through [Monado](https://monado.freedesktop.org/). The OpenXR loader

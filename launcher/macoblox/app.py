@@ -1379,10 +1379,10 @@ class SettingsPage(Adw.Bin):
 
         self.env_page.add(game)
 
-        # VR headsets through the host's OpenXR runtime
+        # VR headsets through the host's OpenXR runtime (the VR tab)
         from . import vr
         vr_group = Adw.PreferencesGroup(
-            title=_("VR"),
+            title=_("VR headset"),
             description=_("Experimental. Plays in Roblox's own VR mode on a headset connected through an OpenXR "
                           "runtime such as WiVRn (Meta Quest) or Monado. Applies on next launch."))
         _runtime, vr_status = vr.status()
@@ -1409,7 +1409,9 @@ class SettingsPage(Adw.Bin):
         vr_toggled(vr_switch)
         for row in (vr_switch, vr_scale, vr_mirror):
             vr_group.add(row)
-        self.env_page.add(vr_group)
+        # Its own tab, added after Roblox below.
+        self.vr_page = Adw.PreferencesPage()
+        self.vr_page.add(vr_group)
 
         # 3. Discord Rich Presence
         discord_group = Adw.PreferencesGroup(title=_("Discord Rich Presence"))
@@ -1590,6 +1592,8 @@ class SettingsPage(Adw.Bin):
         self.roblox_page.add(account)
 
         self.stack.add_titled_with_icon(self.roblox_page, "roblox", "Roblox", "application-x-executable-symbolic")
+
+        self.stack.add_titled_with_icon(self.vr_page, "vr", "VR", "input-gaming-symbolic")
 
         # 3. Fast flags page
         self.flags_page = FlagsPage(window)
@@ -2855,7 +2859,7 @@ class LauncherWindow(Adw.ApplicationWindow):
 
         if page == "ciderdarling":
             self.show_ciderdarling_settings()
-        elif page in ("flags", "env", "roblox"):
+        elif page in ("flags", "env", "roblox", "vr"):
             self.stack.set_visible_child_name("settings")
             self.settings_page.set_tab(page)
         else:
