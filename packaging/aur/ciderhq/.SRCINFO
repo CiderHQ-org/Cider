@@ -1,6 +1,6 @@
 pkgbase = ciderhq
 	pkgdesc = Run the macOS Roblox client on Linux through Darling
-	pkgver = 0.25
+	pkgver = 0.30
 	pkgrel = 1
 	url = https://ciderhq.org
 	arch = x86_64
@@ -42,7 +42,7 @@ pkgbase = ciderhq
 	conflicts = macoblox
 	conflicts = macoblox-git
 	replaces = macoblox
-	source = ciderhq-0.25.tar.gz::https://github.com/CiderHQ-org/Cider/releases/download/v0.25/ciderhq-0.25-source.tar.gz
-	sha256sums = 816663b37ec9233af9602495c0dd683ab9cfde416490c767f468968fc2e5dcf8
+	source = ciderhq-0.30.tar.gz::https://github.com/CiderHQ-org/Cider/releases/download/v0.30/ciderhq-0.30-source.tar.gz
+	sha256sums = f56be4aee19c20bbd7b117adc4a638b69cf553e29a4cd98556174885eac04600
 
 pkgname = ciderhq
