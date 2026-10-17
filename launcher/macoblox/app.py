@@ -1379,6 +1379,38 @@ class SettingsPage(Adw.Bin):
 
         self.env_page.add(game)
 
+        # VR headsets through the host's OpenXR runtime
+        from . import vr
+        vr_group = Adw.PreferencesGroup(
+            title=_("VR"),
+            description=_("Experimental. Plays in Roblox's own VR mode on a headset connected through an OpenXR "
+                          "runtime such as WiVRn (Meta Quest) or Monado. Applies on next launch."))
+        _runtime, vr_status = vr.status()
+        vr_switch = Adw.SwitchRow(title=_("VR headset (OpenXR)"), subtitle=vr_status,
+                                  active=settings.get("vr", False))
+        vr_scale = Adw.SpinRow.new_with_range(40, 150, 5)
+        vr_scale.set_digits(0)
+        vr_scale.set_title(_("VR render resolution"))
+        vr_scale.set_subtitle(_("Percent of the headset's recommended size per eye. Lower is smoother."))
+        vr_scale.set_value(vr.validated_render_scale(settings.get("vr_render_scale", vr.DEFAULT_RENDER_SCALE)))
+        vr_scale.connect("notify::value", lambda row, _pspec: window.set_setting(
+            "vr_render_scale", vr.validated_render_scale(row.get_value())))
+        vr_mirror = Adw.SwitchRow(title=_("Show the headset view in the game window"),
+                                  subtitle=_("Both eyes side by side on the desktop. Off saves a little time per frame."),
+                                  active=settings.get("vr_mirror", True))
+        vr_mirror.connect("notify::active", lambda row, _pspec: window.set_setting("vr_mirror", row.get_active()))
+
+        def vr_toggled(row, _pspec=None):
+            vr_scale.set_sensitive(row.get_active())
+            vr_mirror.set_sensitive(row.get_active())
+
+        vr_switch.connect("notify::active", lambda row, _pspec: window.set_setting("vr", row.get_active()))
+        vr_switch.connect("notify::active", vr_toggled)
+        vr_toggled(vr_switch)
+        for row in (vr_switch, vr_scale, vr_mirror):
+            vr_group.add(row)
+        self.env_page.add(vr_group)
+
         # 3. Discord Rich Presence
         discord_group = Adw.PreferencesGroup(title=_("Discord Rich Presence"))
 

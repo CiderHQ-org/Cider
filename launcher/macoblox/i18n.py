@@ -6,6 +6,22 @@ LANGUAGES = {"en": "English", "ru": "Русский"}
 _language = "en"
 
 RU = {
+    "VR": "VR",
+    "Experimental. Plays in Roblox's own VR mode on a headset connected through an OpenXR runtime such as WiVRn (Meta Quest) or Monado. Applies on next launch.":
+        "Экспериментально. Запускает собственный VR-режим Roblox на шлеме, подключённом через среду OpenXR, например WiVRn (Meta Quest) или Monado. Применяется при следующем запуске.",
+    "VR headset (OpenXR)": "VR-шлем (OpenXR)",
+    "VR render resolution": "Разрешение рендеринга VR",
+    "Percent of the headset's recommended size per eye. Lower is smoother.":
+        "Процент от рекомендуемого шлемом размера на каждый глаз. Меньше — плавнее.",
+    "Show the headset view in the game window": "Показывать изображение шлема в окне игры",
+    "Both eyes side by side on the desktop. Off saves a little time per frame.":
+        "Оба глаза рядом на рабочем столе. Если выключить, каждый кадр будет чуть быстрее.",
+    "The OpenXR loader is not installed (package openxr or libopenxr-loader1).":
+        "Загрузчик OpenXR не установлен (пакет openxr или libopenxr-loader1).",
+    "No OpenXR runtime found. Install and start WiVRn or Monado.":
+        "Среда OpenXR не найдена. Установите и запустите WiVRn или Monado.",
+    "Uses {runtime}. Start it and connect the headset before playing.":
+        "Используется {runtime}. Запустите её и подключите шлем перед игрой.",
     "Roblox update broke game compatibility": "Обновление Roblox нарушило совместимость с играми",
     "Roblox is no longer using RakNet. The latest Roblox update has broken game connection compatibility with Cider. Games might not work or may show Error 256.\n\nCheck for a Cider update. If a fix is not available yet, wait for a Cider compatibility patch.":
         "Roblox больше не использует RakNet. Последнее обновление Roblox нарушило совместимость игровых подключений с Cider. Игры могут не работать или выдавать ошибку 256.\n\nПроверьте обновления Cider. Если исправление ещё не доступно, дождитесь патча совместимости для Cider.",

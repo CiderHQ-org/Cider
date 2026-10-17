@@ -43,6 +43,10 @@ clang -O2 -Wall -Wextra tests/wayland_coordinates_test.c -o "$test_build/wayland
 "$test_build/wayland-coordinates"
 clang -O2 -Wall -Wextra tests/drag_cursor_test.c -o "$test_build/drag-cursor"
 "$test_build/drag-cursor"
+if pkg-config --exists openxr egl; then
+  clang -O2 -Wall -Wextra tests/vr_openxr_abi_test.c tests/vr_openxr_abi_khronos.c -o "$test_build/vr-openxr-abi"
+  "$test_build/vr-openxr-abi"
+fi
 if pkg-config --exists sdl2 wayland-client wayland-egl wayland-cursor; then
   clang++ -std=c++17 -O2 -Wall -Wextra -pthread tests/wayland_keyboard_test.cpp \
     $(pkg-config --cflags --libs sdl2 wayland-client wayland-egl wayland-cursor) \

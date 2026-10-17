@@ -448,6 +448,23 @@ under KWin at 100% and 150% scaling.
 </details>
 
 <details>
+<summary>VR headsets (experimental)</summary>
+
+Roblox's macOS client still contains Roblox's VR mode; Cider supplies the
+OpenXR device the Mac build leaves out. Turn on **Settings → Environment → VR →
+VR headset (OpenXR)**, start your OpenXR runtime with the headset connected,
+then play. Meta Quest headsets work through [WiVRn](https://github.com/WiVRn/WiVRn);
+PC headsets through [Monado](https://monado.freedesktop.org/). The OpenXR loader
+must be installed (`openxr` on Arch, `libopenxr-loader1` on Debian/Ubuntu).
+
+The VR home menu, games, head tracking, Touch/Index controllers, vibration and
+recentering work. **VR render resolution** trades sharpness for smoothness
+(70% of the headset's recommendation by default), and the game window can
+mirror both eyes. The headset keeps the refresh rate chosen in the runtime.
+Tested on a Quest 2 with WiVRn 26.9. Details are in [docs/VR.md](docs/VR.md).
+</details>
+
+<details>
 <summary>Roblox Studio</summary>
 
 Press **Roblox Studio** in the launcher. The first time it downloads Wine, DXVK

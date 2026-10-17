@@ -102,6 +102,10 @@ DEFAULT_SETTINGS = {
     "gpu": "auto",
     "roblox_channel": "",
     "mangohud": False,
+    # VR through the host's OpenXR runtime (see vr.py); experimental.
+    "vr": False,
+    "vr_render_scale": 70,
+    "vr_mirror": True,
     "hide_menu_bar": False,
     "dns": "system",
     "dns_custom": "",
@@ -2410,6 +2414,8 @@ class RobloxSession:
             variables.append(f"MACOBLOX_VRAM_BYTES={vram}")
         if self.settings.get("hide_menu_bar"):
             variables.append("MACOBLOX_HIDE_MENU_BAR=1")
+        from . import vr
+        variables.extend(vr.shim_variables(self.settings)[0])
         if not self.settings.get("raw_mouse", True):
             variables.append("MACOBLOX_RAW_MOUSE=0")
         if self.settings.get("framerate_cap", 0) > 0:
@@ -2566,6 +2572,8 @@ class RobloxSession:
             log.write(f"Darling selection: {DARLING_RUNTIME['runtime']}; {DARLING_EXECUTABLE}; root {DARLING_SYSROOT}\n".encode())
             log.write(f"Renderer requested: {renderer_name}\n".encode())
             log.write(f"MangoHud requested: {'Enabled' if self.settings.get('mangohud', False) else 'Disabled'}\n".encode())
+            from . import vr
+            log.write(f"{vr.shim_variables(self.settings)[1]}\n".encode())
             log.write(f"Window backend: {'Wayland' if env.get('MACOBLOX_WAYLAND') == '1' else 'X11 / Xwayland'}\n".encode())
             if self.gpu_adapter:
                 name = self.gpu_adapter["name"].replace("\n", " ").replace("\r", " ")[:200]

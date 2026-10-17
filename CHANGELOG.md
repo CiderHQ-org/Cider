@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Experimental VR: Roblox's own VR mode in a headset through the host's OpenXR
+  runtime (WiVRn for Meta Quest, Monado). Turn it on in **Settings → VR**. The
+  VR home menu, games, head tracking, Touch/Index controllers, vibration and
+  recentering work; render resolution and a desktop mirror are adjustable.
+  Requires the OpenXR loader and a running runtime with the headset connected.
+
 ## 0.25 — 2026-10-15
 
 - Apply native Wayland fullscreen requests made before the platform window
