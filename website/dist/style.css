@@ -126,7 +126,7 @@ h1 { margin: 0 0 .75rem; font-size: clamp(1.8rem, 2.3vw, 2.5rem); font-weight: 6
 .small-links { display: flex; flex-wrap: wrap; gap: .5rem 1rem; color: var(--dim); font-size: 14px; }
 .small-links a, .help-links a { text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 4px; }
 
-.preview-tabs { display: flex; border-bottom: 1px solid var(--subtle-border); background: rgba(10, 10, 10, .4); }
+.preview-tabs { display: flex; overflow-x: auto; border-bottom: 1px solid var(--subtle-border); background: rgba(10, 10, 10, .4); }
 .preview-tab {
   min-height: 44px;
   padding: .6rem 1.2rem;
@@ -135,6 +135,7 @@ h1 { margin: 0 0 .75rem; font-size: clamp(1.8rem, 2.3vw, 2.5rem); font-weight: 6
   color: var(--dim);
   background: transparent;
   font-size: 14px;
+  white-space: nowrap;
 }
 .preview-tab:hover { color: var(--accent); background: var(--raised); }
 .preview-tab[aria-selected="true"] { border-bottom-color: var(--accent); color: var(--accent); }
@@ -193,6 +194,7 @@ h1 { margin: 0 0 .75rem; font-size: clamp(1.8rem, 2.3vw, 2.5rem); font-weight: 6
 
 @media (max-width: 380px) {
   .install-actions .button { flex: 1 1 auto; }
+  .preview-tab { padding: .6rem .8rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

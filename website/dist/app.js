@@ -8,7 +8,7 @@ function selectPreview(tab, focus = false) {
     item.tabIndex = selected ? 0 : -1;
     document.getElementById(item.getAttribute('aria-controls')).hidden = !selected;
   }
-  document.getElementById('preview-title').textContent = tab.id === 'tab-roblox' ? 'Roblox' : 'Launcher';
+  document.getElementById('preview-title').textContent = tab.textContent;
   if (focus) tab.focus();
 }
 for (const tab of tabs) {
