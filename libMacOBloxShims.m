@@ -4510,6 +4510,8 @@ static void event_remove_monitor(id cls, SEL cmd, id monitor) {
 // releases to whoever has it then, so a key held during Alt+Tab stayed
 // "down" (the character kept walking).
 static volatile unsigned char macoblox_key_down[128];
+extern int macoblox_wayland_key_transition(id);
+extern int macoblox_wayland_dispatch_event(id);
 static void macoblox_track_key_event(id event, unsigned long type) {
     if (type != 10 && type != 11 && type != 12) // keyDown, keyUp, flagsChanged
         return;
@@ -4517,6 +4519,13 @@ static void macoblox_track_key_event(id event, unsigned long type) {
         event, sel_registerName("keyCode"));
     if (key >= 128)
         return;
+    int transition = macoblox_wayland_key_transition(event);
+    if (transition) {
+        // Explicit transitions distinguish left/right modifiers even when
+        // the other Ctrl/Shift key remains held during flagsChanged.
+        macoblox_key_down[key] = transition == 1;
+        return;
+    }
     if (type != 12) {
         macoblox_key_down[key] = type == 10;
         return;
@@ -4543,6 +4552,8 @@ static int macoblox_trace_keys_enabled(void);
 static void (*orig_app_send_event)(id, SEL, id) = 0;
 static void hooked_app_send_event(id self, SEL cmd, id event) {
     if (event) {
+        if (macoblox_wayland_dispatch_event(event))
+            return;
         unsigned long type = ((unsigned long (*)(id, SEL))objc_msgSend)(
             event, sel_registerName("type"));
         macoblox_track_key_event(event, type);

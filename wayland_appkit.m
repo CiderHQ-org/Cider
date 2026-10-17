@@ -25,6 +25,9 @@ extern int snprintf(char *,unsigned long,const char *,...);
 extern Class objc_getClass(const char *);
 extern Method class_getInstanceMethod(Class,SEL);
 extern IMP method_getImplementation(Method);
+extern IMP method_setImplementation(Method,IMP);
+extern void objc_setAssociatedObject(id,const void *,id,unsigned long);
+extern id objc_getAssociatedObject(id,const void *);
 extern const char *method_getTypeEncoding(Method);
 extern BOOL class_addMethod(Class,SEL,IMP,const char *);
 extern SEL sel_registerName(const char *);
@@ -52,6 +55,9 @@ extern unsigned long CGBitmapContextGetBytesPerRow(void *);
 - (const char *)UTF8String; - (BOOL)isEqual:(id)other;
 - (id)initWithData:(id)data encoding:(NSUInteger)encoding;
 - (id)dataUsingEncoding:(NSUInteger)encoding;
+@end
+@interface NSResponder:NSObject
+- (void)interpretKeyEvents:(id)events;
 @end
 @interface NSNumber:NSObject
 + (id)numberWithInt:(int)value; + (id)numberWithDouble:(double)value;
@@ -107,6 +113,7 @@ extern unsigned long CGBitmapContextGetBytesPerRow(void *);
 - (void)insertText:(id)text;
 @end
 @interface NSDisplay:NSObject {NSMutableArray *_eventQueue;}
++ (id)currentDisplay;
 - (void)postEvent:(id)event atStart:(BOOL)start;
 - (id)nextEventMatchingMask:(unsigned long long)mask untilDate:(id)date inMode:(id)mode dequeue:(BOOL)dequeue;
 @end
@@ -118,6 +125,10 @@ extern unsigned long CGBitmapContextGetBytesPerRow(void *);
 @interface NSEvent:NSObject
 + (id)mouseEventWithType:(NSUInteger)type location:(NSPoint)point modifierFlags:(NSUInteger)flags window:(id)window clickCount:(NSInteger)count deltaX:(double)dx deltaY:(double)dy;
 + (id)keyEventWithType:(NSUInteger)type location:(NSPoint)point modifierFlags:(NSUInteger)flags timestamp:(double)time windowNumber:(NSInteger)number context:(id)context characters:(NSString *)text charactersIgnoringModifiers:(NSString *)plain isARepeat:(BOOL)repeat keyCode:(unsigned short)key;
++ (id)otherEventWithType:(NSUInteger)type location:(NSPoint)point modifierFlags:(NSUInteger)flags timestamp:(double)time windowNumber:(NSInteger)number context:(id)context subtype:(short)subtype data1:(NSInteger)first data2:(NSInteger)second;
+- (NSUInteger)type; - (NSUInteger)modifierFlags; - (NSPoint)locationInWindow;
+- (double)timestamp; - (NSInteger)windowNumber; - (unsigned short)keyCode;
+- (NSString *)charactersIgnoringModifiers; - (BOOL)isARepeat;
 - (void)_setButtonNumber:(NSInteger)button;
 @end
 @interface NSImage:NSObject
@@ -135,6 +146,44 @@ static const struct macoblox_wayland_api *api;
 static BOOL initialized;
 static NSMutableArray *windows;
 static unsigned modifiers;
+static char key_transition_key,event_flags_key,queued_input_key;
+static void (*original_interpret_keys)(id,SEL,id);
+/* Keep the physical event's characters available to the game, but make
+ * SDL_TEXTINPUT the only source of inserted text. Darling's interpreter still
+ * sees charactersIgnoringModifiers for shortcuts and navigation bindings. */
+static void interpret_wayland_keys(id self,SEL cmd,NSArray *incoming) {
+    NSMutableArray *events=[NSMutableArray new];
+    for(NSUInteger i=0;i<[incoming count];i++) {
+        NSEvent *event=[incoming objectAtIndex:i];
+        if(objc_getAssociatedObject(event,&key_transition_key)) {
+            NSUInteger flags=[event modifierFlags];
+            unsigned short key=[event keyCode];
+            /* Preserve Linux Ctrl word/document navigation in the text
+             * interpreter while gameplay receives the physical Control key.
+             * Darling's bindings use Command for arrows/Delete, Option for
+             * backward word deletion. Shift-selection keeps its own bit. */
+            if((flags&(1UL<<18)) && !(flags&((1UL<<19)|(1UL<<20)))) {
+                if(key==123 || key==124 || key==115 || key==119 || key==117)
+                    flags=(flags&~(1UL<<18))|(1UL<<20);
+                else if(key==51)flags=(flags&~(1UL<<18))|(1UL<<19);
+            }
+            event=[NSEvent keyEventWithType:[event type] location:[event locationInWindow]
+                modifierFlags:flags timestamp:[event timestamp]
+                windowNumber:[event windowNumber] context:nil characters:@""
+                charactersIgnoringModifiers:[event charactersIgnoringModifiers]
+                isARepeat:[event isARepeat] keyCode:[event keyCode]];
+        }
+        [events addObject:event];
+    }
+    @try {original_interpret_keys(self,cmd,events);}
+    @finally {[events release];}
+}
+int macoblox_wayland_key_transition(id event) {
+    return [(NSNumber *)objc_getAssociatedObject(event,&key_transition_key) longValue];
+}
+static void tag_event(id event,unsigned flags) {
+    objc_setAssociatedObject(event,&event_flags_key,[NSNumber numberWithLong:flags],1);
+}
 static struct {NSPoint point;NSRect frame;unsigned window;} pointer_state;
 static volatile unsigned pointer_lock;
 static void lock_pointer(void){while(__atomic_exchange_n(&pointer_lock,1,__ATOMIC_ACQUIRE))__asm__ volatile("pause");}
@@ -195,6 +244,8 @@ static void initialize(void) {
     if(CGLRegisterNativeDisplay(api->display()))
         [NSException raise:@"NSWindowServerCommunicationException" format:@"Native Wayland EGL initialization failed"];
     windows=[NSMutableArray new];
+    Method interpret=class_getInstanceMethod(objc_getClass("NSResponder"),@selector(interpretKeyEvents:));
+    original_interpret_keys=(void *)method_setImplementation(interpret,(IMP)interpret_wayland_keys);
     initialized=YES;
 }
 @interface MacOBloxWaylandWindow:CGWindow {
@@ -346,6 +397,54 @@ static BOOL subwindow_frame(MacOBloxWaylandWindow *parent,NSRect value,int *x,in
 - (void)grabMouse:(BOOL)value;
 - (void)warpMouse:(NSPoint)position;
 @end
+@interface MacOBloxWaylandQueuedInput:NSObject {
+@public unsigned kind,flags,buttons;NSWindow *owner;MacOBloxWaylandWindow *window;NSString *text;
+}
+@end
+@implementation MacOBloxWaylandQueuedInput
+- (void)dealloc{[owner release];[window release];[text release];[super dealloc];}
+@end
+/* Text and focus changes must follow earlier queued key/mouse events. Calling
+ * insertText inside the pump used the old responder and inserted once before
+ * keyDown inserted the same character a second time. */
+static id queued_input(MacOBloxWaylandWindow *window,const struct macoblox_wayland_event *input) {
+    MacOBloxWaylandQueuedInput *queued=[MacOBloxWaylandQueuedInput new];
+    queued->kind=input->type;queued->flags=input->modifiers;
+    queued->buttons=window->buttons;
+    queued->owner=[window->owner retain];queued->window=[window retain];
+    if(input->type==MW_TEXT)queued->text=[[NSString stringWithUTF8String:input->text] retain];
+    id event=[NSEvent otherEventWithType:15 location:(NSPoint){0,0} modifierFlags:input->modifiers
+        timestamp:[NSDate timeIntervalSinceReferenceDate] windowNumber:[window->owner windowNumber]
+        context:nil subtype:0 data1:0 data2:0];
+    objc_setAssociatedObject(event,&queued_input_key,queued,1);[queued release];return event;
+}
+int macoblox_wayland_dispatch_event(id event) {
+    NSNumber *flags=objc_getAssociatedObject(event,&event_flags_key);
+    if(flags)modifiers=[flags longValue];
+    MacOBloxWaylandQueuedInput *queued=objc_getAssociatedObject(event,&queued_input_key);
+    if(!queued)return 0;
+    modifiers=queued->flags;
+    MacOBloxWaylandWindow *window=queued->window;NSWindow *owner=queued->owner;
+    if(window->owner!=owner)return 1; // closed while the event was queued
+    if(queued->kind==MW_TEXT) {
+        id responder=[owner firstResponder];
+        if(queued->text && [responder respondsToSelector:@selector(insertText:)])
+            [responder insertText:queued->text];
+    } else if(queued->kind==MW_FOCUS) {
+        [owner platformWindowActivated:window displayIfNeeded:YES];
+        if(__atomic_load_n(&capture_requested,__ATOMIC_ACQUIRE))
+            [(MacOBloxWaylandDisplay *)[NSDisplay currentDisplay] grabMouse:YES];
+    } else if(queued->kind==MW_BLUR) {
+        NSPoint point=pointer_snapshot().point;
+        NSPoint location={point.x,window->frame.size.height-point.y};
+        for(unsigned button=1;button<32;button++)if(queued->buttons&(1u<<button)) {
+            NSEvent *up=[NSEvent mouseEventWithType:button==1?2:button==3?4:26 location:location modifierFlags:0 window:owner clickCount:1 deltaX:0 deltaY:0];
+            [up _setButtonNumber:button];[[NSApplication sharedApplication] sendEvent:up];
+        }
+        [owner platformWindowDeactivated:window checkForAppDeactivation:YES];
+    }
+    return 1;
+}
 @implementation MacOBloxWaylandDisplay
 - (id)init {
     if(!(self=[super init]))return nil;
@@ -467,33 +566,33 @@ static BOOL subwindow_frame(MacOBloxWaylandWindow *parent,NSRect value,int *x,in
             MacOBloxWaylandWindow *window=nil;
             for(NSUInteger j=0;j<[windows count];j++){MacOBloxWaylandWindow *candidate=(void *)[(NSNumber *)[windows objectAtIndex:j] longValue];if(candidate->handle==input.window){window=candidate;break;}}
             if(!window || !window->owner)continue;
-            NSWindow *owner=window->owner;modifiers=input.modifiers;
+            NSWindow *owner=window->owner;
             if(input.type==MW_CAPTURE){__atomic_store_n(&captured,input.button?input.window:0,__ATOMIC_RELEASE);continue;}
             if(input.type==MW_RESIZE){window->frame.size=(NSSize){input.x,input.y};pointer_frame(window->handle,window->frame);if(window->bitmap)CGContextRelease(window->bitmap);window->bitmap=0;[owner platformWindow:window frameChanged:window->frame didSize:YES];continue;}
             if(input.type==MW_CLOSE){[owner performClose:nil];continue;}
-            if(input.type==MW_FOCUS){pointer_event(input.window,window->frame,(NSPoint){input.x,input.y});[owner platformWindowActivated:window displayIfNeeded:YES];if(__atomic_load_n(&capture_requested,__ATOMIC_ACQUIRE))[self grabMouse:YES];continue;}
-            if(input.type==MW_BLUR){
-                __atomic_store_n(&captured,0,__ATOMIC_RELEASE);
-                NSPoint point=pointer_snapshot().point;
-                NSPoint location={point.x,window->frame.size.height-point.y};
-                for(unsigned button=1;button<32;button++)if(window->buttons&(1u<<button)){
-                    NSEvent *up=[NSEvent mouseEventWithType:button==1?2:button==3?4:26 location:location modifierFlags:0 window:owner clickCount:1 deltaX:0 deltaY:0];[up _setButtonNumber:button];[[NSApplication sharedApplication] sendEvent:up];
-                }
-                window->buttons=0;[owner platformWindowDeactivated:window checkForAppDeactivation:YES];continue;
+            if(input.type==MW_TEXT || input.type==MW_FOCUS || input.type==MW_BLUR){
+                if(input.type==MW_FOCUS)pointer_event(input.window,window->frame,(NSPoint){input.x,input.y});
+                if(input.type==MW_BLUR)__atomic_store_n(&captured,0,__ATOMIC_RELEASE);
+                [self postEvent:queued_input(window,&input) atStart:NO];
+                if(input.type==MW_BLUR)window->buttons=0;
+                continue;
             }
-            if(input.type==MW_TEXT){id responder=[owner firstResponder];if([responder respondsToSelector:@selector(insertText:)])[responder insertText:[NSString stringWithUTF8String:input.text]];continue;}
             if(input.type==MW_KEY_DOWN || input.type==MW_KEY_UP){
                 if(input.key==0xffff)continue;NSString *text=[NSString stringWithUTF8String:input.text];
                 unsigned type=(input.key>=54 && input.key<=62)?12:input.type==MW_KEY_DOWN?10:11;
                 NSPoint point=pointer_snapshot().point;
-                [self postEvent:[NSEvent keyEventWithType:type location:(NSPoint){point.x,window->frame.size.height-point.y} modifierFlags:modifiers timestamp:[NSDate timeIntervalSinceReferenceDate] windowNumber:[owner windowNumber] context:nil characters:text charactersIgnoringModifiers:text isARepeat:input.repeat keyCode:input.key] atStart:NO];continue;
+                id event=[NSEvent keyEventWithType:type location:(NSPoint){point.x,window->frame.size.height-point.y} modifierFlags:input.modifiers timestamp:[NSDate timeIntervalSinceReferenceDate] windowNumber:[owner windowNumber] context:nil characters:text charactersIgnoringModifiers:text isARepeat:input.repeat keyCode:input.key];
+                tag_event(event,input.modifiers);
+                objc_setAssociatedObject(event,&key_transition_key,[NSNumber numberWithInt:input.type==MW_KEY_DOWN?1:2],1);
+                [self postEvent:event atStart:NO];continue;
             }
             pointer_event(input.window,window->frame,(NSPoint){input.x,input.y});NSPoint location={input.x,window->frame.size.height-input.y};unsigned type=5;
             if(input.type==MW_DOWN || input.type==MW_UP){if(input.button<32){if(input.type==MW_DOWN)window->buttons|=1u<<input.button;else window->buttons&=~(1u<<input.button);}type=input.button==1?(input.type==MW_DOWN?1:2):input.button==3?(input.type==MW_DOWN?3:4):(input.type==MW_DOWN?25:26);}
             else if(input.type==MW_SCROLL)type=22;
             else type=(window->buttons&(1u<<1))?6:(window->buttons&(1u<<3))?7:window->buttons?27:5;
             /* Existing deltaY compatibility hook flips Cocoa's vertical delta. */
-            NSEvent *event=[NSEvent mouseEventWithType:type location:location modifierFlags:modifiers window:owner clickCount:input.clicks?:1 deltaX:input.dx deltaY:input.type==MW_SCROLL?input.dy:-input.dy];
+            NSEvent *event=[NSEvent mouseEventWithType:type location:location modifierFlags:input.modifiers window:owner clickCount:input.clicks?:1 deltaX:input.dx deltaY:input.type==MW_SCROLL?input.dy:-input.dy];
+            tag_event(event,input.modifiers);
             [event _setButtonNumber:input.button];[self postEvent:event atStart:NO];
             if(input.type==MW_MOTION)[owner platformWindowSetCursorEvent:window];
         }

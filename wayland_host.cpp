@@ -30,6 +30,8 @@ struct Window {
     wl_egl_window *surface;
     double x=0, y=0, anchor_x=0, anchor_y=0;
     bool capture=false, requested_capture=false, focused=false;
+    bool keys[128]{};
+    unsigned key_modifiers=0;
     MacOBloxDragCursor drag_cursor{};
     wl_surface *wl_surface_handle=nullptr,*cursor_surface=nullptr;
     wl_subsurface *cursor_subsurface=nullptr;
@@ -210,11 +212,10 @@ template<class F> auto sync(F operation) -> decltype(operation()) {
     enqueue([result]{(*result)();});
     return future.get();
 }
-unsigned modifiers() {
-    auto value=SDL_GetModState();
+unsigned modifiers(SDL_Keymod value=SDL_GetModState()) {
     return ((value&KMOD_CAPS)?1u<<16:0) | ((value&KMOD_SHIFT)?1u<<17:0) |
-           ((value&KMOD_CTRL)?1u<<20:0) | ((value&KMOD_ALT)?1u<<19:0) |
-           ((value&KMOD_GUI)?1u<<18:0);
+           ((value&KMOD_CTRL)?1u<<18:0) | ((value&KMOD_ALT)?1u<<19:0) |
+           ((value&KMOD_GUI)?1u<<20:0);
 }
 unsigned mac_key(SDL_Scancode key) {
     /* USB/SDL physical keys to Apple's virtual key codes. Text is delivered
@@ -233,9 +234,9 @@ unsigned mac_key(SDL_Scancode key) {
     case SDL_SCANCODE_APOSTROPHE:return 39;case SDL_SCANCODE_GRAVE:return 50;
     case SDL_SCANCODE_COMMA:return 43;case SDL_SCANCODE_PERIOD:return 47;case SDL_SCANCODE_SLASH:return 44;
     case SDL_SCANCODE_CAPSLOCK:return 57;case SDL_SCANCODE_LSHIFT:return 56;case SDL_SCANCODE_RSHIFT:return 60;
-    case SDL_SCANCODE_LCTRL:return 55;case SDL_SCANCODE_RCTRL:return 54;
+    case SDL_SCANCODE_LCTRL:return 59;case SDL_SCANCODE_RCTRL:return 62;
     case SDL_SCANCODE_LALT:return 58;case SDL_SCANCODE_RALT:return 61;
-    case SDL_SCANCODE_LGUI:return 59;case SDL_SCANCODE_RGUI:return 62;
+    case SDL_SCANCODE_LGUI:return 55;case SDL_SCANCODE_RGUI:return 54;
     case SDL_SCANCODE_LEFT:return 123;case SDL_SCANCODE_RIGHT:return 124;
     case SDL_SCANCODE_DOWN:return 125;case SDL_SCANCODE_UP:return 126;
     case SDL_SCANCODE_HOME:return 115;case SDL_SCANCODE_END:return 119;
@@ -252,6 +253,25 @@ unsigned mac_key(SDL_Scancode key) {
     case SDL_SCANCODE_KP_MULTIPLY:return 67;case SDL_SCANCODE_KP_MINUS:return 78;case SDL_SCANCODE_KP_PLUS:return 69;
     default:return 0xffff;
     }
+}
+void key_text(SDL_Keycode symbol,char *text) {
+    unsigned code=0;
+    switch(symbol) {
+    case SDLK_UP:code=0xf700;break;case SDLK_DOWN:code=0xf701;break;
+    case SDLK_LEFT:code=0xf702;break;case SDLK_RIGHT:code=0xf703;break;
+    case SDLK_DELETE:code=0xf728;break;case SDLK_HOME:code=0xf729;break;
+    case SDLK_END:code=0xf72b;break;case SDLK_PAGEUP:code=0xf72c;break;
+    case SDLK_PAGEDOWN:code=0xf72d;break;case SDLK_KP_ENTER:code='\r';break;
+    default:
+        if(symbol>=SDLK_F1 && symbol<=SDLK_F12)code=0xf704+symbol-SDLK_F1;
+        else if(symbol>0 && !(symbol&SDLK_SCANCODE_MASK))code=(unsigned)symbol;
+        break;
+    }
+    if(!code || code>0x10ffff || (code>=0xd800 && code<=0xdfff))return;
+    if(code<0x80){text[0]=code;text[1]=0;}
+    else if(code<0x800){text[0]=0xc0|(code>>6);text[1]=0x80|(code&63);text[2]=0;}
+    else if(code<0x10000){text[0]=0xe0|(code>>12);text[1]=0x80|((code>>6)&63);text[2]=0x80|(code&63);text[3]=0;}
+    else {text[0]=0xf0|(code>>18);text[1]=0x80|((code>>12)&63);text[2]=0x80|((code>>6)&63);text[3]=0x80|(code&63);text[4]=0;}
 }
 void push(macoblox_wayland_event event) {
     std::lock_guard<std::mutex> guard(queue_mutex);
@@ -279,7 +299,7 @@ void translate(const SDL_Event &input) {
     auto found=windows.find(input.window.windowID);
     if(found==windows.end())return;
     auto &window=found->second;
-    macoblox_wayland_event event{};event.window=found->first;event.modifiers=modifiers();
+    macoblox_wayland_event event{};event.window=found->first;event.modifiers=window.key_modifiers;
     event.x=window.capture?window.anchor_x:window.x;event.y=window.capture?window.anchor_y:window.y;
     switch(input.type) {
     case SDL_MOUSEMOTION:
@@ -305,9 +325,15 @@ void translate(const SDL_Event &input) {
         break;
     case SDL_KEYDOWN:case SDL_KEYUP:
         event.type=input.type==SDL_KEYDOWN?MW_KEY_DOWN:MW_KEY_UP;event.key=mac_key(input.key.keysym.scancode);
+        /* SDL pumps a whole batch before we read it. GetModState can already
+         * describe a later Ctrl release; the event owns the correct snapshot. */
+        event.modifiers=modifiers((SDL_Keymod)input.key.keysym.mod);
+        window.key_modifiers=event.modifiers;
         event.repeat=input.key.repeat;
-        if(input.key.keysym.scancode>=SDL_SCANCODE_KP_DIVIDE && input.key.keysym.scancode<=SDL_SCANCODE_KP_PERIOD)event.modifiers|=1u<<21;
-        if(input.key.keysym.sym>0 && input.key.keysym.sym<128){event.text[0]=(char)input.key.keysym.sym;event.text[1]=0;}
+        if(event.key<128)window.keys[event.key]=input.type==SDL_KEYDOWN;
+        if((input.key.keysym.scancode>=SDL_SCANCODE_KP_DIVIDE && input.key.keysym.scancode<=SDL_SCANCODE_KP_PERIOD) ||
+           (input.key.keysym.scancode>=SDL_SCANCODE_INSERT && input.key.keysym.scancode<=SDL_SCANCODE_UP))event.modifiers|=1u<<21;
+        key_text(input.key.keysym.sym,event.text);
         break;
     case SDL_TEXTINPUT:event.type=MW_TEXT;std::snprintf(event.text,sizeof event.text,"%s",input.text.text);break;
     case SDL_WINDOWEVENT:
@@ -320,11 +346,19 @@ void translate(const SDL_Event &input) {
             }
             event.type=MW_RESIZE;event.x=input.window.data1;event.y=input.window.data2;break;
         case SDL_WINDOWEVENT_FOCUS_GAINED:
+            window.key_modifiers=event.modifiers=modifiers();
             window.focused=true;event.type=MW_FOCUS;
             capture(window,found->first,window.requested_capture);break;
         case SDL_WINDOWEVENT_FOCUS_LOST:
+            /* Releases otherwise go to the newly focused client. Queue them
+             * after our last key press so polling cannot retain stuck keys. */
+            for(unsigned key=0;key<128;key++)if(window.keys[key]) {
+                macoblox_wayland_event up{};up.type=MW_KEY_UP;up.window=found->first;up.key=key;
+                window.keys[key]=false;push(up);
+            }
             macoblox_drag_cursor_buttons(&window.drag_cursor,0);
-            window.focused=false;capture(window,found->first,false);event.type=MW_BLUR;break;
+            window.focused=false;capture(window,found->first,false);event.type=MW_BLUR;
+            window.key_modifiers=event.modifiers=0;break;
         case SDL_WINDOWEVENT_CLOSE:event.type=MW_CLOSE;break;
         default:return;
         }
