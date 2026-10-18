@@ -96,7 +96,7 @@ static void log_packet(const char *direction, int fd, long result, int error, co
         snprintf(where, sizeof where, " %u.%u.%u.%u:%u", address[4], address[5], address[6],
                  address[7], (unsigned)(address[2] << 8 | address[3]));
     char line[160];
-    int length = snprintf(line, sizeof line, "[Cider PKT] %7.1fms %s fd=%d %ld%s\n",
+    int length = snprintf(line, sizeof line, "[Quadra PKT] %7.1fms %s fd=%d %ld%s\n",
                           (now - trace_start) / 1e6, direction, fd,
                           result < 0 ? -(long)error : result, where);
     if (length > 0)
@@ -221,12 +221,12 @@ static void check_stalls(unsigned long long now) {
             if (stall_locating[fd] && macoblox_located(stall_tid[fd], where, sizeof where)) {
                 stall_locating[fd] = 0;
                 say(line, sizeof line,
-                    snprintf(line, sizeof line, "[Cider UDP] fd=%d reader thread was at: %s\n", fd, where));
+                    snprintf(line, sizeof line, "[Quadra UDP] fd=%d reader thread was at: %s\n", fd, where));
             }
             if (last != stall_since[fd]) {
                 say(line, sizeof line,
                     snprintf(line, sizeof line,
-                             "[Cider UDP] fd=%d read again ~%llu ms after its data came (%d kick(s))\n", fd,
+                             "[Quadra UDP] fd=%d read again ~%llu ms after its data came (%d kick(s))\n", fd,
                              last > pending_since[fd] ? (last - pending_since[fd]) / 1000000ULL : 0ULL,
                              macoblox_kicks_enabled() ? stall_kicks[fd] : 0));
                 stall_since[fd] = 0;
@@ -266,7 +266,7 @@ static void check_stalls(unsigned long long now) {
         char line[160];
         say(line, sizeof line,
             snprintf(line, sizeof line,
-                     "[Cider UDP] STALL fd=%d: data unread for %llu ms (last read %llu ms ago), %s thread %ld\n",
+                     "[Quadra UDP] STALL fd=%d: data unread for %llu ms (last read %llu ms ago), %s thread %ld\n",
                      fd, (now - pending_since[fd]) / 1000000ULL, (now - last) / 1000000ULL,
                      macoblox_kicks_enabled() ? "kicking" : "not kicking (MACOBLOX_KICK=1 enables)", stall_tid[fd]));
         macoblox_kick(stall_tid[fd], stall_locating[fd]);
@@ -287,7 +287,7 @@ static void *watchdog(void *unused) {
                            udp_send_calls, udp_send_ok, udp_send_fail, poll_calls, kevent_calls};
         char line[360];
         int length = snprintf(line, sizeof line,
-            "[Cider UDP] t=%lus recv calls=%ld ok=%ld bytes=%ld eagain=%ld | "
+            "[Quadra UDP] t=%lus recv calls=%ld ok=%ld bytes=%ld eagain=%ld | "
             "send calls=%ld ok=%ld fail=%ld errno=%d | poll=%ld kevent=%ld | synthesized=%ld emulated=%ld "
             "| stalls=%ld lock kicks=%ld\n",
             tick / 10, current[0] - previous[0], current[1] - previous[1], current[2] - previous[2],

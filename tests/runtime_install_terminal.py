@@ -29,7 +29,7 @@ from gi.repository import Gtk
 
 Gtk.init()
 window = Gtk.Window()
-project = base / "Cider %f ' $() directory"
+project = base / "Quadra %f ' $() directory"
 project.mkdir()
 arguments = base / "arguments"
 installer = project / "install.sh"
@@ -37,7 +37,7 @@ installer.write_text('#!/bin/bash\n[[ -t 0 && -t 1 ]] || exit 41\n'
                      'test -r /dev/tty || exit 42\n'
                      'printf "%s\\n" "$@" > ' + shlex.quote(str(arguments)) + '\nexit 0\n')
 try:
-    # The desktop default (xdg-terminal-exec), Cider's own terminal list with
+    # The desktop default (xdg-terminal-exec), Quadra's own terminal list with
     # xdg-terminal-exec hidden, then GIO's list as the last resort.
     real_which = shutil.which
     without_xdg = lambda name: None if name == "xdg-terminal-exec" else real_which(name)

@@ -116,7 +116,7 @@ static void macoblox_startup_trace_line(const char* selector, const char* phase,
                                          const MacOBloxStartupTrace* trace) {
     if (!trace->sequence)
         return;
-    write_str("[Cider Startup] call=");
+    write_str("[Quadra Startup] call=");
     print_num((long long)trace->sequence);
     write_str(" "); write_str(selector);
     if (trace->key[0]) {
@@ -133,7 +133,7 @@ static MacOBloxStartupTrace macoblox_startup_trace_begin(const char* selector,
     unsigned long sequence = __sync_add_and_fetch(&macoblox_startup_trace_sequence, 1);
     if (sequence > 1024) {
         if (sequence == 1025)
-            write_str("[Cider Startup] trace limit reached\n");
+            write_str("[Quadra Startup] trace limit reached\n");
         return trace;
     }
     trace.sequence = sequence;
@@ -192,7 +192,7 @@ static void macoblox_install_startup_diagnostics(void) {
     installed += macoblox_startup_hook(screen ? object_getClass((id)screen) : 0,
         "mainScreen", '@', 2, (IMP)macoblox_startup_main_screen,
         &macoblox_startup_main_screen_original);
-    write_str("[Cider Startup] diagnostic methods installed=");
+    write_str("[Quadra Startup] diagnostic methods installed=");
     print_num(installed); write_str("/5\n");
 }
 

@@ -29,7 +29,7 @@ def validate(data):
         raise ValueError('Invalid CiderDarling release identity')
     minimum = data.get('minimum_cider')
     if not isinstance(minimum, str) or not re.fullmatch(r'[0-9]+(?:\.[0-9]+)*', minimum):
-        raise ValueError('Invalid required Cider version')
+        raise ValueError('Invalid required Quadra version')
     ancestors = data.get('supersedes')
     if (not isinstance(ancestors, list) or len(ancestors) > 128
             or any(not isinstance(value, str) or not re.fullmatch('[0-9a-f]{40}', value) for value in ancestors)):
@@ -92,7 +92,7 @@ def check(cache, *, force=False, opener=urllib.request.urlopen):
     path = cache_path(cache)
     if not force and prior and time.time() - path.stat().st_mtime < CHECK_INTERVAL:
         return prior
-    request = urllib.request.Request(FEED_URL, headers={'User-Agent': f'Cider/{__version__}',
+    request = urllib.request.Request(FEED_URL, headers={'User-Agent': f'Quadra/{__version__}',
                                                        'Accept': 'application/json'})
     with opener(request, timeout=12) as response:
         raw = response.read(MAX_BYTES + 1)

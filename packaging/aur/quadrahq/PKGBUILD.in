@@ -1,12 +1,12 @@
 # Maintainer: aubree.wtf <https://aubree.wtf/>
-pkgname=ciderhq
+pkgname=quadrahq
 # Keep the release tag separate from pacman's package version.
 _tag=0.30
 pkgver=0.30
 pkgrel=1
 pkgdesc='Run the macOS Roblox client on Linux through Darling'
 arch=('x86_64')
-url='https://ciderhq.org'
+url='https://quadrahq.org'
 _repo='https://github.com/CiderHQ-org/Cider'
 license=('GPL-3.0-only' 'MIT' 'OFL-1.1')
 depends=('unzip' 'python' 'python-gobject' 'python-cairo'
@@ -15,25 +15,25 @@ depends=('unzip' 'python' 'python-gobject' 'python-cairo'
 depends+=('hicolor-icon-theme' 'shared-mime-info' 'desktop-file-utils')
 makedepends=('clang' 'lld' 'pkgconf')
 optdepends=('darling: regular Darling runtime'
-            'ciderdarling-bin: CiderHQ Darling runtime (also available from the launcher)'
+            'ciderdarling-bin: QuadraHQ Darling runtime (also available from the launcher)'
             'mangohud: performance overlay'
             'mesa: Mesa EGL and Zink for the Vulkan renderer'
             'vulkan-icd-loader: Vulkan renderer loader'
             'vulkan-driver: hardware Vulkan driver for the Vulkan renderer'
             'pipewire-audio: native PipeWire audio playback')
-provides=('macoblox')
-conflicts=('ciderhq-git' 'macoblox' 'macoblox-git')
-replaces=('macoblox')
-source=("$pkgname-$_tag.tar.gz::$_repo/releases/download/v$_tag/ciderhq-$_tag-source.tar.gz")
+provides=('ciderhq' 'macoblox')
+conflicts=('quadrahq-git' 'ciderhq' 'ciderhq-git' 'macoblox' 'macoblox-git')
+replaces=('ciderhq' 'macoblox')
+source=("$pkgname-$_tag.tar.gz::$_repo/releases/download/v$_tag/quadrahq-$_tag-source.tar.gz")
 sha256sums=('@RELEASE_SHA256@')
 
 build() {
-  cd "Cider-$_tag"
+  cd "Quadra-$_tag"
   MACOBLOX_BUILD_DIR="$srcdir/native-build" ./build_debug_shim.sh
 }
 
 package() {
-  cd "Cider-$_tag"
+  cd "Quadra-$_tag"
   bash packaging/install-payload.sh "$PWD" "$srcdir/native-build" "$pkgdir" /usr/lib
-  python -m compileall -q -d /usr/share/ciderhq/launcher "$pkgdir/usr/share/ciderhq/launcher"
+  python -m compileall -q -d /usr/share/quadrahq/launcher "$pkgdir/usr/share/quadrahq/launcher"
 }

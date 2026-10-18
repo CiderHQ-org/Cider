@@ -39,7 +39,7 @@ static int native_hid_inventory(unsigned int master, const void *matching, unsig
     *iterator = 0;
     static unsigned reported;
     if (!__atomic_exchange_n(&reported, 1, __ATOMIC_RELAXED)) {
-        static const char message[] = "[Cider Wayland] Unsupported IOHIDDevice inventory is empty\n";
+        static const char message[] = "[Quadra Wayland] Unsupported IOHIDDevice inventory is empty\n";
         write(2, message, sizeof message - 1);
     }
     return 0;
@@ -54,7 +54,7 @@ static unsigned int native_platform_service(unsigned int master, const void *mat
     CFRelease(matching);
     static unsigned reported;
     if (!__atomic_exchange_n(&reported, 1, __ATOMIC_RELAXED)) {
-        static const char message[] = "[Cider Wayland] Apple platform service is unavailable\n";
+        static const char message[] = "[Quadra Wayland] Apple platform service is unavailable\n";
         write(2, message, sizeof message - 1);
     }
     return 0;
@@ -64,7 +64,7 @@ static int native_input(void) {
     if (!macoblox_wayland_enabled()) return 0;
     static unsigned reported;
     if (!__atomic_exchange_n(&reported, 1, __ATOMIC_RELAXED)) {
-        static const char message[] = "[Cider Wayland] Using SDL input; unsupported IOKit HID discovery skipped\n";
+        static const char message[] = "[Quadra Wayland] Using SDL input; unsupported IOKit HID discovery skipped\n";
         write(2, message, sizeof message - 1);
     }
     return 1;

@@ -3,17 +3,17 @@
 Collected without stopping the game: every Roblox thread's state and kernel
 wait channel, sampled twice a few seconds apart (a frozen thread keeps the
 same wait), the recent launcher, Roblox and darlingserver logs, the runtime
-selection and the Cider/Darling environment variables of the game.
+selection and the Quadra/Darling environment variables of the game.
 
 Reading where a thread is in user space (its system call, instruction pointer
 and stack) needs ptrace permission. Under Yama (kernel.yama.ptrace_scope=1,
 the usual default) only an ancestor may read that, and Roblox is a child of
-darlingserver, not of Cider, so the game must allow it: the shim does when
+darlingserver, not of Quadra, so the game must allow it: the shim does when
 MACOBLOX_ALLOW_DEBUGGER=1 (Settings, or the environment). Then each thread's
 instruction pointer and the likely return addresses on its stack are given as
 library + offset; `--gdb` adds gdb's backtraces (gdb briefly stops the game).
 
-Credentials stay out: environment variables are filtered to Cider, Darling
+Credentials stay out: environment variables are filtered to Quadra, Darling
 and graphics settings, and join tickets and cookies in logs are redacted.
 """
 import io
@@ -406,7 +406,7 @@ def collect(output_dir=None, *, gdb=False, symbolize=True, interval=SAMPLE_INTER
     stamp = time.strftime("%Y%m%d-%H%M%S")
     output_dir = Path(output_dir) if output_dir else core.CACHE_DIR / "diagnostics"
     files = {}
-    summary = [f"Cider {__version__}", f"Collected {time.strftime('%Y-%m-%d %H:%M:%S %z')}",
+    summary = [f"Quadra {__version__}", f"Collected {time.strftime('%Y-%m-%d %H:%M:%S %z')}",
                f"Kernel {platform.release()} ({platform.machine()}); CPUs {os.cpu_count()}",
                f"Darling {core.DARLING_EXECUTABLE}; sysroot {core.DARLING_SYSROOT}; prefix {core.DARLING_PREFIX}"]
     metadata = core.DARLING_RUNTIME.get("metadata") or {}
@@ -417,7 +417,7 @@ def collect(output_dir=None, *, gdb=False, symbolize=True, interval=SAMPLE_INTER
     # Full GPU scenarios remain an explicit hardware-report action.
     from . import hardware_report
     try:
-        with tempfile.TemporaryDirectory(prefix='cider-diagnostics-hardware-') as directory:
+        with tempfile.TemporaryDirectory(prefix='quadra-diagnostics-hardware-') as directory:
             report = hardware_report.collect(directory)
             files['hardware.json'] = report.read_bytes()
     except (OSError, ValueError):
@@ -473,12 +473,12 @@ def collect(output_dir=None, *, gdb=False, symbolize=True, interval=SAMPLE_INTER
 
     try:
         output_dir.mkdir(parents=True, exist_ok=True)
-        archive = output_dir / f"cider-diagnostics-{stamp}.tar.gz"
+        archive = output_dir / f"quadra-diagnostics-{stamp}.tar.gz"
         descriptor = os.open(archive, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(descriptor, "wb") as raw, tarfile.open(fileobj=raw, mode="w:gz") as bundle:
             for name, content in files.items():
                 data = content.encode() if isinstance(content, str) else content
-                info = tarfile.TarInfo(f"cider-diagnostics-{stamp}/{name}")
+                info = tarfile.TarInfo(f"quadra-diagnostics-{stamp}/{name}")
                 info.size, info.mtime, info.mode = len(data), int(time.time()), 0o600
                 bundle.addfile(info, io.BytesIO(data))
     except OSError as error:
@@ -488,8 +488,8 @@ def collect(output_dir=None, *, gdb=False, symbolize=True, interval=SAMPLE_INTER
 
 def collect_cli(argv):
     import argparse
-    parser = argparse.ArgumentParser(prog="ciderhq --collect-diagnostics", description=__doc__.split("\n")[0])
-    parser.add_argument("--output", type=Path, help="directory for the archive (default: Cider's cache)")
+    parser = argparse.ArgumentParser(prog="quadrahq --collect-diagnostics", description=__doc__.split("\n")[0])
+    parser.add_argument("--output", type=Path, help="directory for the archive (default: Quadra's cache)")
     parser.add_argument("--gdb", action="store_true", help="also attach gdb for backtraces (briefly stops the game)")
     parser.add_argument("--no-symbols", action="store_true", help="skip symbol lookup")
     parser.add_argument("--interval", type=float, default=SAMPLE_INTERVAL, help="seconds between the two samples")

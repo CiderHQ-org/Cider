@@ -101,7 +101,7 @@ static void report(const char *function, UInt32 object, const PropertyAddress *a
         code(selector, address->selector);
         code(scope, address->scope);
     }
-    int length = snprintf(line, sizeof line, "[Cider Audio] %s object=%u '%s' scope='%s' -> %ld size=%u%s\n",
+    int length = snprintf(line, sizeof line, "[Quadra Audio] %s object=%u '%s' scope='%s' -> %ld size=%u%s\n",
                           function, object, selector, scope, status, size, ours ? " (shim)" : "");
     if (length > 0)
         write(2, line, (unsigned long)length);
@@ -575,7 +575,7 @@ static void audio_event(const char *format, ...) {
     if (count > 40 && count % 100)
         return;
     char line[240];
-    int length = snprintf(line, sizeof line, "[Cider Audio] ");
+    int length = snprintf(line, sizeof line, "[Quadra Audio] ");
     __builtin_va_list arguments;
     __builtin_va_start(arguments, format);
     int added = vsnprintf(line + length, sizeof line - (unsigned long)length - 1, format, arguments);
@@ -675,7 +675,7 @@ static void *unit_fifo_thread(void *context) {
             frames_written = 0;
             if (tracing()) {
                 char line[120];
-                int length = snprintf(line, sizeof line, "[Cider Audio] FIFO open, pacing by %s, %ld frames\n",
+                int length = snprintf(line, sizeof line, "[Quadra Audio] FIFO open, pacing by %s, %ld frames\n",
                                       by_fill ? "pipe fill" : "wall clock", by_fill ? target : FIFO_AHEAD_FRAMES);
                 if (length > 0) write(2, line, (unsigned long)length);
             }
@@ -1003,7 +1003,7 @@ static void *t_find(void *after, const ComponentDescription *description) {
         char type[8], subtype[8], line[160];
         code(type, description->type);
         code(subtype, description->subtype);
-        int length = snprintf(line, sizeof line, "[Cider Audio] AudioComponentFindNext '%s'/'%s' -> %p\n",
+        int length = snprintf(line, sizeof line, "[Quadra Audio] AudioComponentFindNext '%s'/'%s' -> %p\n",
                               type, subtype, component);
         if (length > 0) write(2, line, (unsigned long)length);
     }
@@ -1053,7 +1053,7 @@ static void report_format(const char *what, const StreamDescription *format) {
     char id[8], line[220];
     code(id, format->format_id);
     int length = snprintf(line, sizeof line,
-                          "[Cider Audio]   %s format '%s' rate=%.0f flags=0x%x bytes/packet=%u frames/packet=%u "
+                          "[Quadra Audio]   %s format '%s' rate=%.0f flags=0x%x bytes/packet=%u frames/packet=%u "
                           "bytes/frame=%u channels=%u bits=%u\n",
                           what, id, format->sample_rate, format->format_flags, format->bytes_per_packet,
                           format->frames_per_packet, format->bytes_per_frame, format->channels_per_frame,
@@ -1131,7 +1131,7 @@ static OSStatus t_unit_set(void *instance, UInt32 id, UInt32 scope, UInt32 eleme
                            : AudioUnitSetProperty(instance, id, scope, element, data, size);
     if (tracing()) {
         char line[160];
-        int length = snprintf(line, sizeof line, "[Cider Audio] AudioUnitSetProperty id=%u scope=%u element=%u -> %d%s\n",
+        int length = snprintf(line, sizeof line, "[Quadra Audio] AudioUnitSetProperty id=%u scope=%u element=%u -> %d%s\n",
                               id, scope, element, status, unit ? " (shim)" : "");
         if (length > 0) write(2, line, (unsigned long)length);
     }
@@ -1145,7 +1145,7 @@ static OSStatus t_unit_get(void *instance, UInt32 id, UInt32 scope, UInt32 eleme
                            : AudioUnitGetProperty(instance, id, scope, element, data, size);
     if (tracing()) {
         char line[160];
-        int length = snprintf(line, sizeof line, "[Cider Audio] AudioUnitGetProperty id=%u scope=%u element=%u -> %d%s\n",
+        int length = snprintf(line, sizeof line, "[Quadra Audio] AudioUnitGetProperty id=%u scope=%u element=%u -> %d%s\n",
                               id, scope, element, status, unit ? " (shim)" : "");
         if (length > 0) write(2, line, (unsigned long)length);
     }

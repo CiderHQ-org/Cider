@@ -1,4 +1,4 @@
-"""Backend of the Cider launcher: paths, settings, fast flags, Roblox
+"""Backend of the Quadra launcher: paths, settings, fast flags, Roblox
 updates and running the macOS client through Darling. No GTK here."""
 
 import csv
@@ -29,7 +29,7 @@ from . import __version__
 from .gpus import GPU_ENVIRONMENT
 from .i18n import _
 from .rootless_scope import rootless_process_in_prefix
-from .paths import migrate_directory, user_directory
+from .paths import migrate_directories, user_directory
 from .runtime import resolve_runtime, guest_variables
 from .transport_monitor import TransportMonitor
 
@@ -79,8 +79,9 @@ SETTINGS_FILE = CONFIG_DIR / "settings.json"
 WEB_DATA_DIR = CONFIG_DIR / "web"
 
 DARLING_HOME = DARLING_PREFIX / "Users" / os.environ.get("USER", "user")
-SESSION_DIR = migrate_directory(DARLING_HOME / "Library" / "MacOBlox",
-                                DARLING_HOME / "Library" / "CiderHQ")
+SESSION_DIR = migrate_directories(DARLING_HOME / "Library" / "QuadraHQ",
+                                  DARLING_HOME / "Library" / "CiderHQ",
+                                  DARLING_HOME / "Library" / "MacOBlox")
 SESSION_FILES = [
     SESSION_DIR / "Cookies.plist",
     SESSION_DIR / "Keychain",
@@ -325,7 +326,7 @@ def parse_version_tuple(ver):
 
 
 def check_launcher_update():
-    """Checks GitHub for a newer release of Cider.
+    """Checks GitHub for a newer release of Quadra.
     Returns (has_update, latest_version_string, release_url); raises when
     GitHub cannot be reached, so a failed check is not reported as up to date."""
     req = urllib.request.Request(LAUNCHER_RELEASE_URL, headers={"User-Agent": "MacOBlox"})
@@ -343,7 +344,7 @@ def _git(*args, input=None):
 
 
 def update_launcher(progress=None):
-    """Updates Cider the way install.sh does: pulls the checkout
+    """Updates Quadra the way install.sh does: pulls the checkout
     (fast-forward only, so a failed update never leaves a half merge),
     rebuilds the shim and reinstalls the menu entries. Returns (True,
     message), or (False, release page) when this is not a git checkout
@@ -391,16 +392,16 @@ def update_launcher(progress=None):
                        capture_output=True)
 
     if progress:
-        progress(1.0, _("Cider updated successfully"))
+        progress(1.0, _("Quadra updated successfully"))
     # This process keeps running the code it started with.
-    return True, _("Cider updated. Restart it to use the new version.")
+    return True, _("Quadra updated. Restart it to use the new version.")
 
 
 # A shortcut to Settings -> CiderDarling while CiderDarling is installed; the
-# same entry as packaging/org.ciderhq.Cider.CiderDarling.desktop and the one
+# same entry as packaging/org.quadrahq.Quadra.CiderDarling.desktop and the one
 # launcher/install.sh writes. The marker line identifies a copy we may remove.
-CIDERDARLING_SHORTCUT = "org.ciderhq.Cider.CiderDarling.desktop"
-SHORTCUT_MARKER = "X-CiderHQ-Managed=true"
+CIDERDARLING_SHORTCUT = "org.quadrahq.Quadra.CiderDarling.desktop"
+SHORTCUT_MARKER = "X-QuadraHQ-Managed=true"
 CIDERDARLING_DESKTOP = """[Desktop Entry]
 Type=Application
 Name=CiderDarling Settings
@@ -408,7 +409,7 @@ Name[ru]=Настройки CiderDarling
 Comment=Graphics card, runtime and diagnostics settings for CiderDarling
 Comment[ru]=Видеокарта, среда и диагностика для CiderDarling
 Exec={command} --ciderdarling-settings
-Icon=ciderhq
+Icon=quadrahq
 Terminal=false
 Categories=Game;
 Keywords=ciderdarling;darling;gpu;
@@ -421,8 +422,8 @@ def _desktop_command():
     """How desktop entries start this launcher: the packages' wrapper (it sets
     the prebuilt shim path), or this checkout's script as a quoted argument."""
     if PREBUILT_SHIM:
-        return "ciderhq"
-    text = str(PROJECT / "launcher" / "ciderhq-launcher").replace("\\", "\\\\\\\\")
+        return "quadrahq"
+    text = str(PROJECT / "launcher" / "quadrahq-launcher").replace("\\", "\\\\\\\\")
     for character in '"`$':
         text = text.replace(character, "\\\\" + character)
     return '"' + text.replace("%", "%%") + '"'
@@ -1503,7 +1504,7 @@ def prepare_prefix(env):
     unknown = _unknown_prefix_overrides()
     if not unknown:
         return []
-    note = ("Prefix libraries not made by Cider hide the selected runtime's own and were left "
+    note = ("Prefix libraries not made by Quadra hide the selected runtime's own and were left "
             f"unchanged (remove them if they came from an older Darling): {', '.join(unknown)}")
     logging.getLogger("macoblox").warning(note)
     return [note]
@@ -1889,8 +1890,8 @@ def restart_darling():
 
 def icon_argb_file():
     """Write the logo in _NET_WM_ICON layout for the shim (see MACOBLOX_ICON_ARGB)."""
-    target = CACHE_DIR / "icon-ciderhq.argb"
-    sources = [(ICONS / f"ciderhq-{size}.png", size) for size in (32, 64, 128)]
+    target = CACHE_DIR / "icon-quadrahq.argb"
+    sources = [(ICONS / f"quadrahq-{size}.png", size) for size in (32, 64, 128)]
     if target.exists() and all(source.exists() and target.stat().st_mtime >= source.stat().st_mtime
                                for source, _size in sources):
         return target
@@ -2047,7 +2048,7 @@ class HostAudio:
     keeps the FIFO open read/write for the whole session, so pw-cat never
     sees end of file and the game can reopen it any time."""
 
-    NAME = "Roblox (Cider)"
+    NAME = "Roblox (Quadra)"
 
     def __init__(self, fifo, keep=None, player=None):
         self.fifo, self.keep, self.player = fifo, keep, player
@@ -2122,13 +2123,13 @@ class HostAudio:
         if pipewire and _pwcat_raw_supported(shutil.which("pw-cat")):
             return ["pw-cat", "--record", "--raw", "--format", "f32", "--rate", str(rate),
                     "--channels", str(channels), "--latency", "20ms", "--media-role", "Communication",
-                    "-P", '{ application.name = "Roblox" application.icon-name = "ciderhq" '
-                          f'media.name = "Roblox microphone (Cider)" }}',
+                    "-P", '{ application.name = "Roblox" application.icon-name = "quadrahq" '
+                          f'media.name = "Roblox microphone (Quadra)" }}',
                     str(fifo)]
         if shutil.which("pacat"):
             return ["pacat", "--record", "--raw", "--format=float32le", f"--rate={rate}",
                     f"--channels={channels}", "--latency-msec=20", "--client-name=Roblox",
-                    "--stream-name=Roblox microphone (Cider)", "--property=media.role=phone", str(fifo)]
+                    "--stream-name=Roblox microphone (Quadra)", "--property=media.role=phone", str(fifo)]
         return None
 
     @classmethod
@@ -2157,7 +2158,7 @@ class HostAudio:
         if self.log_path:
             try:
                 with open(self.log_path, "ab") as log:
-                    log.write(f"[Cider Audio] Playback helper exited with code {status}; {detail or 'no error output'}\n".encode())
+                    log.write(f"[Quadra Audio] Playback helper exited with code {status}; {detail or 'no error output'}\n".encode())
             except OSError:
                 pass
 
@@ -2190,7 +2191,7 @@ class HostAudio:
         if not force_pulse and pipewire and _pwcat_raw_supported(shutil.which("pw-cat")):
             return ["pw-cat", "--playback", "--raw", "--format", "f32", "--rate", "44100",
                     "--channels", "2", "--latency", "40ms", "--media-role", "Game",
-                    "-P", '{ application.name = "Roblox" application.icon-name = "ciderhq" '
+                    "-P", '{ application.name = "Roblox" application.icon-name = "quadrahq" '
                           f'media.name = "{cls.NAME}" }}',
                     str(fifo)]
         if shutil.which("pacat"):
@@ -2567,7 +2568,7 @@ class RobloxSession:
         # description: guest output must not overwrite a host lifecycle record.
         with open(self.log_path, "wb", opener=lambda path, flags:
                   os.open(path, flags | os.O_APPEND)) as log:
-            log.write(f"Cider {__version__}\n".encode())
+            log.write(f"Quadra {__version__}\n".encode())
             log.write(f"Darling: {darling_version(env)}\n".encode())
             log.write(f"Darling selection: {DARLING_RUNTIME['runtime']}; {DARLING_EXECUTABLE}; root {DARLING_SYSROOT}\n".encode())
             log.write(f"Renderer requested: {renderer_name}\n".encode())
@@ -2601,7 +2602,7 @@ class RobloxSession:
             if self.trace_path:
                 log.write(f"CiderDarling trace: {self.trace_path}\n".encode())
             for note in self.notes:
-                log.write(f"[Cider Startup] {note}\n".encode(errors="replace"))
+                log.write(f"[Quadra Startup] {note}\n".encode(errors="replace"))
             for _attempt in range(2):
                 # The first process can fail to check in while the server
                 # starts. The game's own `darling shell` must not start the
@@ -2610,11 +2611,11 @@ class RobloxSession:
                 # stays visible.
                 if darlingserver_running():
                     break
-                log.write(b"[Cider Startup] Darling warmup starting\n")
+                log.write(b"[Quadra Startup] Darling warmup starting\n")
                 log.flush()
                 status = _darling_warmup(env)
                 log.write(_warmup_output().encode(errors="replace"))
-                log.write(f"[Cider Startup] Darling warmup status={status}\n".encode())
+                log.write(f"[Quadra Startup] Darling warmup status={status}\n".encode())
             changed = raise_darling_priority()
             if changed:
                 log.write(f"Priority: {changed} Darling processes raised to nice {_nice_target(SERVER_NICE)}\n".encode())
@@ -2665,7 +2666,7 @@ class RobloxSession:
                     if self.log_path:
                         try:
                             with open(self.log_path, 'ab', buffering=0) as log:
-                                log.write(f'\n[Cider Lifecycle] frontend_detached status={status} live_players={len(players)}; monitoring guest\n'.encode())
+                                log.write(f'\n[Quadra Lifecycle] frontend_detached status={status} live_players={len(players)}; monitoring guest\n'.encode())
                         except OSError:
                             pass
         if self.audio:
@@ -2723,7 +2724,7 @@ class RobloxSession:
                                   "startup_failure", "explicit_cleanup"):
                     reason = "explicit_cleanup"
                 stamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-                record = (f"\n[Cider Lifecycle] time={stamp} reason={reason} "
+                record = (f"\n[Quadra Lifecycle] time={stamp} reason={reason} "
                           f"frontend_status={frontend} selected_prefix_games={game_count} "
                           "guest_exit=unknown before_cleanup=1\n")
                 with open(self.log_path, "ab", buffering=0) as log:

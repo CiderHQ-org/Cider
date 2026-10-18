@@ -51,7 +51,7 @@ def collect(output_dir=None, *, graphics=False, gameplay=None):
         if not (matrix.is_file() and probe.is_file()):
             report['coverage']['host_graphics'] = 'unavailable'
         else:
-            with tempfile.TemporaryDirectory(prefix='cider-hardware-') as directory:
+            with tempfile.TemporaryDirectory(prefix='quadra-hardware-') as directory:
                 path = Path(directory) / 'matrix.json'
                 try:
                     result = subprocess.run([sys.executable, str(matrix), '--probe', str(probe), '--frames', '120',
@@ -64,7 +64,7 @@ def collect(output_dir=None, *, graphics=False, gameplay=None):
                 except (OSError, ValueError, subprocess.SubprocessError) as error:
                     report['coverage']['host_graphics'] = 'error'
                     report['graphics_error'] = str(error)
-    descriptor, name = tempfile.mkstemp(prefix='cider-hardware-', suffix='.json', dir=output_dir)
+    descriptor, name = tempfile.mkstemp(prefix='quadra-hardware-', suffix='.json', dir=output_dir)
     with os.fdopen(descriptor, 'w') as output:
         json.dump(report, output, indent=2)
         output.write('\n')
@@ -72,7 +72,7 @@ def collect(output_dir=None, *, graphics=False, gameplay=None):
 
 
 def cli(argv):
-    parser = argparse.ArgumentParser(prog='ciderhq --hardware-report', description=__doc__)
+    parser = argparse.ArgumentParser(prog='quadrahq --hardware-report', description=__doc__)
     parser.add_argument('--output', type=Path, help='Report directory; existing files are preserved')
     parser.add_argument('--graphics', action='store_true', help='Run host GPU, MSAA, 1/2 CPU and lifecycle checks')
     parser.add_argument('--gameplay', action='append', default=[], metavar='STAGE=pass|fail|not_tested',

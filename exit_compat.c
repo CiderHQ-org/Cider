@@ -20,7 +20,7 @@ extern void exit(int);
 static void macoblox_traced_exit(int status) {
     const char *enabled = getenv("MACOBLOX_TRACE_EXIT");
     if (enabled && enabled[0]) {
-        static const char message[] = "\n[Cider] exit() called, backtrace:\n";
+        static const char message[] = "\n[Quadra] exit() called, backtrace:\n";
         void *frames[48];
         write(2, message, sizeof(message) - 1);
         backtrace_symbols_fd(frames, backtrace(frames, 48), 2);

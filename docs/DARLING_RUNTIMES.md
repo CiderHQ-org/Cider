@@ -1,13 +1,13 @@
 # Installer runtime selection
 
-The source installer offers Regular Darling and CiderHQ's CiderDarling.
+The source installer offers Regular Darling and QuadraHQ's CiderDarling.
 `--darling regular` and `--darling ciderdarling` select explicitly; interactive
 setup offers the same choices. First installation defaults to regular Darling.
 Updates retain the saved choice, including an existing custom prefix.
 
 The launcher also offers **Settings → Environment → Darling → Darling runtime**
-with **DarlingHQ's Darling** and **CiderHQ's CiderDarling**. Selecting a row
-previews the choice; **Apply and restart Cider** validates the installed runtime,
+with **DarlingHQ's Darling** and **QuadraHQ's CiderDarling**. Selecting a row
+previews the choice; **Apply and restart Quadra** validates the installed runtime,
 saves it atomically and restarts through the normal launcher entry point.
 The restart does not replay an original Roblox link. It reloads all client,
 sysroot, prefix and session paths together, avoiding mixed runtime state.
@@ -22,7 +22,7 @@ the bundled runtime as read-only.
 When CiderDarling is missing, selecting it shows **Install in terminal**.
 This opens the desktop terminal with the local installer using
 `--install-runtime --darling ciderdarling`. That mode installs only the runtime:
-it does not update or replace Cider's checkout, build its compatibility shim,
+it does not update or replace Quadra's checkout, build its compatibility shim,
 activate a different runtime or touch either guest prefix. Source compilation
 still asks for terminal confirmation and installing dependencies uses sudo.
 Native package payloads include the same standalone installer.
@@ -36,11 +36,11 @@ started/result records track the actual installer shell independently of
 terminal clients that detach. Closing the terminal early, failure to open it
 or a failed/cancelled install releases the launcher operation and preserves
 the current selection. Success refreshes the runtime choices and previews
-CiderDarling; **Apply and restart Cider** remains a separate action.
+CiderDarling; **Apply and restart Quadra** remains a separate action.
 
 Regular Darling reuses a matching installed client and sysroot, then tries the
 existing distro and checksum-verified upstream packages before offering a
-source build. CiderDarling always uses CiderHQ's pinned source or a matching
+source build. CiderDarling always uses QuadraHQ's pinned source or a matching
 installed version. It never falls back to installing regular Darling.
 
 The current CiderDarling pin is
@@ -62,8 +62,8 @@ the runtime's own CPU policy; the build job count does not force idle workers
 to spin.
 
 The installer activates a selection by atomically saving
-`$XDG_CONFIG_HOME/ciderhq/runtime.json`, defaulting to
-`~/.config/ciderhq/runtime.json`, after the launcher shim and desktop setup
+`$XDG_CONFIG_HOME/quadrahq/runtime.json`, defaulting to
+`~/.config/quadrahq/runtime.json`, after the launcher shim and desktop setup
 succeed. It records an absolute client path, sysroot and prefix. The launcher,
 direct shim builds and `run_debug.sh` use these paths rather than independently
 choosing a client on PATH and a root under `/usr`.
@@ -88,16 +88,16 @@ metadata declares `workqueue_stack_reset_x86_64`. Other compatibility shims
 remain active. Changing the selected sysroot or runtime revision invalidates
 the launcher's shim build stamp. Restart the launcher after switching.
 
-The Cider shim also repairs `__exp10`/`__exp10f` for existing Darling builds.
+The Quadra shim also repairs `__exp10`/`__exp10f` for existing Darling builds.
 Clang can rewrite `pow(10, x)` inside the builtin implementation into an
 endless call to that same implementation; a live freeze captured a Roblox
 worker spinning there during a game join. The shim uses an indirect power
 call to prevent that rewrite, and the CiderDarling build disables builtin
 rewriting for both `exp10.c` and `sincos.c`. This shim repair also covers a
-copied math library in the prefix. Updating Cider rebuilds the source shim
+copied math library in the prefix. Updating Quadra rebuilds the source shim
 on the next launch; native packages need a package containing the new shim.
 
-## Automatic runtime releases in Cider 0.23
+## Automatic runtime releases in Quadra 0.23
 
 Successful CiderDarling binary CI runs publish an immutable update manifest on
 their `bin-<revision>` release and promote it to
@@ -117,7 +117,7 @@ installer job directory and passes it as `--runtime-release FILE`. The terminal
 installs that exact revision even if a newer feed is published during the
 download. Archive and manifest SHA-256 checks precede installation. Existing
 version directories and both guest prefixes are preserved; updating an active
-CiderDarling records the new version, then **Apply and restart Cider** reloads
+CiderDarling records the new version, then **Apply and restart Quadra** reloads
 the client and sysroot together.
 
 The standalone installer checks the same channel for CiderDarling, using its
@@ -165,7 +165,7 @@ separate-terminal fixture exercises the desktop-default launch and GIO
 fallback on a private display/session bus, using only a fake installer with
 special-character paths. No system software is installed by these tests.
 
-The actual Cider shim and framework replacements built against the staged
+The actual Quadra shim and framework replacements built against the staged
 CiderDarling root. Real Mach-O threading, condition-variable, ulock, datagram
 and kqueue fixtures passed with this shim loaded in a fresh disposable user,
 mount and PID namespace. Dispatch reached 16 concurrent workers on the 16
@@ -176,7 +176,7 @@ patch manifest match the installer's later documentation/merge revision.
 
 The broader existing suite is not green: Python discovery reports 3 failures
 and 9 errors, and the native suite stops at its GPU physical-size assertion.
-The same failures reproduce on unchanged Cider. This integration does not
+The same failures reproduce on unchanged Quadra. This integration does not
 change those tests or their unrelated behavior. No live installation,
 existing prefix or Roblox sign-in was used for validation; gameplay and
 other GPUs still require testing.

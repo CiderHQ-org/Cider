@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Cider installer: Darling, the tools the launcher needs, and the
+# Quadra installer: Darling, the tools the launcher needs, and the
 # launcher itself with its app menu entry. Run it again to update, or to
 # uninstall.
 #
-#   curl -fsSL https://ciderhq.org/install.sh | bash
+#   curl -fsSL https://quadrahq.org/install.sh | bash
 #
 # In a terminal it guides setup; without one it installs. The choices
 # also work as options (with curl: ... | bash -s -- --uninstall), see --help.
@@ -17,13 +17,14 @@ set -euo pipefail
 
 REPO=https://github.com/CiderHQ-org/Cider.git
 DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
-DIR=$DATA_HOME/CiderHQ
+DIR=$DATA_HOME/QuadraHQ
+LEGACY_CIDER_DIR=$DATA_HOME/CiderHQ
 LEGACY_DIR=$DATA_HOME/MacOBlox
 CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
 CACHE_HOME=${XDG_CACHE_HOME:-$HOME/.cache}
 PREFIX=${DPREFIX:-$HOME/.darling}
 # Darling's Debian packages, pinned to the release the Flatpak uses
-# (flatpak/org.ciderhq.Cider.yml; change both together). The checksum makes
+# (flatpak/org.quadrahq.Quadra.yml; change both together). The checksum makes
 # sure the download is that release, and a new Darling release cannot break
 # installs before the shim was tested with it.
 DARLING_TAG=v0.1.20260608
@@ -73,14 +74,33 @@ die() { printf '%sError:%s %s\n' "$BAD" "$RESET" "$*" >&2; exit 1; }
 
 darling_runtime_name() {
   if [[ $DARLING_RUNTIME == ciderdarling ]]; then
-    printf '%s' "CiderHQ's CiderDarling"
+    printf '%s' "QuadraHQ's CiderDarling"
   else
     printf '%s' 'Regular Darling'
   fi
 }
 
+migrate_user_directories() {
+  local base target source old
+  for base in "$CONFIG_HOME" "$CACHE_HOME" "$DATA_HOME"; do
+    target=$base/quadrahq
+    if [[ -e $target || -L $target ]]; then
+      # Keep existing Quadra data; an empty directory may be replaced.
+      [[ -d $target ]] && rmdir -- "$target" 2>/dev/null || continue
+    fi
+    for old in ciderhq macoblox; do
+      source=$base/$old
+      [[ -d $source ]] || continue
+      mv -T --no-clobber -- "$source" "$target"
+      [[ ! -e $source ]] || die "Could not migrate $source to $target; no files were replaced."
+      break
+    done
+  done
+}
+
 load_darling_selection() {
-  local saved='' file=$CONFIG_HOME/ciderhq/runtime.json
+  migrate_user_directories
+  local saved='' file=$CONFIG_HOME/quadrahq/runtime.json
   if [[ -f $file ]]; then
     command -v python3 >/dev/null || die "Python 3 is needed to read the saved Darling selection."
     saved=$(python3 - "$file" "$DARLING_RUNTIME" <<'PY'
@@ -140,12 +160,13 @@ select_darling_prefix() {
 }
 
 save_darling_selection() {
+  migrate_user_directories
   # Activate only after the launcher and its selected-root shim built
   # successfully. A failed build leaves the previous selection available.
   # With "remember" (a runtime-only install), only an update of the active
   # variant changes the selection; another variant is just remembered, and
   # nothing is written before a first selection exists.
-  python3 - "${1:-activate}" "$CONFIG_HOME/ciderhq/runtime.json" "$DARLING_RUNTIME" "$DARLING_EXECUTABLE" "$DARLING_SYSROOT" "$PREFIX" <<'PY'
+  python3 - "${1:-activate}" "$CONFIG_HOME/quadrahq/runtime.json" "$DARLING_RUNTIME" "$DARLING_EXECUTABLE" "$DARLING_SYSROOT" "$PREFIX" <<'PY'
 import json
 import os
 from pathlib import Path
@@ -309,9 +330,9 @@ setup_plan() {
   [[ $dependencies != pacman ]] || dependencies='pacman and the AUR'
   printf '  %sSetup plan%s\n\n' "$BOLD" "$RESET"
   printf '    1. Prepare Darling and the system tools (%s).\n' "$dependencies"
-  printf '    2. %s the Cider launcher.\n' "$operation"
+  printf '    2. %s the Quadra launcher.\n' "$operation"
   printf '    3. Build its compatibility libraries.\n'
-  printf '    4. Add the app menu entry and ciderhq command.\n\n'
+  printf '    4. Add the app menu entry and quadrahq command.\n\n'
   printf '  Computer    %s (%s)\n' "$(distribution_name)" "$(uname -m)"
   printf '  Destination %s\n' "${DIR/#$HOME/\~}"
   printf '  Runtime     %s\n' "$(darling_runtime_name)"
@@ -341,8 +362,8 @@ backup_checkout_changes() {
     rm -rf -- "$list_dir"
     return
   fi
-  backup=$(umask 077; mkdir -p -- "$DATA_HOME/CiderHQ-backups";
-    mktemp -d "$DATA_HOME/CiderHQ-backups/update-$(date -u +%Y%m%d-%H%M%S)-XXXXXX")
+  backup=$(umask 077; mkdir -p -- "$DATA_HOME/QuadraHQ-backups";
+    mktemp -d "$DATA_HOME/QuadraHQ-backups/update-$(date -u +%Y%m%d-%H%M%S)-XXXXXX")
   git -C "$DIR" rev-parse HEAD > "$backup/revision"
   git -C "$DIR" diff --binary HEAD > "$backup/tracked.patch"
   cp -- "$list_dir/tracked" "$backup/tracked-paths"
@@ -377,9 +398,9 @@ setup_success() {
   local version
   version=$(installed_version)
   printf '\n%s%s Setup complete%s\n' "$GOOD" "$ON" "$RESET"
-  printf '  Cider%s is ready in your app menu.\n' "${version:+ $version}"
+  printf '  Quadra%s is ready in your app menu.\n' "${version:+ $version}"
   printf '\n  %sNext steps%s\n' "$BOLD" "$RESET"
-  printf '    1. Open Cider from the app menu, or run ciderhq.\n'
+  printf '    1. Open Quadra from the app menu, or run quadrahq.\n'
   if [[ -d $DIR/RobloxPlayer.app ]]; then
     printf '    2. Launch Roblox from the launcher.\n'
     printf '    3. Sign in if needed, then choose a game.\n'
@@ -745,18 +766,18 @@ build_darling_source() {
     runtime_options=(-DENABLE_METAL=OFF -DCIDER_APPLY_PATCHES=ON -DCIDER_SHUTDOWN_ON_INSTALL=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo)
   fi
   install_darling_build_dependencies "$manager" || die "Could not install Darling build dependencies. Check enabled repositories and package names for your distro, then rerun."
-  mkdir -p -- "$CACHE_HOME/ciderhq/installer"
+  mkdir -p -- "$CACHE_HOME/quadrahq/installer"
   # Every build starts from a fresh tree, so earlier ones (kept by older
   # installers, or left by a failed build) only take disk space: several GB.
   local old_build
-  for old_build in "$CACHE_HOME/ciderhq/installer"/darling-source-*; do
+  for old_build in "$CACHE_HOME/quadrahq/installer"/darling-source-*; do
     [[ -d $old_build && ! -L $old_build ]] || continue
     say "Removing earlier build files: ${old_build/#$HOME/\~}"
     rm -rf -- "$old_build" || say "Could not remove all of $old_build; continuing."
   done
-  build=$(umask 077; mktemp -d "$CACHE_HOME/ciderhq/installer/darling-source-XXXXXX")
+  build=$(umask 077; mktemp -d "$CACHE_HOME/quadrahq/installer/darling-source-XXXXXX")
   # The log lives next to the tree, which is removed after a successful install.
-  log=$(umask 077; mktemp "$CACHE_HOME/ciderhq/installer/darling-build-$(date -u +%Y%m%d-%H%M%S)-XXXXXX.log")
+  log=$(umask 077; mktemp "$CACHE_HOME/quadrahq/installer/darling-build-$(date -u +%Y%m%d-%H%M%S)-XXXXXX.log")
   # The launcher's runtime installer shows the end of this log on failure.
   [[ -z ${CIDER_RUNTIME_LOG_RECORD:-} ]] || printf '%s\n' "$log" > "$CIDER_RUNTIME_LOG_RECORD" || true
   say "Building $(darling_runtime_name); sources: $build"
@@ -850,15 +871,15 @@ resolve_ciderdarling_release() {
   local -a values=()
   if [[ -z $file ]]; then
     [[ -z $CIDER_DARLING_PINNED ]] || return 0
-    mkdir -p -- "$CACHE_HOME/ciderhq/installer"
-    downloaded=$(umask 077; mktemp "$CACHE_HOME/ciderhq/installer/.release-XXXXXX")
+    mkdir -p -- "$CACHE_HOME/quadrahq/installer"
+    downloaded=$(umask 077; mktemp "$CACHE_HOME/quadrahq/installer/.release-XXXXXX")
     if command -v curl >/dev/null && curl -fsSL --connect-timeout 4 --max-time 12 \
       "$CIDER_DARLING_UPDATE_URL" -o "$downloaded"; then
       file=$downloaded
     else
       rm -f -- "$downloaded"
-      file=$CACHE_HOME/ciderhq/runtime-release.json
-      [[ -f $file ]] || { say "Runtime update service unavailable; using Cider's bundled runtime pin."; return 0; }
+      file=$CACHE_HOME/quadrahq/runtime-release.json
+      [[ -f $file ]] || { say "Runtime update service unavailable; using Quadra's bundled runtime pin."; return 0; }
     fi
   fi
   if ! pins=$(python3 - "$file" <<'PY'
@@ -901,7 +922,7 @@ PY
   ); then
     [[ -z $downloaded ]] || rm -f -- "$downloaded"
     [[ -z $CIDER_DARLING_RELEASE_FILE ]] || die "Invalid or incompatible CiderDarling release metadata."
-    say "No compatible runtime update metadata; using Cider's bundled runtime pin."
+    say "No compatible runtime update metadata; using Quadra's bundled runtime pin."
     return 0
   fi
   mapfile -t values <<< "$pins"
@@ -1024,7 +1045,7 @@ ciderdarling_client_is_setuid_root() {
 
 download_ciderdarling_archive() {
   local output=$1 name=$2 url=$3 digest=$4 folder part
-  folder=$CACHE_HOME/ciderhq/installer/downloads
+  folder=$CACHE_HOME/quadrahq/installer/downloads
   mkdir -p -- "$folder"
   chmod 700 -- "$folder"
   part=$folder/$name.tar.xz.part
@@ -1072,8 +1093,8 @@ try_ciderdarling_prebuilt() {
   fi
   name=ciderdarling-$CIDER_DARLING_REVISION-x86_64-$flavor
   url=$CIDER_DARLING_RELEASES/bin-${CIDER_DARLING_REVISION:0:12}
-  mkdir -p -- "$CACHE_HOME/ciderhq/installer"
-  work=$(umask 077; mktemp -d "$CACHE_HOME/ciderhq/installer/prebuilt-XXXXXX")
+  mkdir -p -- "$CACHE_HOME/quadrahq/installer"
+  work=$(umask 077; mktemp -d "$CACHE_HOME/quadrahq/installer/prebuilt-XXXXXX")
   say "Downloading prebuilt CiderDarling ${CIDER_DARLING_REVISION:0:12} ($flavor)"
   if ! curl -fsSL --retry 3 --connect-timeout 15 -o "$work/$name.json" "$url/$name.json"; then
     rm -rf -- "$work"
@@ -1209,20 +1230,21 @@ PYTHON
 do_install_runtime() {
   [[ $(uname -m) == x86_64 ]] || die "Darling runs only on x86_64."
   command -v python3 >/dev/null || die "Python 3 is required for runtime installation."
-  say "Installing $(darling_runtime_name) for use with Cider."
+  say "Installing $(darling_runtime_name) for use with Quadra."
   ensure_darling
   # Point the saved choice at this installation (a new CiderDarling revision
   # lives in a new directory); another active runtime stays selected.
   save_darling_selection remember
-  say "$(darling_runtime_name) is installed. Return to Cider and apply the runtime choice when ready."
+  say "$(darling_runtime_name) is installed. Return to Quadra and apply the runtime choice when ready."
 }
 
 do_install() {
   [[ $(uname -m) == x86_64 ]] || die "Darling runs only on x86_64."
-  if [[ ! -e $DIR && -d $LEGACY_DIR/.git && -f $LEGACY_DIR/launcher/macoblox/core.py ]]; then
-    say "Migrating the existing MacOBlox checkout to CiderHQ"
-    mv -T --no-clobber -- "$LEGACY_DIR" "$DIR"
-    [[ ! -e $LEGACY_DIR ]] || die "Cider's destination appeared during migration; no files were replaced."
+  local legacy=''
+  if [[ ! -e $DIR ]] && legacy=$(existing_checkout); then
+    say "Migrating the existing ${legacy##*/} checkout to QuadraHQ"
+    mv -T --no-clobber -- "$legacy" "$DIR"
+    [[ ! -e $legacy ]] || die "Quadra's destination appeared during migration; no files were replaced."
   fi
   [[ ! -e $DIR || ( -d $DIR/.git && -f $DIR/launcher/macoblox/core.py ) ]] ||
     die "$DIR already exists without a Git checkout. Move it aside before installing."
@@ -1231,11 +1253,11 @@ do_install() {
   validate_tools
   ensure_darling
 
-  step 2 "Prepare Cider"
+  step 2 "Prepare Quadra"
   if [[ -d $DIR/.git ]]; then
-    say "Updating Cider"
+    say "Updating Quadra"
 
-    # Migrate recognized upstream/fork URLs after the Cider organization move.
+    # Migrate recognized upstream/fork URLs after the Quadra organization move.
     # Other user-configured remotes are kept.
     case $(git -C "$DIR" remote get-url origin 2>/dev/null) in
       https://github.com/narezy/MacOBlox | https://github.com/narezy/MacOBlox.git | \
@@ -1255,15 +1277,15 @@ do_install() {
     git -C "$DIR" reset --hard origin/main
 
   else
-    say "Downloading Cider"
+    say "Downloading Quadra"
     git clone --filter=blob:none --no-checkout --depth 1 --single-branch --branch main "$REPO" "$DIR"
     configure_launcher_checkout
     git -C "$DIR" reset --hard HEAD
   fi
   step 3 "Build the compatibility libraries"
   say "This can take a few minutes."
-  mkdir -p -- "$CACHE_HOME/ciderhq/installer"
-  INSTALL_LOG=$(umask 077; mktemp "$CACHE_HOME/ciderhq/installer/build-$(date -u +%Y%m%d-%H%M%S)-XXXXXX.log")
+  mkdir -p -- "$CACHE_HOME/quadrahq/installer"
+  INSTALL_LOG=$(umask 077; mktemp "$CACHE_HOME/quadrahq/installer/build-$(date -u +%Y%m%d-%H%M%S)-XXXXXX.log")
 
   # IMPROVED: Show build output live with tee
   if ! DARLING_SYSROOT="$DARLING_SYSROOT" "$DIR/build_debug_shim.sh" 2>&1 | tee "$INSTALL_LOG"; then
@@ -1282,13 +1304,24 @@ do_install() {
 # ---------------------------------------------------------------- uninstall
 
 # The checkout this script makes: nothing is deleted unless $DIR is one.
+existing_checkout() {
+  local checkout
+  for checkout in "$DIR" "$LEGACY_CIDER_DIR" "$LEGACY_DIR"; do
+    if [[ -f $checkout/build_debug_shim.sh && -f $checkout/launcher/macoblox/core.py &&
+          ( -f $checkout/launcher/quadrahq-launcher || -f $checkout/launcher/ciderhq-launcher ||
+            -f $checkout/launcher/macoblox-launcher ) ]]; then
+      printf '%s' "$checkout"
+      return 0
+    fi
+  done
+  return 1
+}
 is_installed() {
-  [[ -f $DIR/launcher/ciderhq-launcher && -f $DIR/build_debug_shim.sh ]] ||
-    [[ -f $LEGACY_DIR/launcher/macoblox-launcher && -f $LEGACY_DIR/build_debug_shim.sh ]]
+  existing_checkout >/dev/null
 }
 installed_version() {
-  local checkout=$DIR
-  [[ -f $checkout/launcher/macoblox/__init__.py ]] || checkout=$LEGACY_DIR
+  local checkout
+  checkout=$(existing_checkout) || return 0
   sed -n 's/^__version__ = "\(.*\)"/\1/p' "$checkout/launcher/macoblox/__init__.py" 2>/dev/null
 }
 
@@ -1296,10 +1329,13 @@ installed_version() {
 # argument, Darling's prefix as well. Darling and the other packages stay.
 do_uninstall() {
   local purge=${1:-}
-  [[ -e $DIR || ! -d $LEGACY_DIR/.git ]] || DIR=$LEGACY_DIR
+  if [[ ! -e $DIR ]]; then
+    DIR=$(existing_checkout) || DIR=$DATA_HOME/QuadraHQ
+  fi
   if [[ -e $DIR ]] && ! [[ -f $DIR/build_debug_shim.sh &&
-      ( -f $DIR/launcher/ciderhq-launcher || -f $DIR/launcher/macoblox-launcher ) ]]; then
-    die "$DIR does not look like Cider, so it is left alone."
+      ( -f $DIR/launcher/quadrahq-launcher || -f $DIR/launcher/ciderhq-launcher ||
+        -f $DIR/launcher/macoblox-launcher ) ]]; then
+    die "$DIR does not look like Quadra, so it is left alone."
   fi
   # Nothing in the prefix may change under a running Darling (it keeps
   # showing deleted files), and nothing should run from the folder that goes.
@@ -1314,20 +1350,31 @@ do_uninstall() {
     say "Removing the launcher, Roblox and Studio (${DIR/#$HOME/\~})"
     rm -rf -- "$DIR"
   fi
-  say "Removing the app menu entries, icons and the ciderhq command"
+  say "Removing the app menu entries, icons and the quadrahq command"
   local apps=$DATA_HOME/applications
+  rm -f -- "$apps/org.quadrahq.Quadra.desktop" "$apps/org.quadrahq.Quadra.URI.desktop" \
+    "$apps/org.quadrahq.Quadra.Studio.desktop" "$apps/quadrahq-roblox-window.desktop" \
+    "$DATA_HOME"/icons/hicolor/*/apps/quadrahq.png \
+    "$DATA_HOME/icons/hicolor/scalable/apps/quadrahq.svg" "$DATA_HOME/mime/packages/org.quadrahq.Quadra.xml"
+  # Only Quadra's own CiderDarling entry; a user's entry of that name stays.
+  local cider_entry=$apps/org.quadrahq.Quadra.CiderDarling.desktop
+  if [[ -f $cider_entry && ! -L $cider_entry ]] && grep -qsx 'X-QuadraHQ-Managed=true' "$cider_entry"; then
+    rm -f -- "$cider_entry"
+  fi
+  local cider_link=$HOME/.local/bin/quadrahq
+  if [[ -L $cider_link && $(readlink "$cider_link") == */quadrahq-launcher ]]; then
+    rm -f -- "$cider_link"
+  fi
   rm -f -- "$apps/org.ciderhq.Cider.desktop" "$apps/org.ciderhq.Cider.URI.desktop" \
     "$apps/org.ciderhq.Cider.Studio.desktop" "$apps/ciderhq-roblox-window.desktop" \
     "$DATA_HOME"/icons/hicolor/*/apps/ciderhq.png \
     "$DATA_HOME/icons/hicolor/scalable/apps/ciderhq.svg" "$DATA_HOME/mime/packages/org.ciderhq.Cider.xml"
-  # Only Cider's own CiderDarling entry; a user's entry of that name stays.
-  local cider_entry=$apps/org.ciderhq.Cider.CiderDarling.desktop
-  if [[ -f $cider_entry && ! -L $cider_entry ]] && grep -qsx 'X-CiderHQ-Managed=true' "$cider_entry"; then
-    rm -f -- "$cider_entry"
+  local old_entry=$apps/org.ciderhq.Cider.CiderDarling.desktop old_link=$HOME/.local/bin/ciderhq
+  if [[ -f $old_entry && ! -L $old_entry ]] && grep -qsx 'X-CiderHQ-Managed=true' "$old_entry"; then
+    rm -f -- "$old_entry"
   fi
-  local cider_link=$HOME/.local/bin/ciderhq
-  if [[ -L $cider_link && $(readlink "$cider_link") == */ciderhq-launcher ]]; then
-    rm -f -- "$cider_link"
+  if [[ -L $old_link && $(readlink "$old_link") == */ciderhq-launcher ]]; then
+    rm -f -- "$old_link"
   fi
   # The xyz.narez.* names are the app ID before 0.15.
   rm -f -- "$apps/wtf.aubree.MacOBlox.desktop" "$apps/wtf.aubree.MacOBlox.URI.desktop" \
@@ -1342,7 +1389,9 @@ do_uninstall() {
   fi
   # Studio as the handler of roblox-studio: links and place files.
   if [[ -f $CONFIG_HOME/mimeapps.list ]]; then
-    sed -i -e 's/org\.ciderhq\.Cider\.Studio\.desktop;\{0,1\}//g' \
+    sed -i -e 's/org\.quadrahq\.Quadra\.Studio\.desktop;\{0,1\}//g' \
+      -e 's/org\.quadrahq\.Quadra\.URI\.desktop;\{0,1\}//g' \
+      -e 's/org\.ciderhq\.Cider\.Studio\.desktop;\{0,1\}//g' \
       -e 's/org\.ciderhq\.Cider\.URI\.desktop;\{0,1\}//g' \
       -e 's/wtf\.aubree\.MacOBlox\.Studio\.desktop;\{0,1\}//g' \
       -e 's/wtf\.aubree\.MacOBlox\.URI\.desktop;\{0,1\}//g' \
@@ -1351,13 +1400,14 @@ do_uninstall() {
   update-mime-database "$DATA_HOME/mime" >/dev/null 2>&1 || true
   update-desktop-database "$apps" >/dev/null 2>&1 || true
   say "Removing settings and cache"
-  rm -rf -- "$CONFIG_HOME/ciderhq" "$CACHE_HOME/ciderhq" "$CONFIG_HOME/macoblox" "$CACHE_HOME/macoblox"
+  rm -rf -- "$CONFIG_HOME/quadrahq" "$CACHE_HOME/quadrahq" \
+    "$CONFIG_HOME/ciderhq" "$CACHE_HOME/ciderhq" "$CONFIG_HOME/macoblox" "$CACHE_HOME/macoblox"
   if [[ -n $purge && -e $PREFIX ]]; then
     [[ $PREFIX == "$HOME"/?* ]] || die "Darling's prefix $PREFIX is not in your home folder, so it is left alone."
     say "Removing Darling's prefix (${PREFIX/#$HOME/\~}), with your Roblox sign-in"
     rm -rf -- "$PREFIX"
   fi
-  say "Cider is uninstalled."
+  say "Quadra is uninstalled."
   if command -v "$DARLING_EXECUTABLE" >/dev/null; then
     printf '    %s%s stays installed.%s\n' "$DIM" "$(darling_runtime_name)" "$RESET"
   fi
@@ -1386,7 +1436,7 @@ menu_close() {
 }
 
 banner() {
-  printf '\n  %sCIDER%s\n  ciderhq.org\n' "$BOLD" "$RESET"
+  printf '\n  %sQUADRA%s\n  quadrahq.org\n' "$BOLD" "$RESET"
 }
 
 # choose TEXT ITEM...: a menu of "label|hint" items below TEXT (printf %b).
@@ -1456,21 +1506,21 @@ choose() {
 menu_main() {
   local text first="Start setup|Review what will be installed"
   if is_installed; then
-    text="  ${BOLD}Welcome back to Cider${RESET}
+    text="  ${BOLD}Welcome back to Quadra${RESET}
 
   ${GOOD}${ON}${RESET} Version $(installed_version) is installed.
   Keep your launcher and compatibility libraries up to date.
   ${DIM}${DIR/#$HOME/\~}${RESET}"
-    first="Update Cider|Review the update plan"
+    first="Update Quadra|Review the update plan"
   else
-    text="  ${BOLD}Welcome to Cider${RESET}
+    text="  ${BOLD}Welcome to Quadra${RESET}
   ${DIM}First setup · 1 of 4${RESET}
 
   Play the macOS Roblox client on your Linux desktop.
   We'll prepare the launcher, Darling and the system tools.
   The launcher will guide you through installing Roblox and signing in."
   fi
-  choose "$text" "$first" "Uninstall|Remove Cider from this computer" "Quit|"
+  choose "$text" "$first" "Uninstall|Remove Quadra from this computer" "Quit|"
 }
 
 menu_install() {
@@ -1480,14 +1530,14 @@ menu_install() {
     local text="  ${BOLD}Choose Darling · 2 of 4${RESET}
 
   Regular Darling uses your installed runtime or distro/upstream packages.
-  CiderHQ's CiderDarling includes our threading and graphics changes.
+  QuadraHQ's CiderDarling includes our threading and graphics changes.
   CiderDarling currently needs a source build and its own first-time sign-in.
   Current selection: $(darling_runtime_name)"
     if [[ $DARLING_RUNTIME == ciderdarling ]]; then
-      choose "$text" "CiderHQ's CiderDarling|Keep the current selection" "Regular Darling|Use the upstream runtime" "Back|"
+      choose "$text" "QuadraHQ's CiderDarling|Keep the current selection" "Regular Darling|Use the upstream runtime" "Back|"
       case $CHOICE in 0) DARLING_RUNTIME=ciderdarling ;; 1) DARLING_RUNTIME=regular ;; *) return 1 ;; esac
     else
-      choose "$text" "Regular Darling|Default; use the upstream runtime" "CiderHQ's CiderDarling|Build CiderHQ's runtime" "Back|"
+      choose "$text" "Regular Darling|Default; use the upstream runtime" "QuadraHQ's CiderDarling|Build QuadraHQ's runtime" "Back|"
       case $CHOICE in 0) DARLING_RUNTIME=regular ;; 1) DARLING_RUNTIME=ciderdarling ;; *) return 1 ;; esac
     fi
     load_darling_selection
@@ -1497,7 +1547,7 @@ menu_install() {
 
 $(setup_plan)" "Continue|Confirm this setup plan" "Back|Return to the welcome screen"
     [[ $CHOICE == 0 ]] || return 1
-    choose "  ${BOLD}Ready to ${operation,,} Cider${RESET}
+    choose "  ${BOLD}Ready to ${operation,,} Quadra${RESET}
   ${DIM}Setup · 4 of 4${RESET}
 
   Destination: ${DIR/#$HOME/\~}
@@ -1505,7 +1555,7 @@ $(setup_plan)" "Continue|Confirm this setup plan" "Back|Return to the welcome sc
   You'll see progress for each step. System packages may request sudo.
 
   ${DIM}Begin when you're ready.${RESET}" \
-      "$operation Cider|Begin setup" "Back|Review the plan again"
+      "$operation Quadra|Begin setup" "Back|Review the plan again"
     case $CHOICE in
       0) return 0 ;;
       1) ;;
@@ -1520,7 +1570,7 @@ menu_uninstall() {
   local where=${DIR/#$HOME/\~} prefix=${PREFIX/#$HOME/\~}
   choose "  ${BOLD}Uninstall removes${RESET}
     ${BULLET} $where (the launcher, Roblox, Studio)
-    ${BULLET} the app menu entries, icons and the ciderhq command
+    ${BULLET} the app menu entries, icons and the quadrahq command
     ${BULLET} settings and cache
 
   ${DIM}Darling stays installed. Its prefix, $prefix, holds your Roblox sign-in.${RESET}" \
@@ -1544,7 +1594,7 @@ menu_uninstall() {
 
 usage() {
   cat <<USAGE
-Cider installer
+Quadra installer
 
   install.sh               a menu in a terminal; without one, install or update
   install.sh --install     review the setup plan, then install or update
@@ -1554,7 +1604,7 @@ Cider installer
   install.sh --darling regular
                            choose regular Darling (default on first install)
   install.sh --darling ciderdarling
-                           choose CiderHQ's published Darling runtime
+                           choose QuadraHQ's published Darling runtime
                            source builds still ask for terminal confirmation
   install.sh --install-runtime --darling ciderdarling
                            install only the runtime, keeping the current selection
@@ -1569,13 +1619,13 @@ Cider installer
   install.sh --replace-incomplete-runtime
                            remove an interrupted CiderDarling installation without
                            asking, then build it again
-  install.sh --uninstall   remove Cider (asks first, unless --yes)
+  install.sh --uninstall   remove Quadra (asks first, unless --yes)
   install.sh --uninstall --purge
                            also delete the selected Darling prefix (Roblox sign-in)
 
 With curl, options go after "bash -s --":
-  curl -fsSL https://ciderhq.org/install.sh | bash -s -- --darling ciderdarling
-  curl -fsSL https://ciderhq.org/install.sh | bash -s -- --uninstall
+  curl -fsSL https://quadrahq.org/install.sh | bash -s -- --darling ciderdarling
+  curl -fsSL https://quadrahq.org/install.sh | bash -s -- --uninstall
 
 Updates keep your saved runtime choice. DARLING_BUILD_JOBS defaults to auto:
 available CPU threads capped by memory headroom; set a positive count to override.
@@ -1652,7 +1702,7 @@ main() {
     banner
   elif [[ $action == uninstall && -z $assume_yes ]]; then
     [[ -n $terminal ]] || die "Not uninstalling without a terminal to ask in; add --yes."
-    local answer='' what="Cider"
+    local answer='' what="Quadra"
     [[ -n $PURGE ]] && what+=" and Darling's prefix ${PREFIX/#$HOME/\~}"
     printf 'Remove %s? [y/N] ' "$what"
     IFS= read -r answer || true

@@ -69,6 +69,44 @@ printf '%s|%s|%s|%s' "$CIDER_DARLING_REVISION" "$CIDER_DARLING_INSTALL" "$CIDER_
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         return result.stdout
 
+    def test_rebrand_keeps_saved_cider_runtime_and_settings(self):
+        directory = self.base / 'config/ciderhq'
+        original = {'schema_version': 1, 'runtime': 'regular',
+                    'executable': '/fixture/bin/darling', 'sysroot': '/fixture/libexec/darling',
+                    'prefix': str(self.base / 'signed-in-prefix')}
+        runtime.save_selection(original, directory / 'runtime.json')
+        saved = (directory / 'runtime.json').read_bytes()
+        (directory / 'settings.json').write_text('private settings')
+        output = self.checked('load_darling_selection; printf "%s|%s" "$DARLING_RUNTIME" "$PREFIX"')
+        self.assertEqual(output, f'regular|{self.base}/signed-in-prefix')
+        target = self.base / 'config/quadrahq'
+        self.assertEqual((target / 'runtime.json').read_bytes(), saved)
+        self.assertEqual((target / 'settings.json').read_text(), 'private settings')
+        self.assertEqual((target / 'runtime.json').stat().st_mode & 0o777, 0o600)
+        self.assertFalse(directory.exists())
+
+    def test_rebrand_does_not_replace_existing_quadra_settings(self):
+        for name in ('quadrahq', 'ciderhq', 'macoblox'):
+            directory = self.base / 'config' / name
+            directory.mkdir(parents=True)
+            (directory / 'settings.json').write_text(name)
+        self.checked('migrate_user_directories')
+        for name in ('quadrahq', 'ciderhq', 'macoblox'):
+            self.assertEqual((self.base / 'config' / name / 'settings.json').read_text(), name)
+
+    def test_source_checkout_migrates_from_cider_before_updating(self):
+        legacy = self.base / 'data/CiderHQ'
+        (legacy / '.git').mkdir(parents=True)
+        (legacy / 'launcher/macoblox').mkdir(parents=True)
+        for file in ('build_debug_shim.sh', 'launcher/ciderhq-launcher', 'launcher/macoblox/core.py'):
+            (legacy / file).touch()
+        (legacy / 'saved-session').write_text('keep this')
+        # Stop before installing dependencies or fetching anything.
+        result = self.shell('step() { :; }; install_tools() { return 71; }; do_install')
+        self.assertEqual(result.returncode, 71, result.stdout + result.stderr)
+        self.assertFalse(legacy.exists())
+        self.assertEqual((self.base / 'data/QuadraHQ/saved-session').read_text(), 'keep this')
+
     def test_default_and_cli_choices_and_invalid_values(self):
         body = '''
 banner() { :; }; setup_plan() { :; }
@@ -81,7 +119,7 @@ main '''
             self.assertNotEqual(self.shell(body + options).returncode, 0)
 
     def test_install_runtime_does_not_update_launcher_or_activate_runtime(self):
-        file = self.base / 'config/ciderhq/runtime.json'
+        file = self.base / 'config/quadrahq/runtime.json'
         original = {'schema_version': 1, 'runtime': 'regular',
                     'executable': '/usr/bin/darling', 'sysroot': '/usr/libexec/darling',
                     'prefix': str(self.base / 'saved-prefix')}
@@ -98,7 +136,7 @@ main --install-runtime --darling ciderdarling --yes
 '''
         output = self.checked(stub)
         self.assertIn('ensured:ciderdarling', output)
-        self.assertFalse((self.base / 'data/CiderHQ').exists())
+        self.assertFalse((self.base / 'data/QuadraHQ').exists())
         # Regular Darling stays selected; the new CiderDarling is remembered.
         saved = runtime.read_selection(file)
         self.assertEqual({key: saved[key] for key in runtime.SELECTION_KEYS},
@@ -132,7 +170,7 @@ DARLING_SYSROOT="$FIXTURE/runtime with spaces/libexec/darling"
 PREFIX="$FIXTURE/custom prefix"
 save_darling_selection
 ''')
-        path = self.base / "config/ciderhq/runtime.json"
+        path = self.base / "config/quadrahq/runtime.json"
         self.assertEqual(path.stat().st_mode & 0o777, 0o600)
         self.assertEqual(list(path.parent.iterdir()), [path])
         output = self.checked('''
@@ -151,7 +189,7 @@ save_darling_selection
 DARLING_EXECUTABLE="$FIXTURE/new/bin/darling"; DARLING_SYSROOT="$FIXTURE/new/libexec/darling"
 save_darling_selection remember
 ''')
-        saved = runtime.read_selection(self.base / 'config/ciderhq/runtime.json')
+        saved = runtime.read_selection(self.base / 'config/quadrahq/runtime.json')
         self.assertEqual(saved['previous_ciderdarling']['sysroot'], str(self.base / 'old/libexec/darling'))
         self.assertEqual(saved['previous_ciderdarling']['prefix'], saved['prefix'])
 
@@ -170,7 +208,7 @@ curl() {{
 '''
         result = self.shell(common + 'download_ciderdarling_archive "$FIXTURE/download" "$name" https://fixture/archive "$digest"')
         self.assertEqual(result.returncode, 1)
-        part = self.base / 'cache/ciderhq/installer/downloads/fixture.tar.xz.part'
+        part = self.base / 'cache/quadrahq/installer/downloads/fixture.tar.xz.part'
         self.assertEqual(part.read_bytes(), b'abc')
         self.checked(common + 'download_ciderdarling_archive "$FIXTURE/download" "$name" https://fixture/archive "$digest"')
         self.assertEqual((self.base / 'download').read_bytes(), b'abcdef')
@@ -190,7 +228,7 @@ printf '%s|%s|%s' "$DARLING_EXECUTABLE" "$DARLING_SYSROOT" "$DPREFIX"
         self.assertEqual(output, f'{self.base}/runtime/bin/darling|{self.base}/runtime/libexec/darling|{self.base}/.ciderdarling')
 
     def test_gui_and_installer_preserve_both_runtime_profiles(self):
-        file = self.base / 'config/ciderhq/runtime.json'
+        file = self.base / 'config/quadrahq/runtime.json'
         def entry(variant):
             return {'schema_version': 1, 'runtime': variant,
                     'executable': str(self.base / variant / 'bin/darling'),
@@ -375,7 +413,7 @@ setcap() { printf 'setcap %s\\n' "$*" >> "$FIXTURE/commands"; }
         target = self.base / 'versions' / revision
         self.assertTrue((target / 'bin/darling').is_file())
         self.assertFalse((self.base / 'versions' / f'.partial-{revision}').exists())
-        self.assertEqual(list((self.base / 'cache/ciderhq/installer').glob('prebuilt-*')), [])
+        self.assertEqual(list((self.base / 'cache/quadrahq/installer').glob('prebuilt-*')), [])
         downloads = (self.base / 'downloads').read_text().split()
         self.assertEqual(downloads, [
             f'https://github.com/CiderHQ-org/CiderDarling/releases/download/bin-{revision[:12]}/'
@@ -440,12 +478,12 @@ darling_literal_flags() { :; }
 cmake() { printf '%s\\n' "$@" >> "$FIXTURE/commands"; }
 sudo() { "$@"; mkdir -p "$CIDER_DARLING_INSTALL/bin"; touch "$CIDER_DARLING_INSTALL/bin/darling"; chmod 755 "$CIDER_DARLING_INSTALL/bin/darling"; }
 ciderdarling_matches() { return 0; }
-mkdir -p "$XDG_CACHE_HOME/ciderhq/installer/darling-source-earlier/build"
+mkdir -p "$XDG_CACHE_HOME/quadrahq/installer/darling-source-earlier/build"
 build_darling_source apt-get
 ''', DARLING_BUILD_JOBS='7', CIDER_RUNTIME_LOG_RECORD=str(self.base / 'build-log'))
         # The build tree goes after a successful install, earlier ones before
         # a new build; the log stays where the launcher's record points.
-        installer = self.base / 'cache/ciderhq/installer'
+        installer = self.base / 'cache/quadrahq/installer'
         self.assertEqual(list(installer.glob('darling-source-*')), [])
         log = Path((self.base / 'build-log').read_text().strip())
         self.assertEqual(log.parent, installer)

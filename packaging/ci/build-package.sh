@@ -21,7 +21,7 @@ mkdir -p /work
 cp -a /src/. /work/
 cd /work
 version=$(python3 -c 'import json; print(json.load(open("packaging/release.json"))["version"])')
-archive=/out/ciderhq-$version-source.tar.gz
+archive=/out/quadrahq-$version-source.tar.gz
 digest=$(sha256sum "$archive"); digest=${digest%% *}
 python3 - "$digest" <<'PY'
 import json, sys
@@ -36,18 +36,18 @@ export DARLING_SYSROOT=/runtime
 case $flavor in
   arch)
     chown -R builder: /work/prepared
-    su builder -c 'export DARLING_SYSROOT=/runtime; cd /work/prepared/aur/ciderhq && makepkg --printsrcinfo > .SRCINFO && makepkg --nodeps --noconfirm'
-    cp /work/prepared/aur/ciderhq/ciderhq-*.pkg.tar.zst /out/
-    cp /work/prepared/aur/ciderhq/PKGBUILD /out/ciderhq.PKGBUILD
-    cp /work/prepared/aur/ciderhq/.SRCINFO /out/ciderhq.SRCINFO
+    su builder -c 'export DARLING_SYSROOT=/runtime; cd /work/prepared/aur/quadrahq && makepkg --printsrcinfo > .SRCINFO && makepkg --nodeps --noconfirm'
+    cp /work/prepared/aur/quadrahq/quadrahq-*.pkg.tar.zst /out/
+    cp /work/prepared/aur/quadrahq/PKGBUILD /out/quadrahq.PKGBUILD
+    cp /work/prepared/aur/quadrahq/.SRCINFO /out/quadrahq.SRCINFO
     ;;
   ubuntu24.04)
-    cd "/work/prepared/Cider-$version"
+    cd "/work/prepared/Quadra-$version"
     dpkg-buildpackage -b -us -uc
-    cp /work/prepared/ciderhq_*.deb /out/
+    cp /work/prepared/quadrahq_*.deb /out/
     ;;
   fedora)
-    rpmbuild --define '_topdir /work/prepared/rpm' -ba /work/prepared/rpm/SPECS/ciderhq.spec
+    rpmbuild --define '_topdir /work/prepared/rpm' -ba /work/prepared/rpm/SPECS/quadrahq.spec
     cp /work/prepared/rpm/RPMS/x86_64/*.rpm /out/
     cp /work/prepared/rpm/SRPMS/*.src.rpm /out/
     ;;

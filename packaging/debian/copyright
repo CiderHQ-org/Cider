@@ -1,12 +1,12 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: Cider
+Upstream-Name: Quadra
 Source: https://github.com/CiderHQ-org/Cider
 
 Files: *
 Copyright: 2026 CiderHQ maintainers and Cider contributors
  2026 Narezany and Mac O' Blox contributors
 License: GPL-3 and MIT
-Comment: Cider is distributed under the GNU GPL version 3. It is based on
+Comment: Quadra is distributed under the GNU GPL version 3. It is based on
  Mac O' Blox by Narezany, released under the MIT License; that notice is kept
  in LICENSES/MIT-MacOBlox.txt and reproduced below.
 

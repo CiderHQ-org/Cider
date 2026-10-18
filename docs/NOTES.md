@@ -51,7 +51,7 @@ Delete files from within the shell (`darling shell rm ...`) or while the server 
 From a regular Linux terminal:
 
 ```bash
-cd Cider
+cd Quadra
 ./run_debug.sh
 ```
 

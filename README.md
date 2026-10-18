@@ -1,28 +1,28 @@
 <p align="center">
-  <img src="branding/ciderhq.webp" alt="Cider logo" width="160">
+  <img src="branding/quadrahq.webp" alt="Quadra logo" width="160">
 </p>
 
 <h1 align="center">
- Cider, by CiderHQ.
+ Quadra, by QuadraHQ.
 </h1>
 
- <p align="center"> 
-    <a href="https://discord.gg/jCjHYYNq48"> 
-      <img src="https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white" alt="Discord" width="140"> 
-   </a> 
+ <p align="center">
+    <a href="https://discord.gg/jCjHYYNq48">
+      <img src="https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white" alt="Discord" width="140">
+   </a>
  </p>
- 
+
  <p align="center">
   The Roblox client meant for MacOS, running on Linux through <a href="https://www.darlinghq.org">Darling</a>, a compatability layer for using MacOS applications on Linux.
-  
-  improved by aubree.wtf and CiderHQ maintainers. with patches and more, Mac O' Blox, now Cider was originally created by narezy. Credits of the base to Cider go to narezy.
+
+  improved by aubree.wtf and QuadraHQ maintainers. with patches and more, Mac O' Blox, now Quadra was originally created by narezy. Credits of the base to Quadra go to narezy.
 </p>
 
 <h1 align="center">
-A.I. Disclaimer, do not use Cider if against the usage of A.I.
+A.I. Disclaimer, do not use Quadra if against the usage of A.I.
 </h1>
 
-###   Cider uses **Generative A.I.** for the maintaining and addition of features for Cider. Please do NOT complain in the CiderHQ [Discord server](https://discord.gg/jCjHYYNq48) if you are aginst the usage of Generative A.I.
+###   Quadra uses **Generative A.I.** for the maintaining and addition of features for Quadra. Please do NOT complain in the QuadraHQ [Discord server](https://discord.gg/jCjHYYNq48) if you are aginst the usage of Generative A.I.
 
 <h1 align="center">
   Description
@@ -30,47 +30,51 @@ A.I. Disclaimer, do not use Cider if against the usage of A.I.
 
 Full graphics* with antialiasing, sound, camera and mouse lock, a session that
 survives restarts, and a small launcher with fast flags. Roblox Studio too, in
-its Windows version through Wine. English and Russian. Cider is under the GPL v3 license. Do not make Cider proprietary, nor may any derivatives be closed source.
+its Windows version through Wine. English and Russian. Quadra is under the GPL v3 license. Do not make Quadra proprietary, nor may any derivatives be closed source.
 Any derivatives must be also under the GPL v3 license, and cannot remove any copyright notices.
 * What we mean by "Full graphics" is that the game is running and largely playable. Due to the nature of OpenGL, we cannot provide maxiumum graphics.
 
 <h1 align="center">
-  Migration from Mac O' Blox to Cider
+  Migration from Cider / Mac O' Blox to Quadra
 </h1>
 
-Cider is the new, and preferred name for Mac O' Blox. The terminal command and native package
-name are **`ciderhq`**, the desktop ID is `org.ciderhq.Cider`, and the website
-is [ciderhq.org](https://ciderhq.org).
+Quadra is the new name for Cider, maintained by **QuadraHQ**. The terminal
+command and native package name are **`quadrahq`**, the desktop ID is
+`org.quadrahq.Quadra`, and the website is
+[quadrahq.org](https://quadrahq.org). The logo stays the same.
 
-The source installer moves its old `~/.local/share/MacOBlox` checkout to
-`~/.local/share/CiderHQ`. The launcher migrates `~/.config/macoblox` and
-`~/.cache/macoblox` to `ciderhq`, and its Darling session files from
-`Library/MacOBlox` to `Library/CiderHQ`. Existing Cider data is never replaced.
-Settings, Roblox/Studio files and saved sign-in stay available. Internal shim
-filenames and `MACOBLOX_*` environment variables retain their compatibility
-names. The GitHub repository is now [CiderHQ-org/Cider](https://github.com/CiderHQ-org/Cider).
+The source installer moves `~/.local/share/CiderHQ` (or the older
+`~/.local/share/MacOBlox`) to `~/.local/share/QuadraHQ`. Settings and cache move
+from `ciderhq` (or `macoblox`) to `quadrahq`, and Darling session files move
+from `Library/CiderHQ` (or `Library/MacOBlox`) to `Library/QuadraHQ`. Existing
+Quadra data is never replaced; Cider data takes precedence over MacOBlox data.
+
+The internal Python module, shim filenames, `MACOBLOX_*` variables and
+CiderDarling's runtime identifiers keep their compatibility names. The current
+GitHub repositories remain [CiderHQ-org/Cider](https://github.com/CiderHQ-org/Cider)
+and [CiderDarling](https://github.com/CiderHQ-org/CiderDarling).
 
 ## Install
 
 Every **Latest** version is a source release. Use the installer below to install or update.
 
 ```bash
-curl -fsSL https://ciderhq.org/install.sh | bash
+curl -fsSL https://quadrahq.org/install.sh | bash
 ```
 
 The installer welcomes you and explains the packages, destination and setup
-steps before you begin. It prepares Darling and adds **Cider** to the
+steps before you begin. It prepares Darling and adds **Quadra** to the
 app menu. Open it for a first-time guide that downloads Roblox, prepares its
 app environment, and explains how to sign in. Existing Roblox installations
 open the launcher directly; **Setup guide** in its menu reopens the guide.
 
 Setup offers **Regular Darling** (the default on first install) or
-**CiderHQ's CiderDarling**, our Darling variant with threading, CPU detection
+**QuadraHQ's CiderDarling**, our Darling variant with threading, CPU detection
 and OpenGL fixes. Updates keep your choice. You can also choose explicitly:
 
 ```bash
-curl -fsSL https://ciderhq.org/install.sh | bash -s -- --darling ciderdarling
-curl -fsSL https://ciderhq.org/install.sh | bash -s -- --darling regular
+curl -fsSL https://quadrahq.org/install.sh | bash -s -- --darling ciderdarling
+curl -fsSL https://quadrahq.org/install.sh | bash -s -- --darling regular
 ```
 
 Regular Darling keeps the installed-runtime, distro package and pinned upstream
@@ -91,41 +95,41 @@ CiderDarling uses `~/.ciderdarling` by default; regular Darling uses `~/.darling
 Sign in again the first time you use the separate prefix. Switching keeps both
 prefixes and runtime installations available. An explicit `DPREFIX` overrides
 the prefix. The installer saves the client, matching runtime root and prefix
-in `~/.config/ciderhq/runtime.json` (or your XDG config directory) after setup
+in `~/.config/quadrahq/runtime.json` (or your XDG config directory) after setup
 succeeds. Restart the launcher after switching. Flatpak continues to use its
 bundled runtime.
 
 Installed runtimes can also be switched in **Settings → Environment → Darling**.
-Choose **DarlingHQ's Darling** or **CiderHQ's CiderDarling**, then press
-**Apply and restart Cider**. Close Roblox and wait for launcher operations to
-finish first. The refresh button detects runtimes installed while Cider was
+Choose **DarlingHQ's Darling** or **QuadraHQ's CiderDarling**, then press
+**Apply and restart Quadra**. Close Roblox and wait for launcher operations to
+finish first. The refresh button detects runtimes installed while Quadra was
 open. If CiderDarling is missing, select it and click **Install in terminal**.
 The separate terminal runs the pinned runtime installer, shows build progress
 and handles confirmation and sudo prompts. It stays open when the build
-finishes; Cider refreshes the choices and you can apply the switch when ready.
+finishes; Quadra refreshes the choices and you can apply the switch when ready.
 Installing this way keeps the current runtime selection and launcher files.
 Custom prefixes are remembered for both choices. Flatpak keeps this selector
 read-only because its runtime is bundled.
 
-Cider 0.23 checks for CiderDarling updates automatically at startup and hourly.
+Quadra 0.23 checks for CiderDarling updates automatically at startup and hourly.
 When a complete CI binary release is ready, **Settings → CiderDarling** offers
 **Update in terminal**. The refresh button checks immediately, and automatic
 checks can be disabled in that page. Downloads verify the published checksums;
-the update keeps the prefix and sign-in, and applies after restarting Cider.
+the update keeps the prefix and sign-in, and applies after restarting Quadra.
 Each runtime release appears through this update feed without a separate
-Cider release or manual announcement.
+Quadra release or manual announcement.
 
-Cider uses the complete published runtime release, with the revision pinned
+Quadra uses the complete published runtime release, with the revision pinned
 in its installer (`CIDER_DARLING_REVISION` in `install.sh`) as the fallback
 when no update feed is available. The new version is saved for CiderDarling
 with its prefix unchanged, and the active runtime switches to it only if
 CiderDarling was already active. An
 installation interrupted during `sudo` is detected and removed after asking
 (`--replace-incomplete-runtime` skips the question). Build trees are deleted
-after a successful build; the build log stays in `~/.cache/ciderhq/installer/`.
+after a successful build; the build log stays in `~/.cache/quadrahq/installer/`.
 
 While CiderDarling is installed, **Settings → CiderDarling** (also the
-*CiderDarling Settings* app menu entry, or `ciderhq --ciderdarling-settings`)
+*CiderDarling Settings* app menu entry, or `quadrahq --ciderdarling-settings`)
 collects its options: renderer and graphics card (shared with Environment →
 Game), watchdog thread kicks (`MACOBLOX_KICK=1`, off by default), a runtime trace
 (`CIDER_TRACE_FILE`, a private file in the logs folder), a verbose
@@ -133,15 +137,15 @@ darlingserver log (`DSERVER_LOG_LEVEL=debug`), diagnostics and the prefix
 folder. These apply only while CiderDarling is the active runtime.
 
 Run the same command again to update or uninstall. Updates save local source
-changes in `~/.local/share/CiderHQ-backups` (or your XDG data directory) and
+changes in `~/.local/share/QuadraHQ-backups` (or your XDG data directory) and
 keep settings and sign-in. Without a terminal, or for scripts, the choices
 are options too:
 
 ```bash
-curl -fsSL https://ciderhq.org/install.sh | bash -s -- --uninstall
+curl -fsSL https://quadrahq.org/install.sh | bash -s -- --uninstall
 ```
 
-Arch package recipes for the stable `ciderhq` release and `ciderhq-git` are
+Arch package recipes for `quadrahq` and `quadrahq-git` are
 in [packaging/aur](packaging/aur/README.md). They build the shim at package
 creation and install system menu entries. The stable recipe is generated from a checksum-verified source archive.
 The new package names still need submission to the AUR.
@@ -176,7 +180,7 @@ sudo pacman -S clang lld unzip pipewire-audio python-gobject gtk4 libadwaita web
 
 Debian, Ubuntu, Mint: download `debs_20260608.zip` from the
 [Darling release v0.1.20260608](https://github.com/darlinghq/darling/releases/tag/v0.1.20260608)
-(the one Cider is tested with), then:
+(the one Quadra is tested with), then:
 
 ```bash
 unzip debs_*.zip -d darling-debs
@@ -191,12 +195,12 @@ Fedora and others: build Darling with the
 sudo dnf install clang lld unzip pipewire-utils python3-gobject gtk4 libadwaita webkitgtk6.0
 ```
 
-**2. Cider**
+**2. Quadra**
 
 ```bash
 git clone --filter=blob:none --no-checkout --depth 1 --single-branch --branch main \
-  https://github.com/CiderHQ-org/Cider ~/.local/share/CiderHQ
-git -C ~/.local/share/CiderHQ sparse-checkout set --no-cone --stdin <<'PATTERNS'
+  https://github.com/CiderHQ-org/Cider ~/.local/share/QuadraHQ
+git -C ~/.local/share/QuadraHQ sparse-checkout set --no-cone --stdin <<'PATTERNS'
 /*
 !/website/
 !/.github/
@@ -204,8 +208,8 @@ git -C ~/.local/share/CiderHQ sparse-checkout set --no-cone --stdin <<'PATTERNS'
 !/.vercel/
 !/.vercelignore
 PATTERNS
-git -C ~/.local/share/CiderHQ reset --hard HEAD
-~/.local/share/CiderHQ/launcher/install.sh
+git -C ~/.local/share/QuadraHQ reset --hard HEAD
+~/.local/share/QuadraHQ/launcher/install.sh
 ```
 </details>
 
@@ -216,19 +220,19 @@ git -C ~/.local/share/CiderHQ reset --hard HEAD
 <details>
 <summary>Hey, this sounds like Gracejuice!</summary>
 
-Grapejuice and Cider are inherently similar because Grapejuice used Wine to run the Windows version of the Roblox client on Linux, while Cider uses Darling with along with added libraries to use the MacOS version of the Roblox client on Linux. Ergo, Grapejuice and Cider use the same methods, though use different versions of the Roblox client.
+Grapejuice and Quadra are inherently similar because Grapejuice used Wine to run the Windows version of the Roblox client on Linux, while Quadra uses Darling with along with added libraries to use the MacOS version of the Roblox client on Linux. Ergo, Grapejuice and Quadra use the same methods, though use different versions of the Roblox client.
 </details>
 
 <details>
 <summary>Is my account safe?</summary>
 
-You sign in inside the Roblox client itself, the launcher and we at CiderHQ **NEVER** see your password since the
+You sign in inside the Roblox client itself, the launcher and we at QuadraHQ **NEVER** see your password since the
 session is stored locally, only on your computer, and not on a server. The cookie is located in
-`~/.darling/Users/$USER/Library/CiderHQ`. Do not share that folder, it works
-like a fancy keycard to your account. We at CiderHQ will never ask for this folder, and anyone asking for this is a phishing attempt and should be reported, not only to the service you're on, but also ping (Don't DM) anyone with the "Cool and awesome" role in the [Discord](https://discord.gg/jCjHYYNq48) and above, so we can "take care (ban)" them from the server, or make a PSA in the [Discord](https://discord.gg/jCjHYYNq48) to make sure they don't get another persons account.
+`~/.darling/Users/$USER/Library/QuadraHQ`. Do not share that folder, it works
+like a fancy keycard to your account. We at QuadraHQ will never ask for this folder, and anyone asking for this is a phishing attempt and should be reported, not only to the service you're on, but also ping (Don't DM) anyone with the "Cool and awesome" role in the [Discord](https://discord.gg/jCjHYYNq48) and above, so we can "take care (ban)" them from the server, or make a PSA in the [Discord](https://discord.gg/jCjHYYNq48) to make sure they don't get another persons account.
 **Sign out** in the settings to delete it.
 
-Cider is ***NOT*** affiliated nor endorsed by the Roblox Corporation, nor any siblings of Roblox. We are not liable for any suspensions of your account by using Cider. 
+Quadra is ***NOT*** affiliated nor endorsed by the Roblox Corporation, nor any siblings of Roblox. We are not liable for any suspensions of your account by using Quadra.
 </details>
 
 <details>
@@ -236,7 +240,7 @@ Cider is ***NOT*** affiliated nor endorsed by the Roblox Corporation, nor any si
 
 In the rare, and *scary* event Roblox does not start, the launcher shows the error with a **Copy**
 button. Send it to the [Discord](https://discord.gg/jCjHYYNq48). The last
-error is also saved in `~/.cache/ciderhq/last-error.txt`.
+error is also saved in `~/.cache/quadrahq/last-error.txt`.
 You can also send things like bug reports (i.e. Camera issues, and rendering bugs [like artifacting].)
 </details>
 
@@ -252,7 +256,7 @@ Go to your browser or something like S[REDACTED]r and click the gear on the top 
 <details>
 <summary>Images or servers do not load</summary>
 
-Some providers make some of Roblox's addresses inaccessible. In Cider's settings, go to DNS, and choose from the dropdown. Your current options are Google (8.8.8.8), Cloudflare (1.1.1.1), Quad9 (9.9.9.9), and your currrent system-wide DNS. Only Cider uses it, The rest of your computer keeps it's current DNS. 
+Some providers make some of Roblox's addresses inaccessible. In Quadra's settings, go to DNS, and choose from the dropdown. Your current options are Google (8.8.8.8), Cloudflare (1.1.1.1), Quad9 (9.9.9.9), and your currrent system-wide DNS. Only Quadra uses it, The rest of your computer keeps it's current DNS.
 
 </details>
 
@@ -260,7 +264,7 @@ Some providers make some of Roblox's addresses inaccessible. In Cider's settings
 <summary>OpenGL and Vulkan rendering</summary>
 
 **OpenGL** is the default and uses Roblox's own OpenGL renderer with the host
-OpenGL driver. Cider hides the Metal device so Roblox selects this path.
+OpenGL driver. Quadra hides the Metal device so Roblox selects this path.
 Client startup was verified on NVIDIA OpenGL 4.1 using the client's GLSL shader
 pack.
 
@@ -288,7 +292,7 @@ backends.
 With [MangoHud](https://github.com/flightlessmango/MangoHud) installed, enable
 **Settings → Environment → Game → MangoHud overlay** and restart Roblox.
 It works with both OpenGL and Vulkan (Zink) and is off by default. You can also
-start the source launcher with `MANGOHUD=1 ./launcher/ciderhq-launcher`.
+start the source launcher with `MANGOHUD=1 ./launcher/quadrahq-launcher`.
 The launcher also forwards `MANGOHUD_CONFIG` and `MANGOHUD_CONFIGFILE` to Roblox.
 For the Flatpak, install the matching MangoHud extension with
 `flatpak install flathub org.freedesktop.Platform.VulkanLayer.MangoHud//26.08`
@@ -318,7 +322,7 @@ Set **Settings → Environment → Game → Roblox UI scale** to **200%** for a
 display's rendering resolution. Adjust it to suit your monitor.
 
 For a manual settings edit, `"dpi_scale": 2.0` in
-`~/.config/ciderhq/settings.json` selects 200%. The `resolution` key is not
+`~/.config/quadrahq/settings.json` selects 200%. The `resolution` key is not
 supported. If you previously added `DFFlagDisableDPIScale`, remove it from your
 custom fast flags before testing scaling.
 
@@ -332,7 +336,7 @@ original relative deltas.
 <details>
 <summary>Error 256 or an unknown connection error when joining a server</summary>
 
-Update Cider and restart Roblox. The launcher applies verified RakNet
+Update Quadra and restart Roblox. The launcher applies verified RakNet
 compatibility patches for Roblox **0.741.0.7411056**, **0.742.0.7421053**,
 **0.743.0.7431129** and **0.743.0.7431134**. Roblox updates can relocate these
 patches; saved transport flags alone do not prevent the 0.743 connection failure
@@ -342,10 +346,10 @@ If compatibility says **unsupported client**, share those lines and the full
 launch log so that deployment can be inspected. Unsupported executables are
 left unchanged.
 
-Cider also monitors Roblox's actual transport selection during each launch.
-If Roblox selects a transport other than RakNet, Cider brings the launcher
+Quadra also monitors Roblox's actual transport selection during each launch.
+If Roblox selects a transport other than RakNet, Quadra brings the launcher
 forward and warns that games might not work or may show Error 256. The warning
-offers **View log** and **Check for updates**; if no Cider fix is available yet,
+offers **View log** and **Check for updates**; if no Quadra fix is available yet,
 wait for a compatibility patch. It appears once per launch, including when
 Discord presence is disabled. An unsupported-client header alone does not
 trigger it.
@@ -368,11 +372,11 @@ the log. It cannot capture an external kill or every Darling server failure.
 For source installations, the same switch is available as:
 
 ```bash
-MACOBLOX_DIAGNOSTIC_SIGNALS=1 ./launcher/ciderhq-launcher
+MACOBLOX_DIAGNOSTIC_SIGNALS=1 ./launcher/quadrahq-launcher
 ```
 
 Source checkouts write launch logs to their `logs/` directory; read-only
-packages use `~/.local/share/ciderhq/logs/` by default. For Flatpak,
+packages use `~/.local/share/quadrahq/logs/` by default. For Flatpak,
 use `~/.var/app/wtf.aubree.MacOBlox/data/macoblox/logs/`. Also collect
 `private/var/log/dserver.log` inside the selected Darling prefix: normally
 `~/.darling/`, or `~/.var/app/wtf.aubree.MacOBlox/data/darling/` for Flatpak.
@@ -380,7 +384,7 @@ use `~/.var/app/wtf.aubree.MacOBlox/data/macoblox/logs/`. Also collect
 The lifecycle record describes the observed state before cleanup. A final
 `Broken pipe` can follow cleanup and does not identify the original failure.
 
-**Collect diagnostics** (launcher menu, or `ciderhq --collect-diagnostics`)
+**Collect diagnostics** (launcher menu, or `quadrahq --collect-diagnostics`)
 writes one archive with the logs, runtime selection and the game's thread
 states. Thread stacks need **Allow freeze diagnostics**
 (`MACOBLOX_ALLOW_DEBUGGER=1`) turned on before the game starts. Inherited
@@ -402,7 +406,7 @@ account enrollment.
 <summary>No sound with older PipeWire</summary>
 
 PipeWire 1.0.5's `pw-cat` cannot play the launcher's raw audio stream.
-Cider uses `pacat` through PipeWire's PulseAudio compatibility server on
+Quadra uses `pacat` through PipeWire's PulseAudio compatibility server on
 these versions. On Mint/Ubuntu/Debian, install it with
 `sudo apt install pulseaudio-utils`, then restart Roblox. The source installer
 includes this package. The launch log records the playback helper and its
@@ -427,7 +431,7 @@ For a source installation, close the launcher and start it with optional
 selection diagnostics:
 
 ```bash
-MACOBLOX_TRACE_TEXT_INPUT=1 ./launcher/ciderhq-launcher
+MACOBLOX_TRACE_TEXT_INPUT=1 ./launcher/quadrahq-launcher
 ```
 
 The trace records text lengths, selection ranges and composition state in
@@ -438,10 +442,10 @@ the launch log, without recording typed content. It is disabled by default.
 <summary>Wayland</summary>
 
 **Settings → Environment → Game → Window backend** defaults to **X11 / Xwayland**.
-Select **Wayland** to use native windows with OpenGL or Vulkan/Zink. Cider 0.24
+Select **Wayland** to use native windows with OpenGL or Vulkan/Zink. Quadra 0.24
 repairs startup and game-join freezes, aligns mouse clicks with the cursor, and
 keeps the outer window size in sync with the game. Backend changes apply on the
-next launch. Cider 0.25 also applies fullscreen requests made before the native
+next launch. Quadra 0.25 also applies fullscreen requests made before the native
 window exists, fixing a mismatch where Roblox reported fullscreen while the
 window stayed decorated. Initial fullscreen and repeated toggles are checked
 under KWin at 100% and 150% scaling.
@@ -450,7 +454,7 @@ under KWin at 100% and 150% scaling.
 <details>
 <summary>VR headsets (experimental)</summary>
 
-Roblox's macOS client still contains Roblox's VR mode; Cider supplies the
+Roblox's macOS client still contains Roblox's VR mode; Quadra supplies the
 OpenXR device the Mac build leaves out. Turn on **Settings → VR →
 VR headset (OpenXR)**, start your OpenXR runtime with the headset connected,
 then play. Meta Quest headsets work through [WiVRn](https://github.com/WiVRn/WiVRn);
@@ -470,7 +474,7 @@ Tested on a Quest 2 with WiVRn 26.9. Details are in [docs/VR.md](docs/VR.md).
 Press **Roblox Studio** in the launcher. The first time it downloads Wine, DXVK
 and Studio (about 800 MB) into its own folder, nothing is installed system-wide.
 To sign in, Studio opens the Roblox login in your browser; when the browser asks
-how to open the `roblox-studio-auth` link, choose **Roblox Studio (Cider)**.
+how to open the `roblox-studio-auth` link, choose **Roblox Studio (Quadra)**.
 </details>
 
 <details>
@@ -496,8 +500,8 @@ than the previous GNOME runtime recipe. To build it yourself:
 
 ```bash
 flatpak install --user flathub org.flatpak.Builder org.freedesktop.Platform//26.08 org.freedesktop.Sdk//26.08 org.freedesktop.Sdk.Extension.llvm22//26.08
-cd Cider/flatpak
-flatpak run --env=FLATPAK_USER_DIR=$HOME/.local/share/flatpak --command=flatpak-builder org.flatpak.Builder --user --install --force-clean build-dir org.ciderhq.Cider.yml
+cd Quadra/flatpak
+flatpak run --env=FLATPAK_USER_DIR=$HOME/.local/share/flatpak --command=flatpak-builder org.flatpak.Builder --user --install --force-clean build-dir org.quadrahq.Quadra.yml
 ```
 </details>
 
@@ -505,7 +509,7 @@ flatpak run --env=FLATPAK_USER_DIR=$HOME/.local/share/flatpak --command=flatpak-
 <summary>How does it work?</summary>
 
 Darling runs macOS programs on Linux. Roblox needs a few things Darling does not
-have yet, so Cider adds a small library to the game: it connects the mouse,
+have yet, so Quadra adds a small library to the game: it connects the mouse,
 sound, OpenGL (or Vulkan via Zink) and network to Linux and fixes bugs along the way. Details are in
 [docs/NOTES.md](docs/NOTES.md).
 </details>
@@ -513,9 +517,9 @@ sound, OpenGL (or Vulkan via Zink) and network to Linux and fixes bugs along the
 ## Credits
 
 Made by [Narezy](https://github.com/narezy). This version is maintained by
-[aubree.wtf](https://aubree.wtf) and maintainers at CiderHQ, with stability + performance fixes, and added features.
+[aubree.wtf](https://aubree.wtf) and maintainers at QuadraHQ, with stability + performance fixes, and added features.
 
-Cider is licensed under the [GNU GPL v3](LICENSE). Mac O' Blox, the original code it
+Quadra is licensed under the [GNU GPL v3](LICENSE). Mac O' Blox, the original code it
 is based on, was released by Narezy under the MIT License; that notice is kept in
 [LICENSES/MIT-MacOBlox.txt](LICENSES/MIT-MacOBlox.txt).
 
@@ -526,5 +530,5 @@ is based on, was released by Narezy under the MIT License; that notice is kept i
 icons from [Simple Icons](https://simpleicons.org)
 
 <h2 align="center">
-  Cider© 2026 is under CiderHQ via the GNU General Public License, and Roblox® is a registered trademarked of Roblox Corporation. Cider and CiderHQ is not affiliated with, nor endorsed by Roblox Corporation, and any relatives or Roblox Corporation
+  Quadra© 2026 is under QuadraHQ via the GNU General Public License, and Roblox® is a registered trademarked of Roblox Corporation. Quadra and QuadraHQ is not affiliated with, nor endorsed by Roblox Corporation, and any relatives or Roblox Corporation
 </h2>

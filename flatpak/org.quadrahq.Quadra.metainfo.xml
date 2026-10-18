@@ -1,38 +1,39 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>org.ciderhq.Cider</id>
-  <name>Cider</name>
+  <id>org.quadrahq.Quadra</id>
+  <name>Quadra</name>
   <summary>Play Roblox on Linux with the macOS client</summary>
   <summary xml:lang="ru">Roblox на Linux через клиент для macOS</summary>
   <developer id="wtf.aubree">
     <name>aubree.wtf</name>
   </developer>
   <replaces>
+    <id>org.ciderhq.Cider</id>
     <id>xyz.narez.MacOBlox</id>
   </replaces>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-only AND MIT</project_license>
   <description>
     <p>
-      Cider runs the official macOS Roblox client on Linux through Darling,
+      Quadra runs the official macOS Roblox client on Linux through Darling,
       with fixes for graphics, input, sound and performance. The launcher keeps
       the client up to date and has settings for fast flags, DNS and diagnostics.
     </p>
     <p xml:lang="ru">
-      Cider запускает официальный клиент Roblox для macOS на Linux через Darling
+      Quadra запускает официальный клиент Roblox для macOS на Linux через Darling
       и чинит графику, ввод, звук и производительность. Лаунчер сам обновляет клиент,
       в нём есть настройки фастфлагов, DNS и диагностика.
     </p>
     <p>Created by Narezany; this version is maintained by aubree.wtf.</p>
     <p xml:lang="ru">Создал Narezany; эту версию поддерживает aubree.wtf.</p>
-    <p>Cider is not affiliated with Roblox Corporation.</p>
-    <p xml:lang="ru">Cider не связан с Roblox Corporation.</p>
+    <p>Quadra is not affiliated with Roblox Corporation.</p>
+    <p xml:lang="ru">Quadra не связан с Roblox Corporation.</p>
   </description>
-  <launchable type="desktop-id">org.ciderhq.Cider.desktop</launchable>
+  <launchable type="desktop-id">org.quadrahq.Quadra.desktop</launchable>
   <screenshots>
     <screenshot type="default">
       <image>https://raw.githubusercontent.com/CiderHQ-org/Cider/main/flatpak/screenshots/roblox.png</image>
-      <caption>Roblox running through Cider</caption>
+      <caption>Roblox running through Quadra</caption>
     </screenshot>
     <screenshot>
       <image>https://raw.githubusercontent.com/CiderHQ-org/Cider/main/flatpak/screenshots/launcher-play.png</image>
@@ -51,7 +52,7 @@
       <caption>Community and authors</caption>
     </screenshot>
   </screenshots>
-  <url type="homepage">https://ciderhq.org</url>
+  <url type="homepage">https://quadrahq.org</url>
   <url type="bugtracker">https://github.com/CiderHQ-org/Cider/issues</url>
   <branding>
     <color type="primary" scheme_preference="light">#c4b5fd</color>

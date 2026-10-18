@@ -22,7 +22,7 @@ from macoblox import app, core
 from session_fixture import bare_session
 from gi.repository import Adw, Gio, GLib
 
-application = Adw.Application(application_id="org.ciderhq.Cider.TransportTest",
+application = Adw.Application(application_id="org.quadrahq.Quadra.TransportTest",
                               flags=Gio.ApplicationFlags.NON_UNIQUE)
 application.register(None)
 settings = dict(core.DEFAULT_SETTINGS, setup_complete=True, discord_rpc=False,

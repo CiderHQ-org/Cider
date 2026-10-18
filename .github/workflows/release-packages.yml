@@ -1,4 +1,4 @@
-name: Cider release packages
+name: Quadra release packages
 
 on:
   workflow_dispatch:
@@ -18,7 +18,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: cider-packages-${{ github.ref }}
+  group: quadra-packages-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -38,12 +38,12 @@ jobs:
           [[ $version =~ ^[0-9]+\.[0-9]+([A-Za-z0-9.]*)$ ]]
           if [[ $GITHUB_REF == refs/tags/* ]]; then [[ $GITHUB_REF == refs/tags/v$version ]]; fi
           mkdir dist
-          git archive --format=tar --prefix="Cider-$version/" HEAD | gzip -n > "dist/ciderhq-$version-source.tar.gz"
+          git archive --format=tar --prefix="Quadra-$version/" HEAD | gzip -n > "dist/quadrahq-$version-source.tar.gz"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
         with:
-          name: cider-source
+          name: quadra-source
           path: dist/
           if-no-files-found: error
 
@@ -84,7 +84,7 @@ jobs:
           ref: ${{ needs.source.outputs.revision }}
       - uses: actions/download-artifact@v4
         with:
-          name: cider-source
+          name: quadra-source
           path: out
       - name: Stage a verified build sysroot
         run: python3 packaging/fetch-build-runtime.py --output "$RUNNER_TEMP/runtime"
@@ -98,7 +98,7 @@ jobs:
             bash /src/packaging/ci/build-package.sh "$FLAVOR"
       - uses: actions/upload-artifact@v4
         with:
-          name: cider-${{ matrix.flavor }}
+          name: quadra-${{ matrix.flavor }}
           path: out/
           if-no-files-found: error
 

@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
-Name=Roblox (Cider)
-Exec=ciderhq
-Icon=ciderhq
+Name=Roblox (Quadra)
+Exec=quadrahq
+Icon=quadrahq
 NoDisplay=true
 StartupWMClass=RobloxPlayer

@@ -277,12 +277,12 @@ class SessionHousekeepingTests(unittest.TestCase):
             self.assertFalse(core.sync_ciderdarling_shortcut(False, applications))
             self.assertEqual(entry.read_text(), "[Desktop Entry]\nName=Mine\n")
             entry.unlink()
-            with patch.object(core, "PREBUILT_SHIM", "/usr/lib/ciderhq/shim"):
+            with patch.object(core, "PREBUILT_SHIM", "/usr/lib/quadrahq/shim"):
                 core.sync_ciderdarling_shortcut(True, applications)
-            self.assertIn("Exec=ciderhq --ciderdarling-settings\n", entry.read_text())
+            self.assertIn("Exec=quadrahq --ciderdarling-settings\n", entry.read_text())
         packaged = (core.PROJECT / "packaging" / core.CIDERDARLING_SHORTCUT).read_text()
         self.assertEqual(packaged, entry.read_text())
-        with patch.dict(os.environ, {"FLATPAK_ID": "org.ciderhq.Cider"}):
+        with patch.dict(os.environ, {"FLATPAK_ID": "org.quadrahq.Quadra"}):
             self.assertFalse(core.sync_ciderdarling_shortcut(False, applications))
         self.assertTrue(entry.exists())
 

@@ -13,7 +13,7 @@ int main() {
     alarm(15);
     auto host=macoblox_wayland_host_api();assert(host);
     unsigned id=host->create(320,240);assert(id);
-    host->action(id,MW_TITLE,0,0,"Cider cursor test");
+    host->action(id,MW_TITLE,0,0,"Quadra cursor test");
     bool focused=false;
     for(unsigned i=0;i<100 && !focused;i++) {
         focused=sync([=]{return windows.at(id).focused;});

@@ -1,12 +1,12 @@
 %global upstream_version 0.30
-Name:           ciderhq
+Name:           quadrahq
 Version:        0.30
 Release:        1%{?dist}
 Summary:        Run the macOS Roblox client on Linux through Darling
 License:        GPL-3.0-only AND MIT AND OFL-1.1
-URL:            https://ciderhq.org
-Source0:        https://github.com/CiderHQ-org/Cider/releases/download/v%{upstream_version}/ciderhq-%{upstream_version}-source.tar.gz#/ciderhq-%{upstream_version}.tar.gz
-Source1:        ciderhq-install-payload.sh
+URL:            https://quadrahq.org
+Source0:        https://github.com/CiderHQ-org/Cider/releases/download/v%{upstream_version}/quadrahq-%{upstream_version}-source.tar.gz#/quadrahq-%{upstream_version}.tar.gz
+Source1:        quadrahq-install-payload.sh
 ExclusiveArch:  x86_64
 
 BuildRequires:  clang
@@ -20,6 +20,8 @@ BuildRequires:  pkgconfig(wayland-cursor)
 
 Provides:       macoblox = %{version}-%{release}
 Obsoletes:      macoblox < %{version}
+Provides:       ciderhq = %{version}-%{release}
+Obsoletes:      ciderhq <= %{version}
 Requires:       python3
 Requires:       unzip
 Requires:       hicolor-icon-theme
@@ -55,19 +57,19 @@ Suggests:       darling, mangohud
 # Keep private Mach-O frameworks out of ELF dependency generation and strip
 # only the Linux helper. Compile the private Python modules explicitly;
 # icon/MIME cache handling comes from the package manager.
-%global __requires_exclude_from ^%{_libdir}/ciderhq/shim/(.*\\.framework/.*|.*\\.dylib)$
-%global __provides_exclude_from ^%{_libdir}/ciderhq/shim/.*$
+%global __requires_exclude_from ^%{_libdir}/quadrahq/shim/(.*\\.framework/.*|.*\\.dylib)$
+%global __provides_exclude_from ^%{_libdir}/quadrahq/shim/.*$
 %global __strip /bin/true
 %global debug_package %{nil}
 
 %description
-Cider provides a GTK launcher and compatibility shims for the macOS
+Quadra provides a GTK launcher and compatibility shims for the macOS
 Roblox player. It includes desktop shortcuts and Roblox link handlers.
 Roblox is downloaded on first setup. A full Darling installation including
 GUI frameworks and stubs is required.
 
 %prep
-%setup -q -n Cider-%{upstream_version}
+%setup -q -n Quadra-%{upstream_version}
 
 %build
 MACOBLOX_BUILD_DIR="$PWD/native-build" ./build_debug_shim.sh
@@ -75,19 +77,23 @@ strip --strip-unneeded native-build/libmacoblox-wayland.so
 
 %install
 bash "%{SOURCE1}" "$PWD" "$PWD/native-build" "%{buildroot}" "%{_libdir}"
-python3 -m compileall -q -d "%{_datadir}/ciderhq/launcher" "%{buildroot}%{_datadir}/ciderhq/launcher"
+python3 -m compileall -q -d "%{_datadir}/quadrahq/launcher" "%{buildroot}%{_datadir}/quadrahq/launcher"
 
 %files
-%license %{_datadir}/licenses/ciderhq/
-%{_bindir}/ciderhq
-%{_libdir}/ciderhq/
-%{_datadir}/ciderhq/
-%{_datadir}/applications/org.ciderhq.Cider*.desktop
-%{_datadir}/applications/ciderhq-roblox-window.desktop
-%{_datadir}/icons/hicolor/*/apps/ciderhq.png
-%{_datadir}/mime/packages/org.ciderhq.Cider.xml
+%license %{_datadir}/licenses/quadrahq/
+%{_bindir}/quadrahq
+%{_libdir}/quadrahq/
+%{_datadir}/quadrahq/
+%{_datadir}/applications/org.quadrahq.Quadra*.desktop
+%{_datadir}/applications/quadrahq-roblox-window.desktop
+%{_datadir}/icons/hicolor/*/apps/quadrahq.png
+%{_datadir}/mime/packages/org.quadrahq.Quadra.xml
 
 %changelog
+* Sat Oct 17 2026 Quadra maintainers <noreply@aubree.wtf> - 0.30-1
+- Rebrand to Quadra / QuadraHQ at quadrahq.org; retain the existing logo.
+- Migrate settings, cache and sign-in from Cider and MacOBlox.
+
 * Sat Oct 17 2026 Cider maintainers <noreply@aubree.wtf> - 0.30-1
 - Add experimental VR through the host's OpenXR runtime (WiVRn, Monado).
 - Fix duplicated typing and the Control key state with native Wayland.

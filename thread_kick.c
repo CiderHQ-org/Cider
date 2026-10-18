@@ -166,8 +166,8 @@ __attribute__((constructor)) static void install_kick_handler(void) {
     if (pthread_key_create(&tid_key, 0) == 0)
         tid_key_ready = 1;
     /* MACOBLOX_ALLOW_DEBUGGER=1 lets this user's tools read the game's threads
-     * (Cider's freeze diagnostics, gdb): Yama otherwise allows only ancestors,
-     * and the game is darlingserver's child, not Cider's. */
+     * (Quadra's freeze diagnostics, gdb): Yama otherwise allows only ancestors,
+     * and the game is darlingserver's child, not Quadra's. */
     const char *debugger = getenv("MACOBLOX_ALLOW_DEBUGGER");
     if (debugger && debugger[0] && debugger[0] != '0')
         linux_syscall3(LINUX_PRCTL, LINUX_PR_SET_PTRACER, -1 /* PR_SET_PTRACER_ANY */, 0);
@@ -255,7 +255,7 @@ void macoblox_wait_end(int slot) {
 
 static void report_wait(long tid, unsigned long long waited, const char *what, const char *where) {
     char line[1400];
-    int length = snprintf(line, sizeof line, "[Cider Lock] thread %ld waiting %llu ms for a mutex, %s%s%s\n",
+    int length = snprintf(line, sizeof line, "[Quadra Lock] thread %ld waiting %llu ms for a mutex, %s%s%s\n",
                           tid, waited / 1000000ULL, what, where ? "; at: " : "", where ? where : "");
     if (length > 0)
         write(2, line, (size_t)length < sizeof line ? (size_t)length : sizeof line - 1);

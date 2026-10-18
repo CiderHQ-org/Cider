@@ -212,7 +212,7 @@ static void validate_egl(void *native) {
         {
             const char *platform=getenv("EGL_PLATFORM"),*driver=getenv("MESA_LOADER_DRIVER_OVERRIDE");
             char line[320];
-            int length=snprintf(line,sizeof line,"[Cider Wayland] EGL %s failed: error 0x%x, native %p, display %p, platform %s, driver %s\n",
+            int length=snprintf(line,sizeof line,"[Quadra Wayland] EGL %s failed: error 0x%x, native %p, display %p, platform %s, driver %s\n",
                 stage,error,native,display,platform?platform:"auto",driver?driver:"auto");
             if(length>0)write(2,line,(unsigned long)length<sizeof line?(unsigned long)length:sizeof line-1);
         }
@@ -222,7 +222,7 @@ static void validate_egl(void *native) {
         const char *vendor=eglQueryString(display,0x3053),*version=eglQueryString(display,0x3054);
         const char *platform=getenv("EGL_PLATFORM"),*driver=getenv("MESA_LOADER_DRIVER_OVERRIDE");
         char line[512];
-        int length=snprintf(line,sizeof line,"[Cider Wayland] EGL initialized: native %p, display %p, version %d.%d (%s), vendor %s, platform %s, driver %s\n",
+        int length=snprintf(line,sizeof line,"[Quadra Wayland] EGL initialized: native %p, display %p, version %d.%d (%s), vendor %s, platform %s, driver %s\n",
             native,display,major,minor,version?version:"unknown",vendor?vendor:"unknown",platform?platform:"auto",driver?driver:"auto");
         if(length>0)write(2,line,(unsigned long)length<sizeof line?(unsigned long)length:sizeof line-1);
     }
@@ -237,7 +237,7 @@ static void initialize(void) {
     if(!get || !(api=get()))
         [NSException raise:@"NSWindowServerCommunicationException" format:@"Native Wayland initialization failed. Check the Wayland session and SDL2 helper (%s).",path?path:"helper not set"];
     if(api->version!=MACOBLOX_WAYLAND_ABI)
-        [NSException raise:@"NSWindowServerCommunicationException" format:@"Native Wayland helper is outdated or incompatible (ABI %u; expected %u). Rebuild Cider before using Native Wayland.",api->version,MACOBLOX_WAYLAND_ABI];
+        [NSException raise:@"NSWindowServerCommunicationException" format:@"Native Wayland helper is outdated or incompatible (ABI %u; expected %u). Rebuild Quadra before using Native Wayland.",api->version,MACOBLOX_WAYLAND_ABI];
     /* Darling reports CGL success even when eglInitialize or config selection
      * fails. Check those operations explicitly before caching its display. */
     validate_egl(api->display());
@@ -559,7 +559,7 @@ int macoblox_wayland_dispatch_event(id event) {
 - (void)pump:(id)timer {
     static BOOL pumping;if(pumping)return;pumping=YES;
     static BOOL traced;
-    if(!traced && getenv("MACOBLOX_TRACE_WAYLAND")){traced=YES;write(2,"[Cider Wayland] AppKit pump active\n",sizeof("[Cider Wayland] AppKit pump active\n")-1);}
+    if(!traced && getenv("MACOBLOX_TRACE_WAYLAND")){traced=YES;write(2,"[Quadra Wayland] AppKit pump active\n",sizeof("[Quadra Wayland] AppKit pump active\n")-1);}
     @try {
         struct macoblox_wayland_event input;
         for(unsigned i=0;i<256 && api->poll(&input);i++) {

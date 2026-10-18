@@ -23,8 +23,8 @@ RU = {
     "Uses {runtime}. Start it and connect the headset before playing.":
         "Используется {runtime}. Запустите её и подключите шлем перед игрой.",
     "Roblox update broke game compatibility": "Обновление Roblox нарушило совместимость с играми",
-    "Roblox is no longer using RakNet. The latest Roblox update has broken game connection compatibility with Cider. Games might not work or may show Error 256.\n\nCheck for a Cider update. If a fix is not available yet, wait for a Cider compatibility patch.":
-        "Roblox больше не использует RakNet. Последнее обновление Roblox нарушило совместимость игровых подключений с Cider. Игры могут не работать или выдавать ошибку 256.\n\nПроверьте обновления Cider. Если исправление ещё не доступно, дождитесь патча совместимости для Cider.",
+    "Roblox is no longer using RakNet. The latest Roblox update has broken game connection compatibility with Quadra. Games might not work or may show Error 256.\n\nCheck for a Quadra update. If a fix is not available yet, wait for a Quadra compatibility patch.":
+        "Roblox больше не использует RakNet. Последнее обновление Roblox нарушило совместимость игровых подключений с Quadra. Игры могут не работать или выдавать ошибку 256.\n\nПроверьте обновления Quadra. Если исправление ещё не доступно, дождитесь патча совместимости для Quadra.",
     "View log": "Посмотреть журнал",
     "Check for CiderDarling updates": "Проверить обновления CiderDarling",
     "Check for CiderDarling updates automatically": "Автоматически проверять обновления CiderDarling",
@@ -58,20 +58,20 @@ RU = {
         "CiderDarling установлена. Примените выбор среды, чтобы переключиться.",
     "Darling runtime": "Среда Darling",
     "DarlingHQ's Darling": "Darling от DarlingHQ",
-    "CiderHQ's CiderDarling": "CiderDarling от CiderHQ",
+    "QuadraHQ's CiderDarling": "CiderDarling от QuadraHQ",
     "Each runtime keeps its own Roblox sign-in.": "Каждая среда сохраняет свой вход в Roblox.",
     "{runtime} (not installed)": "{runtime} (не установлена)",
     "Active runtime": "Активная среда",
-    "Apply and restart Cider": "Применить и перезапустить Cider",
+    "Apply and restart Quadra": "Применить и перезапустить Quadra",
     "Refresh installed runtimes": "Обновить список установленных сред",
     "Flatpak uses its bundled Darling runtime.": "Flatpak использует встроенную среду Darling.",
-    "Install this runtime with Cider's installer before switching.":
-        "Перед переключением установите эту среду через установщик Cider.",
+    "Install this runtime with Quadra's installer before switching.":
+        "Перед переключением установите эту среду через установщик Quadra.",
     "Could not inspect installed runtimes": "Не удалось проверить установленные среды",
-    "Runtime saved. Close and reopen Cider to apply it.": "Среда сохранена. Закройте и снова откройте Cider, чтобы применить её.",
+    "Runtime saved. Close and reopen Quadra to apply it.": "Среда сохранена. Закройте и снова откройте Quadra, чтобы применить её.",
     "Could not switch Darling runtime": "Не удалось переключить среду Darling",
-    "Cider's launcher files are missing. Reinstall Cider before restarting.":
-        "Файлы лаунчера Cider отсутствуют. Перед перезапуском установите Cider заново.",
+    "Quadra's launcher files are missing. Reinstall Quadra before restarting.":
+        "Файлы лаунчера Quadra отсутствуют. Перед перезапуском установите Quadra заново.",
     "MangoHud overlay": "Оверлей MangoHud",
     "Show FPS, frametimes and CPU/GPU usage. Requires MangoHud; applies on next launch.":
         "FPS, время кадра и загрузка CPU/GPU. Требуется MangoHud; применяется при следующем запуске.",
@@ -131,20 +131,20 @@ RU = {
     "press play": "нажмите «Играть»",
     # Launcher update
     "Update available": "Доступно обновление",
-    "A new version of Cider ({version}) is available. Update now?":
-        "Доступна новая версия Cider ({version}). Обновить сейчас?",
+    "A new version of Quadra ({version}) is available. Update now?":
+        "Доступна новая версия Quadra ({version}). Обновить сейчас?",
     "Later": "Позже",
     "Update": "Обновить",
     "Launcher version": "Версия лаунчера",
     "Force update": "Принудительное обновление",
-    "Cider is up to date": "Установлена последняя версия Cider",
+    "Quadra is up to date": "Установлена последняя версия Quadra",
     "Update {version} available": "Доступно обновление {version}",
     "Pulling latest version…": "Загрузка последней версии…",
     "Building shim…": "Сборка шима…",
     "Updating launcher shortcuts…": "Обновление ярлыков лаунчера…",
-    "Cider updated successfully": "Cider успешно обновлён",
-    "Cider updated. Restart it to use the new version.":
-        "Cider обновлён. Перезапусти его, чтобы открыть новую версию.",
+    "Quadra updated successfully": "Quadra успешно обновлён",
+    "Quadra updated. Restart it to use the new version.":
+        "Quadra обновлён. Перезапусти его, чтобы открыть новую версию.",
     "Could not update the files in {path}:\n{output}": "Не удалось обновить файлы в {path}:\n{output}",
     # Play page
     "Roblox {version}": "Roblox {version}",
@@ -181,9 +181,9 @@ RU = {
     "Roblox Studio": "Roblox Studio",
     "Roblox Studio is already running": "Roblox Studio уже запущен",
     "Install Roblox Studio?": "Установить Roblox Studio?",
-    "Studio runs in its Windows version through Wine. Cider downloads Wine, "
+    "Studio runs in its Windows version through Wine. Quadra downloads Wine, "
     "DXVK and Studio, about 800 MB.":
-        "Studio запускается в Windows-версии через Wine. Cider скачает Wine, "
+        "Studio запускается в Windows-версии через Wine. Quadra скачает Wine, "
         "DXVK и Studio, это около 800 МБ.",
     "Install": "Установить",
     "Could not start Roblox Studio": "Не удалось запустить Roblox Studio",
@@ -260,8 +260,8 @@ RU = {
     "Display the title and creator of the place you are playing":
         "Отображать название и создателя плейса, в который вы играете",
     "Show experience thumbnail in Discord": "Показывать иконку плейса в Discord",
-    "Replace the Cider icon with the game's icon":
-        "Заменять иконку Cider на обложку игры",
+    "Replace the Quadra icon with the game's icon":
+        "Заменять иконку Quadra на обложку игры",
     "Show elapsed time in Discord": "Показывать прошедшее время в Discord",
     "Display how long you have been playing in your status":
         "Отображать время, прошедшее с момента запуска игры",
@@ -272,7 +272,7 @@ RU = {
     "In Game": "В игре",
     "In Main Menu": "В главном меню",
     "by {creator}": "от {creator}",
-    "Get Cider": "Скачать Cider",
+    "Get Quadra": "Скачать Quadra",
     "Game page": "Страница игры",
     "Hide the macOS menu bar": "Скрывать полоску меню macOS",
     "The Roblox, Edit, Window… strip at the top of the game window":
@@ -459,9 +459,9 @@ RU = {
     "Anisotropic filtering (16x)": "Анизотропная фильтрация (16x)",
     "Force maximum texture resolution": "Принудительное максимальное разрешение текстур",
     # Info
-    "Cider runs the real Roblox client for macOS on Linux through Darling. "
+    "Quadra runs the real Roblox client for macOS on Linux through Darling. "
     "It is not made by Roblox and is not affiliated with it.":
-        "Cider запускает настоящий клиент Roblox для macOS на Linux через Darling. "
+        "Quadra запускает настоящий клиент Roblox для macOS на Linux через Darling. "
         "Его делает не Roblox, и с Roblox он никак не связан.",
     "Community": "Сообщество",
     "Authors": "Авторы",
@@ -476,14 +476,14 @@ RU = {
     "Graphics card, watchdog, tracing and diagnostics": "Видеокарта, сторожевой таймер, трассировка и диагностика",
     "Update CiderDarling": "Обновить CiderDarling",
     "Update in terminal": "Обновить в терминале",
-    "Installed {installed}, Cider uses {pinned}. Opens a separate terminal for the build and sudo prompts.":
-        "Установлена {installed}, Cider использует {pinned}. Откроет отдельный терминал для сборки и запросов sudo.",
+    "Installed {installed}, Quadra uses {pinned}. Opens a separate terminal for the build and sudo prompts.":
+        "Установлена {installed}, Quadra использует {pinned}. Откроет отдельный терминал для сборки и запросов sudo.",
     "These settings apply while CiderDarling is the active runtime. The renderer "
     "and graphics card are shared with Environment → Game.":
         "Эти настройки действуют, пока CiderDarling — активная среда. Рендерер и видеокарта "
         "общие с разделом «Окружение → Игра».",
     "Installed revision": "Установленная ревизия",
-    "{installed}; Cider uses {pinned}": "{installed}; Cider использует {pinned}",
+    "{installed}; Quadra uses {pinned}": "{installed}; Quadra использует {pinned}",
     "unknown": "неизвестно",
     "{runtime}. Switch in Environment → Darling to use these settings.":
         "{runtime}. Переключите среду в разделе «Окружение → Darling», чтобы применить эти настройки.",
@@ -507,8 +507,8 @@ RU = {
     "Could not open the prefix folder: {error}": "Не удалось открыть папку префикса: {error}",
     "CiderDarling is not installed": "CiderDarling не установлена",
     "End of the build log:": "Конец лога сборки:",
-    "CiderDarling updated. Apply and restart Cider to use it.":
-        "CiderDarling обновлена. Примените выбор и перезапустите Cider, чтобы использовать её.",
+    "CiderDarling updated. Apply and restart Quadra to use it.":
+        "CiderDarling обновлена. Примените выбор и перезапустите Quadra, чтобы использовать её.",
     # Diagnostics archive
     "Collect diagnostics": "Собрать диагностику",
     "Allow freeze diagnostics": "Разрешить диагностику зависаний",

@@ -31,7 +31,7 @@ def main():
     selected = runtime.resolve_runtime()
     sysroot = args.sysroot or Path(selected["sysroot"])
     client = args.darling or selected["executable"]
-    output = (args.output_dir or Path(tempfile.mkdtemp(prefix="cider-keyboard-evidence-"))).resolve()
+    output = (args.output_dir or Path(tempfile.mkdtemp(prefix="quadra-keyboard-evidence-"))).resolve()
     output.mkdir(parents=True, exist_ok=True)
     build = output / "test-helper"
     build.mkdir(exist_ok=True)
@@ -58,7 +58,7 @@ def main():
     if not os.environ.get("WAYLAND_DISPLAY"):
         parser.error("A Wayland display is required; use a private compositor or --compile-only")
     # Keep every process in a fresh, uniquely named prefix. Never reuse DPREFIX.
-    prefix = Path(tempfile.mkdtemp(prefix="cider-keyboard-prefix-")) / "prefix"
+    prefix = Path(tempfile.mkdtemp(prefix="quadra-keyboard-prefix-")) / "prefix"
     values = graphics.renderer_environment("opengl")
     values.update(display.window_environment({"renderer": "opengl", "display_backend": "wayland"},
                                              build / "libmacoblox-wayland.so"))

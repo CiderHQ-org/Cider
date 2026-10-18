@@ -118,7 +118,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build-dir", type=Path, required=True)
     parser.add_argument("--sysroot", type=Path)
-    parser.add_argument("--darling", help="Darling executable matching --sysroot; defaults to Cider's selected runtime")
+    parser.add_argument("--darling", help="Darling executable matching --sysroot; defaults to Quadra's selected runtime")
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--compile-only", action="store_true")
     parser.add_argument("--renderer", choices=("opengl", "vulkan"), default="vulkan")

@@ -1,9 +1,9 @@
 [Desktop Entry]
 Type=Application
-Name=Cider Roblox Link Handler
-Comment=Open Roblox links in Cider
-Exec=ciderhq %u
-Icon=ciderhq
+Name=Quadra Roblox Link Handler
+Comment=Open Roblox links in Quadra
+Exec=quadrahq %u
+Icon=quadrahq
 Terminal=false
 NoDisplay=true
 MimeType=x-scheme-handler/roblox;x-scheme-handler/roblox-player;

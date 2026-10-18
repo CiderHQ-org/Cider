@@ -13,9 +13,9 @@
  * endFrame. DeviceVR has 42 virtual methods, the same table in the macOS
  * DebugDeviceVR and the Quest OpenXrDevice of the same release.
  *
- * Cider attaches the client's own DebugDeviceVR there, with a copy of its
+ * Quadra attaches the client's own DebugDeviceVR there, with a copy of its
  * vtable: the emulator keeps creating the "VR Eye" targets and holding the
- * state the engine reads (getState copies it from the object), while Cider's
+ * state the engine reads (getState copies it from the object), while Quadra's
  * methods fill that state from OpenXR and submit the eyes (vr_xr.c).
  *
  *   MACOBLOX_VR=openxr  present on the host OpenXR runtime (WiVRn, Monado...)
@@ -130,7 +130,7 @@ static void vr_report_timing(void) {
     char line[256];
     double scale = 1e-6 / (double)frames;
     snprintf(line, sizeof line,
-             "[Cider VR] %llu frames: %.1f fps at %.0f Hz, %llu late; per frame: wait %.1f ms, camera %.1f ms, "
+             "[Quadra VR] %llu frames: %.1f fps at %.0f Hz, %llu late; per frame: wait %.1f ms, camera %.1f ms, "
              "draw %.1f ms, submit %.1f ms, window %.1f ms\n",
              (unsigned long long)frames, frames * 1e9 / (double)span, (double)vr_xr_display_rate(),
              (unsigned long long)vr_timing.late,
@@ -611,14 +611,14 @@ static void *vr_end_frame(void *self, void *a, void *b, void *c, void *d, void *
     if (vr_window) vr_mirror(self);
     unsigned long ends = __atomic_add_fetch(&vr_ends, 1, __ATOMIC_RELAXED);
     if (!vr_openxr && (ends == 1 || ends % 600 == 0))
-        vr_logf2("[Cider VR] Engine VR frames: %lu ended, %lu eye framebuffer requests\n",
+        vr_logf2("[Quadra VR] Engine VR frames: %lu ended, %lu eye framebuffer requests\n",
                  ends, __atomic_load_n(&vr_eye_requests, __ATOMIC_RELAXED));
     return result;
 }
 
 /* DeviceGL::present swaps the game window only when the device answers
  * true. The Quest OpenXrDevice does; the emulator does not, because Studio
- * presents it elsewhere, which left Cider's window black. */
+ * presents it elsewhere, which left Quadra's window black. */
 static long vr_present_window(void *self) {
     (void)self;
     return vr_window;
@@ -629,14 +629,14 @@ static void vr_haptics(void *self, int hand, float amplitude) {
     (void)self;
     static int logged;
     if (amplitude > 0 && !__atomic_exchange_n(&logged, 1, __ATOMIC_RELAXED))
-        vr_log("[Cider VR] Roblox started controller vibration\n");
+        vr_log("[Quadra VR] Roblox started controller vibration\n");
     vr_xr_set_haptic(hand, amplitude);
 }
 
 /* VRService:RecenterUserHeadCFrame(). */
 static void vr_recenter(void *self) {
     (void)self;
-    vr_log("[Cider VR] Roblox asked to recenter\n");
+    vr_log("[Quadra VR] Roblox asked to recenter\n");
     vr_xr_recenter();
 }
 
@@ -655,7 +655,7 @@ static void vr_set_display_rate(void *self, float hertz) {
 static void vr_delete(void *self) {
     ((void (*)(void *))vr_debug_vtable[0])(self);
     free(self);
-    vr_log("[Cider VR] Device released with the graphics device\n");
+    vr_log("[Quadra VR] Device released with the graphics device\n");
 }
 
 static void vr_attach(void *device, int width, int height) {
@@ -683,7 +683,7 @@ static void vr_attach(void *device, int width, int height) {
          * as well only takes time from the headset frame. */
         if (vr_window && vr_egl_swap_interval && vr_egl_get_current_display &&
             vr_egl_swap_interval(vr_egl_get_current_display(), 0))
-            vr_log("[Cider VR] Game window presents without vsync while in VR\n");
+            vr_log("[Quadra VR] Game window presents without vsync while in VR\n");
     }
     *(void **)object = &vr_table[2];
     /* Creates the "VR Eye" color targets through the client's own device. */
@@ -692,15 +692,15 @@ static void vr_attach(void *device, int width, int height) {
     vr_graphics_device = device;
     if (vr_mirror_ready && !vr_load_mirror()) {
         vr_mirror_ready = 0;
-        vr_log("[Cider VR] Window mirror unavailable: OpenGL blit functions missing\n");
+        vr_log("[Quadra VR] Window mirror unavailable: OpenGL blit functions missing\n");
     }
     *(void **)((unsigned char *)device + vr_device_offset) = object;
     *((unsigned char *)device + vr_enabled_offset) = 1;
     void *reported = ((void *(*)(void *))vr_gl_vtable[GL_SLOT_GET_VR])(device);
-    vr_logf2("[Cider VR] Attached the client's DebugDeviceVR (%lux%lu per eye)\n",
+    vr_logf2("[Quadra VR] Attached the client's DebugDeviceVR (%lux%lu per eye)\n",
              (unsigned long)width, (unsigned long)height);
-    vr_log(reported == object ? "[Cider VR] Graphics device reports the VR device\n"
-                              : "[Cider VR] Graphics device does not report the VR device\n");
+    vr_log(reported == object ? "[Quadra VR] Graphics device reports the VR device\n"
+                              : "[Quadra VR] Graphics device does not report the VR device\n");
     __atomic_store_n(&vr_state, 2, __ATOMIC_RELEASE);
 }
 
@@ -708,7 +708,7 @@ static void vr_attach(void *device, int width, int height) {
 static void *vr_gl_begin_frame_hook(void *device) {
     void *context = vr_gl_begin_frame(device);
     if (__atomic_add_fetch(&vr_frames, 1, __ATOMIC_RELAXED) == 1)
-        vr_log("[Cider VR] First graphics frame\n");
+        vr_log("[Quadra VR] First graphics frame\n");
     if (__atomic_load_n(&vr_state, __ATOMIC_ACQUIRE) != 0) return context;
     if (!vr_openxr) {
         __atomic_store_n(&vr_state, 1, __ATOMIC_RELAXED);
@@ -720,7 +720,7 @@ static void *vr_gl_begin_frame_hook(void *device) {
     if (vr_frames < vr_next_start) return context;
     vr_next_start = vr_frames + 300;
     if (!vr_elf && !vr_prepare_host()) {
-        vr_log("[Cider VR] Unavailable: Darling's host library bridge or host EGL is missing\n");
+        vr_log("[Quadra VR] Unavailable: Darling's host library bridge or host EGL is missing\n");
         __atomic_store_n(&vr_state, 3, __ATOMIC_RELEASE);
         return context;
     }
@@ -740,7 +740,7 @@ static void *vr_gl_begin_frame_hook(void *device) {
 static void vr_gl_set_vr_hook(void *device, int enabled) {
     static int logged;
     if (__atomic_add_fetch(&logged, 1, __ATOMIC_RELAXED) <= 16)
-        vr_log(enabled & 0xff ? "[Cider VR] Client requested VR on\n" : "[Cider VR] Client requested VR off\n");
+        vr_log(enabled & 0xff ? "[Quadra VR] Client requested VR on\n" : "[Quadra VR] Client requested VR off\n");
     vr_gl_set_vr(device, enabled);
 }
 
@@ -751,7 +751,7 @@ static int vr_patch_slot(const VrImage *image, void **slot, void *replacement) {
     if (!writable && mprotect((void *)base, page, 3)) return 0;
     __atomic_store_n(slot, replacement, __ATOMIC_RELEASE);
     if (!writable && mprotect((void *)base, page, 1))
-        vr_log("[Cider VR] Could not restore graphics vtable protection\n");
+        vr_log("[Quadra VR] Could not restore graphics vtable protection\n");
     return 1;
 }
 
@@ -793,12 +793,12 @@ __attribute__((constructor)) static void vr_install(void) {
     vr_gl_vtable = vr_rtti_vtable(&image, "N3RBX8Graphics8DeviceGLE");
     vr_debug_vtable = vr_rtti_vtable(&image, "N3RBX8Graphics13DebugDeviceVRE");
     if (!vr_gl_vtable || !vr_debug_vtable) {
-        vr_log("[Cider VR] Unavailable: graphics or VR device class not found in this client\n");
+        vr_log("[Quadra VR] Unavailable: graphics or VR device class not found in this client\n");
         return;
     }
     for (int index = 0; index < VR_SLOTS; ++index)
         if (!vr_inside(&image.text, vr_debug_vtable[index], 1)) {
-            vr_log("[Cider VR] Unavailable: unexpected VR device method table\n");
+            vr_log("[Quadra VR] Unavailable: unexpected VR device method table\n");
             return;
         }
     /* getState: add rsi, state; mov edx, STATE_SIZE; call memcpy. */
@@ -809,23 +809,23 @@ __attribute__((constructor)) static void vr_install(void) {
         vr_bytes(state_copy + 13, get_state_size, sizeof get_state_size))
         vr_state_offset = state_copy[12];
     if (!vr_state_offset || !vr_check_gl_device() || !vr_find_debug_constructor(&image)) {
-        vr_log("[Cider VR] Unavailable: unsupported client graphics device or VR emulator\n");
+        vr_log("[Quadra VR] Unavailable: unsupported client graphics device or VR emulator\n");
         return;
     }
     vr_mirror_ready = vr_check_mirror(&image);
-    if (!vr_mirror_ready) vr_log("[Cider VR] Window mirror unavailable: unexpected framebuffer layout\n");
+    if (!vr_mirror_ready) vr_log("[Quadra VR] Window mirror unavailable: unexpected framebuffer layout\n");
     if (debug) {
         vr_emulator_flag = vr_find_flag(&image, "DebugEnableVREmulator");
-        if (!vr_emulator_flag) vr_log("[Cider VR] Emulator mirror flag not found; continuing without it\n");
+        if (!vr_emulator_flag) vr_log("[Quadra VR] Emulator mirror flag not found; continuing without it\n");
     }
     vr_gl_begin_frame = (void *(*)(void *))vr_gl_vtable[GL_SLOT_BEGIN_FRAME];
     vr_gl_set_vr = (void (*)(void *, int))vr_gl_vtable[GL_SLOT_SET_VR];
     if (!vr_patch_slot(&image, &vr_gl_vtable[GL_SLOT_BEGIN_FRAME], (void *)vr_gl_begin_frame_hook) ||
         !vr_patch_slot(&image, &vr_gl_vtable[GL_SLOT_SET_VR], (void *)vr_gl_set_vr_hook)) {
-        vr_log("[Cider VR] Unavailable: graphics vtable is not writable\n");
+        vr_log("[Quadra VR] Unavailable: graphics vtable is not writable\n");
         return;
     }
-    vr_log(vr_openxr ? "[Cider VR] OpenXR mode: waiting for the first graphics frame\n"
-                     : "[Cider VR] Emulated head mode\n");
-    vr_logf2("[Cider VR] Graphics device VR slot +0x%lx, enabled flag +0x%lx\n", vr_device_offset, vr_enabled_offset);
+    vr_log(vr_openxr ? "[Quadra VR] OpenXR mode: waiting for the first graphics frame\n"
+                     : "[Quadra VR] Emulated head mode\n");
+    vr_logf2("[Quadra VR] Graphics device VR slot +0x%lx, enabled flag +0x%lx\n", vr_device_offset, vr_enabled_offset);
 }

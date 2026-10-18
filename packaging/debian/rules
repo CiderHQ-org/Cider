@@ -11,7 +11,7 @@ override_dh_auto_build:
 	MACOBLOX_BUILD_DIR="$(CURDIR)/debian/native-build" ./build_debug_shim.sh
 
 override_dh_auto_install:
-	bash debian/install-payload.sh "$(CURDIR)" "$(CURDIR)/debian/native-build" "$(CURDIR)/debian/ciderhq" /usr/lib
+	bash debian/install-payload.sh "$(CURDIR)" "$(CURDIR)/debian/native-build" "$(CURDIR)/debian/quadrahq" /usr/lib
 
 override_dh_auto_test:
 
@@ -19,7 +19,7 @@ override_dh_strip:
 	dh_strip -X.dylib -X.framework
 
 override_dh_python3:
-	dh_python3 /usr/share/ciderhq/launcher
+	dh_python3 /usr/share/quadrahq/launcher
 
 override_dh_auto_clean:
 	rm -rf debian/native-build

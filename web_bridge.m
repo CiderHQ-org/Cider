@@ -341,8 +341,8 @@ static void closeHostedView(id self, SEL selector) {
         initializeBridge();
         id timer = [NSTimer timerWithTimeInterval:0.02 target:self selector:@selector(tick:) userInfo:nil repeats:YES];
         [[NSRunLoop mainRunLoop] addTimer:timer forMode:NSRunLoopCommonModes];
-        write(2, "[Cider Web] Embedded pages open in the launcher's browser window\n",
-              sizeof("[Cider Web] Embedded pages open in the launcher's browser window\n") - 1);
+        write(2, "[Quadra Web] Embedded pages open in the launcher's browser window\n",
+              sizeof("[Quadra Web] Embedded pages open in the launcher's browser window\n") - 1);
     });
 }
 + (void)tick:(id)timer {
@@ -954,8 +954,8 @@ static void receiveMessage(NSDictionary *message) {
         if (deliverClientURL(message[@"url"]))
             sendMessage(@{@"op": @"return-to-game"});
         else
-            write(2, "[Cider Web] A launch link from the page could not be delivered\n",
-                  sizeof("[Cider Web] A launch link from the page could not be delivered\n") - 1);
+            write(2, "[Quadra Web] A launch link from the page could not be delivered\n",
+                  sizeof("[Quadra Web] A launch link from the page could not be delivered\n") - 1);
         return;
     }
     if ([type isEqual:@"reply"]) {

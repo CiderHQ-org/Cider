@@ -1,6 +1,6 @@
 # Native distro packages
 
-These are package recipes for the Cider **0.30** release. Each package
+These are package recipes for Quadra. Each package
 builds the shim and native Wayland helper during packaging, installs desktop
 and link handlers, and downloads Roblox on first setup. Personal settings and
 sign-in are stored in the user's directories. The website and user logs are
@@ -10,8 +10,8 @@ excluded. Package updates use the distro's package manager.
 | --- | --- | --- |
 | Arch Linux | [AUR recipes](aur/README.md) | Manjaro, EndeavourOS, CachyOS |
 | Debian 13+, Ubuntu 24.04+ | [Debian overlay](debian/control) | Linux Mint 22 and compatible Debian/Ubuntu derivatives |
-| Fedora | [RPM spec](rpm/ciderhq.spec) | Nobara and compatible Fedora derivatives |
-| openSUSE | [RPM spec](rpm/ciderhq.spec) | Tumbleweed; Leap releases supplying the required UI versions |
+| Fedora | [RPM spec](rpm/quadrahq.spec) | Nobara and compatible Fedora derivatives |
+| openSUSE | [RPM spec](rpm/quadrahq.spec) | Tumbleweed; Leap releases supplying the required UI versions |
 
 The release workflow builds Arch, Ubuntu 24.04 and Fedora packages in their
 own distro containers, then publishes the packages together after every build
@@ -21,6 +21,13 @@ repositories or the AUR.
 The `noreply@aubree.wtf` maintainer address is a placeholder: set the real
 packaging contact before submitting to a distro.
 
+The first Quadra release archive has not been published. Use `--local` to
+package this checkout. `release.json` intentionally has no checksum until CI
+publishes the new archive; the old Cider archive cannot build these renamed
+recipes. The frozen Cider 0.30 AUR recipe remains in `aur/ciderhq/`.
+Choose a new release version before publishing; the existing Cider release
+must not be replaced.
+
 ## Requirements
 
 - x86_64 Linux with glibc. This macOS client and shim do not provide ARM or
@@ -28,7 +35,7 @@ packaging contact before submitting to a distro.
 - A **full Darling sysroot**, including GUI frameworks and stubs, in the
   build environment. CI stages a verified sysroot; local builds can set
   `DARLING_SYSROOT=/path/to/libexec/darling`. At runtime users choose regular
-  Darling or CiderDarling in the launcher. Cider's package does not force an
+  Darling or CiderDarling in the launcher. Quadra's package does not force an
   additional regular Darling installation alongside CiderDarling.
 - GTK 4.14+, libadwaita 1.5+, WebKitGTK API 6.0, Python/PyGObject/Cairo,
   SDL2 and Wayland. Debian 12 and Ubuntu 22.04's original UI libraries are
@@ -43,30 +50,29 @@ and the appropriate Vulkan driver.
 
 ## Prepare sources
 
-The release workflow attaches `ciderhq-0.30-source.tar.gz` and pins its checksum
-in `release.json` after publication. For release builds,
-use the source preparation command below. To package local source edits:
+The release workflow will attach `quadrahq-VERSION-source.tar.gz` and pin its
+checksum in `release.json`. Until then, package local source edits:
 
 ```bash
-./packaging/prepare-source.sh "$PWD/work/ciderhq-packages" --local
+./packaging/prepare-source.sh "$PWD/work/quadrahq-packages" --local
 ```
 
-This produces a source archive, Debian and RPM inputs, and a `ciderhq`
+This produces a source archive, Debian and RPM inputs, and a `quadrahq`
 PKGBUILD with that archive's checksum. It never installs to the host.
 
 
-From the Cider checkout:
+From the Quadra checkout:
 
 ```bash
 ./packaging/prepare-source.sh "$PWD/work/native-packages"
 ```
 
-This downloads the checksum-verified 0.30 release and places the Debian
+After publication, this downloads the checksum-verified Quadra release and places the Debian
 overlay and RPM inputs in a new output directory. It requires `curl`, `tar`
 and `sha256sum`. To use an already downloaded release archive:
 
 ```bash
-./packaging/prepare-source.sh "$PWD/work/native-packages" /path/to/ciderhq-0.30-source.tar.gz
+./packaging/prepare-source.sh "$PWD/work/native-packages" /path/to/quadrahq-0.30-source.tar.gz
 ```
 
 The output directory must not already exist. Arch builds use their own AUR
@@ -82,7 +88,7 @@ Then install the packaging tools and native development dependencies:
 ```bash
 sudo apt install build-essential debhelper dh-python python3 clang lld \
   pkg-config libsdl2-dev libwayland-dev
-cd work/native-packages/Cider-0.30
+cd work/native-packages/Quadra-0.30
 dpkg-buildpackage -b -us -uc
 ```
 
@@ -91,7 +97,7 @@ one directory above the source directory. Install using `apt`, which resolves
 dependencies from the configured repositories:
 
 ```bash
-sudo apt install ../ciderhq_0.30-1_amd64.deb
+sudo apt install ../quadrahq_0.30-1_amd64.deb
 ```
 
 The recipe uses debhelper for Python bytecode and desktop/icon/MIME cache
@@ -122,7 +128,7 @@ From the checkout, build with the prepared RPM inputs:
 
 ```bash
 rpmbuild --define "_topdir $PWD/work/native-packages/rpm" \
-  -ba work/native-packages/rpm/SPECS/ciderhq.spec
+  -ba work/native-packages/rpm/SPECS/quadrahq.spec
 ```
 
 The spec selects openSUSE's typelib package names using `suse_version` and

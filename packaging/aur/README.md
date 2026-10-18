@@ -1,13 +1,15 @@
 # AUR packaging
 
-Cider uses two package names for AUR repositories:
+Quadra uses two package names for AUR repositories:
 
 | Package | Recipe | Source |
 | --- | --- | --- |
-| `ciderhq` | `ciderhq/PKGBUILD` and `.SRCINFO` | Verified Cider release |
-| `ciderhq-git` | `PKGBUILD` and `.SRCINFO` | Current GitHub checkout |
+| `quadrahq` | `quadrahq/PKGBUILD.in`; CI creates `PKGBUILD` and `.SRCINFO` after publication | Verified Quadra release |
+| `ciderhq` (legacy) | `ciderhq/PKGBUILD` and `.SRCINFO` | Published Cider 0.30 release |
+| `quadrahq-git` | `PKGBUILD` and `.SRCINFO` | Current GitHub checkout |
 
-Source preparation can also generate a local recipe from `ciderhq/PKGBUILD.in`.
+Until the first Quadra archive is published, use `--local` below.
+Source preparation can also generate a local recipe from `quadrahq/PKGBUILD.in`.
 The recipes build the Darling shim and native Wayland helper during package
 creation. They install the launcher, icons, desktop entries, MIME definition
 and startup-patch helper. Roblox itself is downloaded by the launcher on first
@@ -23,8 +25,8 @@ Darling installation is insufficient. Install the provider with an AUR helper,
 then build the stable package from this checkout:
 
 ```bash
-./packaging/prepare-source.sh "$PWD/work/ciderhq-packages" --local
-cd work/ciderhq-packages/aur/ciderhq
+./packaging/prepare-source.sh "$PWD/work/quadrahq-packages" --local
+cd work/quadrahq-packages/aur/quadrahq
 makepkg -si
 ```
 
@@ -34,8 +36,8 @@ playback. PulseAudio-compatible playback is included through `libpulse`.
 
 ## Submit or update
 
-The names are `ciderhq` and `ciderhq-git`; they still need AUR submission.
-The recipes replace/conflict with the old MacOBlox packages. An AUR account
+The names are `quadrahq` and `quadrahq-git`; they still need AUR submission.
+The recipes replace/conflict with the old Cider and MacOBlox packages. An AUR account
 and SSH key are required to submit a package. Do not upload the `.in` template
 as a finished PKGBUILD; source preparation fills its verified SHA256.
 
@@ -45,7 +47,7 @@ In a separate AUR checkout, copy only the selected recipe's `PKGBUILD` and
 ```bash
 makepkg --printsrcinfo > .SRCINFO
 git add PKGBUILD .SRCINFO
-git commit -m 'Update Cider package'
+git commit -m 'Update Quadra package'
 git push
 ```
 

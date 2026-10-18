@@ -26,7 +26,7 @@ def main():
             or not any(path.name.endswith('.pkg.tar.zst') for path in files)
             or not any(path.suffix == '.rpm' and not path.name.endswith('.src.rpm') for path in files)):
         raise ValueError('A distro package is missing; keeping the release unpublished')
-    source = dist / f'ciderhq-{version}-source.tar.gz'
+    source = dist / f'quadrahq-{version}-source.tar.gz'
     digest = hashlib.sha256(source.read_bytes()).hexdigest()
     sums = dist / 'SHA256SUMS'
     sums.write_text(''.join(f'{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n' for path in files))
@@ -43,7 +43,7 @@ def main():
         if 'not found' not in current.stderr.lower() and '404' not in current.stderr:
             raise RuntimeError(current.stderr)
         run('gh', 'release', 'create', tag, *files, sums, '--repo', REPOSITORY, '--draft',
-            '--target', revision, '--title', 'Cider ' + version, '--notes-file', notes)
+            '--target', revision, '--title', 'Quadra ' + version, '--notes-file', notes)
     run('gh', 'release', 'edit', tag, '--repo', REPOSITORY, '--draft=false', '--latest')
     # This commit intentionally follows the source tag: putting the archive's
     # own checksum inside that archive would make its hash circular.
@@ -56,17 +56,17 @@ def main():
         return
     record['sha256'] = digest
     (ROOT / 'packaging/release.json').write_text(json.dumps(record, indent=2) + '\n')
-    for asset, target in [('ciderhq.PKGBUILD', 'PKGBUILD'), ('ciderhq.SRCINFO', '.SRCINFO')]:
-        shutil.copy2(dist / asset, ROOT / 'packaging/aur/ciderhq' / target)
-    run('git', 'config', 'user.name', 'Cider release bot', cwd=ROOT)
+    for asset, target in [('quadrahq.PKGBUILD', 'PKGBUILD'), ('quadrahq.SRCINFO', '.SRCINFO')]:
+        shutil.copy2(dist / asset, ROOT / 'packaging/aur/quadrahq' / target)
+    run('git', 'config', 'user.name', 'Quadra release bot', cwd=ROOT)
     run('git', 'config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com', cwd=ROOT)
-    run('git', 'add', 'packaging/release.json', 'packaging/aur/ciderhq/PKGBUILD',
-        'packaging/aur/ciderhq/.SRCINFO', cwd=ROOT)
+    run('git', 'add', 'packaging/release.json', 'packaging/aur/quadrahq/PKGBUILD',
+        'packaging/aur/quadrahq/.SRCINFO', cwd=ROOT)
     changed = subprocess.run(['git', 'diff', '--cached', '--quiet'], cwd=ROOT).returncode
     if changed:
-        run('git', 'commit', '-m', f'Pin Cider {version} release source and AUR recipe', cwd=ROOT)
+        run('git', 'commit', '-m', f'Pin Quadra {version} release source and AUR recipe', cwd=ROOT)
         run('git', 'push', 'origin', 'main', cwd=ROOT)
-    print(f'Published Cider {version} packages and source checksum {digest}.')
+    print(f'Published Quadra {version} packages and source checksum {digest}.')
 
 
 if __name__ == '__main__':

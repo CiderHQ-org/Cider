@@ -19,7 +19,7 @@ class RuntimeInstallationTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
-        self.project = self.root / "Cider % $() ' space"
+        self.project = self.root / "Quadra % $() ' space"
         self.project.mkdir()
         self.installer = self.project / "install.sh"
         self.installer.write_text("exit 0\n")
@@ -31,7 +31,7 @@ class RuntimeInstallationTests(unittest.TestCase):
     def test_missing_installer_unknown_variant_and_flatpak_do_not_start(self):
         with self.assertRaises(ValueError):
             Installation.create(self.project, "ciderdarling; echo bad", self.root)
-        with patch.dict(os.environ, FLATPAK_ID="org.ciderhq.Cider"):
+        with patch.dict(os.environ, FLATPAK_ID="org.quadrahq.Quadra"):
             with self.assertRaises(RuntimeError):
                 self.create()
         self.installer.unlink()

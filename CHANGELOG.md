@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Rebrand Cider / CiderHQ to **Quadra / QuadraHQ** at **quadrahq.org**, keeping
+  the existing logo. The command is `quadrahq` and the app ID is
+  `org.quadrahq.Quadra`.
+- Migrate Cider and MacOBlox settings, cache, source installs and Darling
+  session files without replacing existing Quadra data. Keep CiderDarling's
+  runtime identifiers and the current GitHub repositories compatible.
+- Update native and Flatpak packaging. The published Cider 0.30 AUR recipe
+  remains pinned; build Quadra from this checkout with `--local` until its
+  release archive is published.
+
 ## 0.30 — 2026-10-17
 
 - **Experimental VR.** Play in Roblox's own VR mode on a headset connected

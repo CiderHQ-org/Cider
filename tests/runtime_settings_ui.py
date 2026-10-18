@@ -48,7 +48,7 @@ def discovery(current, pinned=None):
                               cider_directory=base / "versions", pinned=pinned)
 
 
-application = Adw.Application(application_id="org.ciderhq.Cider.RuntimeTest",
+application = Adw.Application(application_id="org.quadrahq.Quadra.RuntimeTest",
                               flags=Gio.ApplicationFlags.NON_UNIQUE)
 application.register(None)
 errors, restarts = [], []
@@ -83,7 +83,7 @@ with context:
     page = window.settings_page
     assert page.runtime_row.get_title() == "Darling runtime"
     assert page.runtime_row.get_model().get_string(0) == "DarlingHQ's Darling"
-    assert page.runtime_row.get_model().get_string(1) == "CiderHQ's CiderDarling"
+    assert page.runtime_row.get_model().get_string(1) == "QuadraHQ's CiderDarling"
     assert page.runtime_row.get_selected() == 1 and not page.runtime_apply_button.get_sensitive()
     before = selection_file.read_bytes()
     page.runtime_row.set_selected(0)
@@ -149,7 +149,7 @@ with context:
     assert page.runtime_row.get_selected() == 0 and page.runtime_apply_button.get_sensitive()
     assert page.runtime_row.get_model().get_string(0) == "DarlingHQ's Darling"
 
-with patch.dict(os.environ, FLATPAK_ID="org.ciderhq.Cider"):
+with patch.dict(os.environ, FLATPAK_ID="org.quadrahq.Quadra"):
     context, window = fixture("regular")
     with context:
         page = window.settings_page
@@ -210,7 +210,7 @@ with context:
     assert selection_file.read_bytes() == before and "cancelled" in errors[-1][-1]
     assert page.runtime_install_button.get_sensitive()
 
-with patch.dict(os.environ, FLATPAK_ID="org.ciderhq.Cider"):
+with patch.dict(os.environ, FLATPAK_ID="org.quadrahq.Quadra"):
     context, window = fixture("regular")
     with context, patch.object(app, "_launch_runtime_terminal") as launch_terminal:
         assert not window.settings_page.runtime_install_row.get_visible()
@@ -221,7 +221,7 @@ with patch.object(app.os, "execve") as execute, patch.object(app.sys, "argv", ["
     app._restart_launcher()
     command, arguments, environment = execute.call_args.args
     assert command == sys.executable
-    assert arguments == [sys.executable, str(core.PROJECT / "launcher/ciderhq-launcher")]
+    assert arguments == [sys.executable, str(core.PROJECT / "launcher/quadrahq-launcher")]
     assert environment["MACOBLOX_PAGE"] == "settings" and "roblox:old-link" not in arguments
 
 # A published descendant is offered without changing an active Regular

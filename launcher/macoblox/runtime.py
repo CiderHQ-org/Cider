@@ -61,11 +61,11 @@ def read_selection(path):
         data = json.loads(path.read_text())
         return _validate_selection(data)
     except (OSError, ValueError) as error:
-        raise RuntimeError(f"Cannot read Darling selection {path}: {error}. Rerun Cider's installer.") from error
+        raise RuntimeError(f"Cannot read Darling selection {path}: {error}. Rerun Quadra's installer.") from error
 
 
 def pinned_ciderdarling(installer=None):
-    """{"revision", "manifest"} pinned by Cider's installer, or None."""
+    """{"revision", "manifest"} pinned by Quadra's installer, or None."""
     try:
         path = Path(installer) if installer is not None else INSTALLER
         if path.stat().st_size > 1 << 20:

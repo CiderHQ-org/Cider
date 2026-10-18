@@ -5,7 +5,7 @@ test scope, not accounts, join links or copies of user logs.
 
 | Report | Evidence | Change or next diagnostic |
 | --- | --- | --- |
-| SkellyDude, Ryzen 5 4500U/Radeon | Runtime 4312, Zink, no MangoHud; exits during shim/startup initialization with frontend status 1 | The exact 4312 math library contains recursive sincos functions. Cider now interposes compiler-safe float/double and pi wrappers. Retest on that machine is still needed. |
+| SkellyDude, Ryzen 5 4500U/Radeon | Runtime 4312, Zink, no MangoHud; exits during shim/startup initialization with frontend status 1 | The exact 4312 math library contains recursive sincos functions. Quadra now interposes compiler-safe float/double and pi wrappers. Retest on that machine is still needed. |
 | [Issue 27](https://github.com/CiderHQ-org/Cider/issues/27), Arch startup | Runtime 4312; frontend status 1 while one selected-prefix game process is alive | Preserve and monitor the live guest after frontend disconnect. Add the old-runtime math repair. |
 | Claire, GTX 1060 | Runtime a8dae, Zink and MangoHud; one short log and one later frontend exit, without a native crash stack | Only Zink crashes are confirmed. Compare OpenGL without MangoHud, then collect diagnostics with debugger access enabled. Shader-availability warnings alone do not identify the crash. |
 | [Issue 25](https://github.com/CiderHQ-org/Cider/issues/25), duplicate typing; local Wayland chat/search report | The 0.25 AppKit reproducer receives one physical keyDown but inserts twice: SDL_TEXTINPUT inserts inside the pump, then the queued keyDown reaches Darling's text interpreter. | Queue committed text after the physical event. Preserve the original key event for gameplay and binding lookup, while preventing its interpreter fallback from inserting text again. Genuine repeated commits remain separate. X11 reports still need their own capture. |
@@ -43,7 +43,7 @@ window/display heights, nonzero/negative window origins, fractional logical
 values, and rejection of nonfinite/out-of-window warps. The real AppKit fixture
 checks that screen-relative and window-relative mouse locations agree. Physical
 global window placement is unavailable to ordinary Wayland clients; Cocoa's
-virtual origin is used consistently for conversions within Cider.
+virtual origin is used consistently for conversions within Quadra.
 
 The resize fixture enters and leaves fullscreen on its own window, allowing
 the tiling compositor to choose the actual sizes. It checks rendering and
@@ -53,7 +53,7 @@ attached and committed; resizing a child alone cannot pass. The preceding shim
 fails both parent-buffer checks despite receiving the Cocoa resize events.
 The repaired shim passes both checks on native NVIDIA OpenGL and Mesa Zink,
 including core/compatibility contexts, pixel readback, and fullscreen/restore.
-After restarting Cider with the repaired shim, the user confirmed that Roblox's
+After restarting Quadra with the repaired shim, the user confirmed that Roblox's
 outer border resizes and clicks remain aligned while joining a game on native
 Wayland. This confirms the local niri/NVIDIA case; other compositor and GPU
 reports still need their own validation.
@@ -81,8 +81,8 @@ repaired production helper.
 Use **Collect hardware report**, or:
 
 ```sh
-ciderhq --hardware-report --graphics
-ciderhq --hardware-report --gameplay startup=pass --gameplay join=fail
+quadrahq --hardware-report --graphics
+quadrahq --hardware-report --gameplay startup=pass --gameplay join=fail
 ```
 
 The GPU matrix tests actual adapter identity, baseline rendering, MSAA,

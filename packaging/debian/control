@@ -1,19 +1,19 @@
-Source: ciderhq
+Source: quadrahq
 Section: games
 Priority: optional
-Maintainer: Cider maintainers <noreply@aubree.wtf>
+Maintainer: Quadra maintainers <noreply@aubree.wtf>
 Build-Depends: debhelper-compat (= 13), dh-python, python3, clang, lld,
  pkg-config, libsdl2-dev, libwayland-dev
 Standards-Version: 4.7.2
 Rules-Requires-Root: no
-Homepage: https://ciderhq.org
+Homepage: https://quadrahq.org
 Vcs-Git: https://github.com/CiderHQ-org/Cider.git
 Vcs-Browser: https://github.com/CiderHQ-org/Cider
 
-Package: ciderhq
-Provides: macoblox
-Replaces: macoblox
-Conflicts: macoblox
+Package: quadrahq
+Provides: ciderhq, macoblox
+Replaces: ciderhq, macoblox
+Conflicts: ciderhq, macoblox
 Architecture: amd64
 Depends: ${misc:Depends}, ${shlibs:Depends}, ${python3:Depends},
  unzip, python3-gi, python3-gi-cairo, python3-cairo,
@@ -23,7 +23,7 @@ Depends: ${misc:Depends}, ${shlibs:Depends}, ${python3:Depends},
 Recommends: pipewire-bin
 Suggests: darling, mangohud, mesa-vulkan-drivers, libvulkan1
 Description: Run the macOS Roblox client on Linux through Darling
- Cider provides a GTK launcher and compatibility shims for the macOS
+ Quadra provides a GTK launcher and compatibility shims for the macOS
  Roblox player. The package includes prebuilt shims, desktop shortcuts and
  Roblox link handlers. Roblox itself is downloaded on first setup.
  .

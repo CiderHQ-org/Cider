@@ -82,7 +82,7 @@ class FakeDiscord:
 class DiscordPresenceTests(unittest.TestCase):
     def setUp(self):
         # Unix socket paths are short; avoid long temporary directories.
-        directory = tempfile.mkdtemp(prefix="cider-rpc-", dir="/tmp" if os.path.isdir("/tmp") else None)
+        directory = tempfile.mkdtemp(prefix="quadra-rpc-", dir="/tmp" if os.path.isdir("/tmp") else None)
         self.addCleanup(shutil.rmtree, directory, True)
         environment = patch.dict(os.environ, {"XDG_RUNTIME_DIR": directory, "TMPDIR": directory})
         environment.start()
@@ -124,10 +124,10 @@ class DiscordPresenceTests(unittest.TestCase):
     def test_activity_branding_and_buttons(self):
         activity = discord.DiscordRPC._activity(
             details="Game", buttons=[("Game page", "https://www.roblox.com/games/1"),
-                                     ("Get Cider", discord.WEBSITE_URL), ("Third", "https://example.com")])
+                                     ("Get Quadra", discord.WEBSITE_URL), ("Third", "https://example.com")])
         self.assertEqual(activity["assets"]["large_image"], discord.LOGO)
         self.assertEqual(activity["buttons"], [{"label": "Game page", "url": "https://www.roblox.com/games/1"},
-                                               {"label": "Get Cider", "url": discord.WEBSITE_URL}])
+                                               {"label": "Get Quadra", "url": discord.WEBSITE_URL}])
         self.assertNotIn("buttons", discord.DiscordRPC._activity(details="Menu"))
 
 

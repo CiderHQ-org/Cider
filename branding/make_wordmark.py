@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Builds wordmark-light.png / wordmark-dark.png: the square logo on the left
-and "Mac O’ Blox" in Comfortaa Bold (source/, SIL OFL). Needs rsvg-convert
+and "Quadra" in Comfortaa Bold (source/, SIL OFL). Needs rsvg-convert
 and ImageMagick; the font is used from source/ without installing it."""
 
 import base64
@@ -26,7 +26,7 @@ with tempfile.TemporaryDirectory() as temp:
             '<svg xmlns="http://www.w3.org/2000/svg" width="2400" height="600">'
             f'<image x="40" y="40" width="520" height="520" href="data:image/png;base64,{logo}"/>'
             '<text x="620" y="385" font-family="Comfortaa" font-weight="700" font-size="250" '
-            f'fill="{color}">Mac O’ Blox</text></svg>')
+            f'fill="{color}">Quadra</text></svg>')
         subprocess.run(["rsvg-convert", svg, "-o", temp / f"{theme}.png"], check=True, env=env)
         subprocess.run(["magick", temp / f"{theme}.png", "-trim", "+repage", "-bordercolor", "none",
                         "-border", "24", "-resize", "1200x", HERE / f"wordmark-{theme}.png"], check=True)

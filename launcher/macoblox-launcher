@@ -2,4 +2,4 @@
 """Compatibility entry point for existing MacOBlox shortcuts."""
 import runpy
 from pathlib import Path
-runpy.run_path(str(Path(__file__).with_name("ciderhq-launcher")), run_name="__main__")
+runpy.run_path(str(Path(__file__).with_name("quadrahq-launcher")), run_name="__main__")

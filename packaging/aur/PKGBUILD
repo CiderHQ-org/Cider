@@ -1,11 +1,11 @@
 # Maintainer: aubree.wtf <https://aubree.wtf/>
-pkgname=ciderhq-git
-_name=Cider
+pkgname=quadrahq-git
+_name=Quadra
 pkgver=0.30.r0
 pkgrel=1
 pkgdesc="Run the macOS Roblox client on Linux through Darling"
 arch=('x86_64')
-url="https://ciderhq.org"
+url="https://quadrahq.org"
 _repo="https://github.com/CiderHQ-org/Cider"
 license=('GPL-3.0-only' 'MIT' 'OFL-1.1')
 depends=('unzip' 'python' 'python-gobject' 'python-cairo'
@@ -14,15 +14,15 @@ depends=('unzip' 'python' 'python-gobject' 'python-cairo'
 depends+=('hicolor-icon-theme' 'shared-mime-info' 'desktop-file-utils')
 makedepends=('git' 'clang' 'lld' 'pkgconf')
 optdepends=('darling: regular Darling runtime'
-            'ciderdarling-bin: CiderHQ Darling runtime (also available from the launcher)'
+            'ciderdarling-bin: QuadraHQ Darling runtime (also available from the launcher)'
             'mangohud: performance overlay'
             'mesa: Mesa EGL and Zink for the Vulkan renderer'
             'vulkan-icd-loader: Vulkan renderer loader'
             'vulkan-driver: hardware Vulkan driver for the Vulkan renderer'
             'pipewire-audio: native PipeWire audio playback')
-provides=('ciderhq' 'macoblox')
-conflicts=('ciderhq' 'macoblox' 'macoblox-git')
-replaces=('macoblox-git')
+provides=('quadrahq' 'ciderhq' 'macoblox')
+conflicts=('quadrahq' 'ciderhq' 'ciderhq-git' 'macoblox' 'macoblox-git')
+replaces=('ciderhq-git' 'macoblox-git')
 source=("$_name::git+$_repo.git")
 sha256sums=('SKIP')
 
@@ -41,5 +41,5 @@ build() {
 package() {
   cd "$_name"
   bash packaging/install-payload.sh "$PWD" "$srcdir/native-build" "$pkgdir" /usr/lib
-  python -m compileall -q -d /usr/share/ciderhq/launcher "$pkgdir/usr/share/ciderhq/launcher"
+  python -m compileall -q -d /usr/share/quadrahq/launcher "$pkgdir/usr/share/quadrahq/launcher"
 }

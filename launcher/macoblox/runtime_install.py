@@ -36,7 +36,7 @@ class Installation:
         self.directory = Path(directory)
         self.created = time.monotonic()
         self.target_revision = None
-        self.command = ["bash", "-c", TERMINAL_SCRIPT, "cider-runtime-install",
+        self.command = ["bash", "-c", TERMINAL_SCRIPT, "quadra-runtime-install",
                         str(installer), variant, str(self.directory)]
 
     @classmethod
@@ -50,10 +50,10 @@ class Installation:
                 raise ValueError('Release metadata only applies to CiderDarling')
             runtime_updates.validate(release)
             if not runtime_updates.supported(release):
-                raise ValueError('This runtime update requires a newer Cider')
+                raise ValueError('This runtime update requires a newer Quadra')
         installer = Path(project).resolve() / "install.sh"
         if not installer.is_file():
-            raise FileNotFoundError("Cider's installer is missing. Update or reinstall Cider first.")
+            raise FileNotFoundError("Quadra's installer is missing. Update or reinstall Quadra first.")
         folder = Path(cache) / "installer"
         folder.mkdir(parents=True, exist_ok=True)
         directory = tempfile.mkdtemp(prefix="runtime-", dir=folder)

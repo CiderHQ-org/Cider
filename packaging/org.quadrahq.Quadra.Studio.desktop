@@ -1,10 +1,10 @@
 [Desktop Entry]
 Type=Application
-Name=Roblox Studio (Cider)
+Name=Roblox Studio (Quadra)
 Comment=Roblox Studio through Wine
 Comment[ru]=Roblox Studio через Wine
-Exec=ciderhq --studio %u
-Icon=ciderhq
+Exec=quadrahq --studio %u
+Icon=quadrahq
 Terminal=false
 Categories=Development;
 MimeType=x-scheme-handler/roblox-studio;x-scheme-handler/roblox-studio-auth;application/x-roblox-place;

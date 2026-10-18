@@ -1,4 +1,4 @@
-"""GTK 4 / libadwaita interface of the Cider launcher."""
+"""GTK 4 / libadwaita interface of the Quadra launcher."""
 
 import json
 import os
@@ -20,7 +20,7 @@ from . import __version__, author, core, discord, dns, i18n, mods, runtime, runt
 from .i18n import _  # noqa: E402
 from .setup import SetupWizard  # noqa: E402
 
-APP_ID = "org.ciderhq.Cider"
+APP_ID = "org.quadrahq.Quadra"
 
 # Common fast flags. Roblox only honours flags on its client allowlist, so
 # some of these may have no effect in a given client version.
@@ -74,9 +74,9 @@ def _restart_launcher():
     # Start the normal entry point without replaying an original Roblox URI.
     # A fresh process loads the selected client, sysroot and prefix together.
     environment = dict(os.environ, MACOBLOX_PAGE="settings")
-    entry = core.PROJECT / "launcher/ciderhq-launcher"
+    entry = core.PROJECT / "launcher/quadrahq-launcher"
     if not entry.is_file():
-        raise FileNotFoundError(_("Cider's launcher files are missing. Reinstall Cider before restarting."))
+        raise FileNotFoundError(_("Quadra's launcher files are missing. Reinstall Quadra before restarting."))
     os.execve(sys.executable, [sys.executable, str(entry)], environment)
 
 
@@ -107,10 +107,10 @@ def _button_row(title):
 
 def _error_dialog(window, heading, details):
     """Shows the whole error text, selectable and with a copy button, so
-    people can send it. Also kept in ~/.cache/ciderhq/last-error.txt."""
+    people can send it. Also kept in ~/.cache/quadrahq/last-error.txt."""
     try:
         core.CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        core.LAST_ERROR.write_text(f"Cider {__version__}\n{heading}\n\n{details}\n")
+        core.LAST_ERROR.write_text(f"Quadra {__version__}\n{heading}\n\n{details}\n")
     except OSError:
         pass
     dialog = Adw.AlertDialog(heading=heading)
@@ -127,7 +127,7 @@ def _error_dialog(window, heading, details):
 
     def response(_dialog, result):
         if result == "copy":
-            window.get_clipboard().set(f"Cider {__version__}\n{heading}\n\n{details}")
+            window.get_clipboard().set(f"Quadra {__version__}\n{heading}\n\n{details}")
 
     dialog.connect("response", response)
     dialog.present(window)
@@ -407,7 +407,7 @@ class GameLogsView(Gtk.Box):
             line = line.rstrip("\r")
             self.line_count += 1
             ll = line.lower()
-            if "[cider" in ll or "[macoblox" in ll:
+            if "[quadra" in ll or "[macoblox" in ll:
                 tag = self.tag_macoblox
             elif any(k in ll for k in ("error", "crash", "fatal", "sigsegv", "exception", "abort")):
                 tag = self.tag_err
@@ -652,8 +652,8 @@ class PlayPage(Adw.Bin):
         self.top_box = None
 
         status = Adw.StatusPage()
-        status.set_icon_name("ciderhq")
-        status.set_title("Cider")
+        status.set_icon_name("quadrahq")
+        status.set_title("Quadra")
         self.status = status
 
         center_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
@@ -1196,7 +1196,7 @@ class SettingsPage(Adw.Bin):
         # 1. Environment page (Darling, Interface, Game, DNS, Diagnostics)
         self.env_page = Adw.PreferencesPage()
 
-        launcher_group = Adw.PreferencesGroup(title="Cider")
+        launcher_group = Adw.PreferencesGroup(title="Quadra")
         self.launcher_version_row = Adw.ActionRow(
             title=_("Launcher version"),
             subtitle=f"v{__version__}"
@@ -1219,7 +1219,7 @@ class SettingsPage(Adw.Bin):
 
         self._runtime_codes = runtime.VARIANTS
         self._runtime_labels = {"regular": _("DarlingHQ's Darling"),
-                                "ciderdarling": _("CiderHQ's CiderDarling")}
+                                "ciderdarling": _("QuadraHQ's CiderDarling")}
         bundled = bool(os.environ.get("FLATPAK_ID"))
         release = window.cider_release
         self._cider_pin = None if bundled else (runtime_updates.pin(release) if release else runtime.pinned_ciderdarling())
@@ -1236,7 +1236,7 @@ class SettingsPage(Adw.Bin):
         self.runtime_row.set_selected(self._runtime_codes.index(active))
         darling_group.add(self.runtime_row)
         self.runtime_active_row = Adw.ActionRow(title=_("Active runtime"), subtitle=self._runtime_labels[active])
-        self.runtime_apply_button = Gtk.Button(label=_("Apply and restart Cider"),
+        self.runtime_apply_button = Gtk.Button(label=_("Apply and restart Quadra"),
                                                valign=Gtk.Align.CENTER, visible=not bundled)
         self.runtime_apply_button.add_css_class("suggested-action")
         self.runtime_apply_button.connect("clicked", lambda *_args: self.apply_runtime())
@@ -1436,7 +1436,7 @@ class SettingsPage(Adw.Bin):
 
         self.discord_icon = Adw.SwitchRow(
             title=_("Show experience thumbnail in Discord"),
-            subtitle=_("Replace the Cider icon with the game's icon"),
+            subtitle=_("Replace the Quadra icon with the game's icon"),
             active=settings.get("discord_rpc_icon", False),
         )
         self.discord_icon.set_sensitive(settings.get("discord_rpc", True))
@@ -1681,7 +1681,7 @@ class SettingsPage(Adw.Bin):
         elif selected == "ciderdarling" and choice is None:
             subtitle = _("Install CiderDarling in a separate terminal, then apply the switch.")
         elif choice is None:
-            subtitle = _("Install this runtime with Cider's installer before switching.")
+            subtitle = _("Install this runtime with Quadra's installer before switching.")
         else:
             subtitle = _("Each runtime keeps its own Roblox sign-in.")
         self.runtime_group.set_description(subtitle)
@@ -1723,7 +1723,7 @@ class SettingsPage(Adw.Bin):
             choice = self._installed_runtime_choices().get(selected)
             if choice is None:
                 self.refresh_runtime_choices()
-                raise RuntimeError(_("Install this runtime with Cider's installer before switching."))
+                raise RuntimeError(_("Install this runtime with Quadra's installer before switching."))
             self.flush()
             core.save_settings(self.window.settings)
             runtime.save_selection(choice, current=core.DARLING_RUNTIME)
@@ -1735,7 +1735,7 @@ class SettingsPage(Adw.Bin):
             self.window.end(resume_pending=False)
             details = str(error)
             if saved:
-                details = _("Runtime saved. Close and reopen Cider to apply it.") + "\n\n" + details
+                details = _("Runtime saved. Close and reopen Quadra to apply it.") + "\n\n" + details
             _error_dialog(self.window, _("Could not switch Darling runtime"), details)
 
     def rollback_runtime(self):
@@ -1759,7 +1759,7 @@ class SettingsPage(Adw.Bin):
         except (OSError, RuntimeError, ValueError) as error:
             details = str(error)
             if saved:
-                details = _("Runtime saved. Close and reopen Cider to apply it.") + '\n\n' + details
+                details = _("Runtime saved. Close and reopen Quadra to apply it.") + '\n\n' + details
             _error_dialog(self.window, _("Could not switch Darling runtime"), details)
         finally:
             self.window.end(resume_pending=False)
@@ -2045,7 +2045,7 @@ class SettingsPage(Adw.Bin):
                 _toast(self.window.toasts, _("Update {version} available", version=tag))
             else:
                 self.check_launcher_btn.set_label(_("Check for updates"))
-                _toast(self.window.toasts, _("Cider is up to date"))
+                _toast(self.window.toasts, _("Quadra is up to date"))
 
         self._in_thread(core.check_launcher_update, done)
 
@@ -2316,13 +2316,13 @@ class SettingsPage(Adw.Bin):
         self._in_thread(core.restart_darling, done)
 
 
-ABOUT = ("Cider runs the real Roblox client for macOS on Linux through Darling. "
+ABOUT = ("Quadra runs the real Roblox client for macOS on Linux through Darling. "
          "It is not made by Roblox and is not affiliated with it.")
 
 
 def _links():
     """(title, icon, uri) of the project's community pages."""
-    links = [("Website", "macoblox-web-symbolic", "https://ciderhq.org"),
+    links = [("Website", "macoblox-web-symbolic", "https://quadrahq.org"),
              ("Discord", "macoblox-discord-symbolic", author.DISCORD_URL)]
     if author.GITHUB_URL:
         links.append(("GitHub", "macoblox-github-symbolic", author.GITHUB_URL))
@@ -2375,7 +2375,7 @@ class InfoPage(Adw.PreferencesPage):
         super().__init__(title=_("Info"), icon_name="help-about-symbolic")
         self.window = window
 
-        about = Adw.PreferencesGroup(title="Cider", description=_(ABOUT))
+        about = Adw.PreferencesGroup(title="Quadra", description=_(ABOUT))
         self.add(about)
 
         community = Adw.PreferencesGroup(title=_("Community"))
@@ -2707,7 +2707,7 @@ class ModsPage(Adw.Bin):
 
 class LauncherWindow(Adw.ApplicationWindow):
     def __init__(self, app, page=None):
-        super().__init__(application=app, title="Cider")
+        super().__init__(application=app, title="Quadra")
         self.set_default_size(760, 580)
         self.set_resizable(True)
         self.settings = core.load_settings()
@@ -2875,7 +2875,7 @@ class LauncherWindow(Adw.ApplicationWindow):
         # Sidebar with the page list
         sidebar_toolbar = Adw.ToolbarView()
         sidebar_header = Adw.HeaderBar(show_end_title_buttons=False, show_start_title_buttons=False)
-        sidebar_header.set_title_widget(Gtk.Label(label="Cider", css_classes=["heading"]))
+        sidebar_header.set_title_widget(Gtk.Label(label="Quadra", css_classes=["heading"]))
         sidebar_version = Gtk.Label(label=f"v{__version__}", css_classes=["dim-label", "caption"], margin_end=6)
         sidebar_header.pack_end(sidebar_version)
         sidebar_toolbar.add_top_bar(sidebar_header)
@@ -2972,7 +2972,7 @@ class LauncherWindow(Adw.ApplicationWindow):
     def _show_launcher_update_dialog(self, tag):
         dialog = Adw.AlertDialog(
             heading=_("Update available"),
-            body=_("A new version of Cider ({version}) is available. Update now?", version=tag)
+            body=_("A new version of Quadra ({version}) is available. Update now?", version=tag)
         )
         dialog.add_response("later", _("Later"))
         dialog.add_response("update", _("Update"))
@@ -3070,7 +3070,7 @@ class LauncherWindow(Adw.ApplicationWindow):
         return False
 
     def install_ciderdarling(self):
-        """Install CiderDarling, or update it to the build Cider's installer
+        """Install CiderDarling, or update it to the build Quadra's installer
         pins, in a separate terminal (runtime_install.TERMINAL_SCRIPT)."""
         if os.environ.get("FLATPAK_ID"):
             return
@@ -3143,7 +3143,7 @@ class LauncherWindow(Adw.ApplicationWindow):
             threading.Thread(target=self._sync_ciderdarling_shortcut, daemon=True).start()
             page.runtime_row.set_selected(page._runtime_codes.index("ciderdarling"))
             if core.DARLING_RUNTIME["runtime"] == "ciderdarling" and page.runtime_apply_button.get_sensitive():
-                _toast(self.toasts, _("CiderDarling updated. Apply and restart Cider to use it."))
+                _toast(self.toasts, _("CiderDarling updated. Apply and restart Quadra to use it."))
             else:
                 _toast(self.toasts, _("CiderDarling installed. Apply the runtime choice to switch."))
         return False
@@ -3239,7 +3239,7 @@ class LauncherWindow(Adw.ApplicationWindow):
             return
         dialog = Adw.AlertDialog(
             heading=_("Install Roblox Studio?"),
-            body=_("Studio runs in its Windows version through Wine. Cider downloads Wine, "
+            body=_("Studio runs in its Windows version through Wine. Quadra downloads Wine, "
                    "DXVK and Studio, about 800 MB."))
         dialog.add_response("cancel", _("Cancel"))
         dialog.add_response("install", _("Install"))
@@ -3373,10 +3373,10 @@ class LauncherWindow(Adw.ApplicationWindow):
             else None
         )
         info = getattr(self, "current_game_info", None)
-        brand = f"Cider {__version__}"
+        brand = f"Quadra {__version__}"
         large_image, large_text = discord.LOGO, brand
         small_image = small_text = None
-        buttons = [(_("Get Cider"), discord.WEBSITE_URL)]
+        buttons = [(_("Get Quadra"), discord.WEBSITE_URL)]
 
         if info and not info.get("loading") and self.settings.get("discord_rpc_game", True):
             details = info.get("name", _("Playing Roblox"))
@@ -3488,9 +3488,9 @@ class LauncherWindow(Adw.ApplicationWindow):
         dialog = Adw.AlertDialog(
             heading=_("Roblox update broke game compatibility"),
             body=_("Roblox is no longer using RakNet. The latest Roblox update has broken "
-                   "game connection compatibility with Cider. Games might not work or may "
-                   "show Error 256.\n\nCheck for a Cider update. If a fix is not available yet, "
-                   "wait for a Cider compatibility patch."))
+                   "game connection compatibility with Quadra. Games might not work or may "
+                   "show Error 256.\n\nCheck for a Quadra update. If a fix is not available yet, "
+                   "wait for a Quadra compatibility patch."))
         self._transport_warning_dialog = dialog
         dialog.add_response("close", _("Close"))
         dialog.add_response("logs", _("View log"))
@@ -3638,13 +3638,13 @@ class LauncherWindow(Adw.ApplicationWindow):
 
     def _roblox_update_required_dialog(self, target=None):
         self._update_required_dialog_active = True
-        body = _("Roblox closed to install a required update. Let Cider download the current client, then try launching again.")
+        body = _("Roblox closed to install a required update. Let Quadra download the current client, then try launching again.")
         if target and target.get("upload"):
             if "channel" in target:
-                body = _("Roblox requires version {version} on channel {channel}. Cider will download that exact client, then try launching again.",
+                body = _("Roblox requires version {version} on channel {channel}. Quadra will download that exact client, then try launching again.",
                          version=target["version"], channel=target["channel"] or _("Production"))
             else:
-                body = _("Roblox requires version {version}. Cider will download that exact client, then try launching again.",
+                body = _("Roblox requires version {version}. Quadra will download that exact client, then try launching again.",
                          version=target["version"])
         dialog = Adw.AlertDialog(
             heading=_("Roblox needs an update"),
@@ -3733,7 +3733,7 @@ class LauncherApp(Adw.Application):
         self.window = None
         self.page = page
         self._stopping = False
-        # `ciderhq --ciderdarling-settings` activates this in a running launcher.
+        # `quadrahq --ciderdarling-settings` activates this in a running launcher.
         action = Gio.SimpleAction.new("ciderdarling-settings", None)
         action.connect("activate", lambda *_args: self._show_ciderdarling_settings())
         self.add_action(action)
@@ -3759,7 +3759,7 @@ class LauncherApp(Adw.Application):
         if window:
             # The game watcher may queue a pending join as the game ends.
             window.stopping = True
-        print(f"Signal {signal_number}: closing Cider")
+        print(f"Signal {signal_number}: closing Quadra")
 
         def finish():
             try:
@@ -3788,7 +3788,7 @@ class LauncherApp(Adw.Application):
     def do_activate(self):
         pending = uri_handoff.peek_pending()
         if not self.window:
-            Gtk.Window.set_default_icon_name("ciderhq")
+            Gtk.Window.set_default_icon_name("quadrahq")
             Gtk.IconTheme.get_for_display(Gdk.Display.get_default()).add_search_path(
                 str(core.PROJECT / "launcher" / "icons"))
             Gtk.IconTheme.get_for_display(Gdk.Display.get_default()).add_search_path(str(core.ICONS))
@@ -3834,7 +3834,7 @@ def main(page=None):
         try:
             application.register(None)
         except GLib.Error as error:
-            print("Could not register Cider:", error)
+            print("Could not register Quadra:", error)
         if application.get_is_remote():
             application.activate_action("ciderdarling-settings", None)
             connection = application.get_dbus_connection()

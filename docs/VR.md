@@ -6,7 +6,7 @@ render path, the VR home menu and the client's VR emulator
 (`DebugDeviceVR`). Only the device that talks to a headset is missing: the
 Windows and Quest builds attach an OpenXR device, the Mac build none.
 
-Cider attaches one. The shim (`vr_device.c`) creates the client's own
+Quadra attaches one. The shim (`vr_device.c`) creates the client's own
 `DebugDeviceVR`, swaps in a copy of its vtable whose methods talk to the
 host's OpenXR runtime (`vr_xr.c`), and puts it where `DeviceGL` keeps its VR
 device. Everything else is Roblox's code.
@@ -37,7 +37,7 @@ client release either matches or leaves VR off.
 42 virtual methods; the Quest `OpenXrDevice` of the same release names them
 in its error strings.
 
-| Slot | Method | Cider |
+| Slot | Method | Quadra |
 |---|---|---|
 | 2 | `update` | no-op (state is written when the frame opens) |
 | 3 | haptics `(hand, amplitude)` | OpenXR vibration, renewed while active |

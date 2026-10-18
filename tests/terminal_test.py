@@ -2,7 +2,7 @@ import unittest
 
 from macoblox import terminal
 
-ARGV = ["bash", "-c", "exit 0", "cider-runtime-install"]
+ARGV = ["bash", "-c", "exit 0", "quadra-runtime-install"]
 
 
 def installed(*names):

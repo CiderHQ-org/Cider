@@ -18,7 +18,7 @@ from macoblox import runtime_updates
 
 
 def download(url, target, digest):
-    request = urllib.request.Request(url, headers={'User-Agent': 'Cider-package-builder'})
+    request = urllib.request.Request(url, headers={'User-Agent': 'Quadra-package-builder'})
     hasher = hashlib.sha256()
     with urllib.request.urlopen(request, timeout=60) as response, target.open('xb') as output:
         size = 0
@@ -69,7 +69,7 @@ def main():
             source.extractall(out / 'stage', members=members, filter=build_files)
         sysroot = out / 'stage' / revision / 'libexec/darling'
     else:
-        # This lets Cider packages build while CiderDarling's first CI release
+        # This lets Quadra packages build while CiderDarling's first CI release
         # is still compiling. Only Mach-O libraries/headers are used; the
         # staged Darling client and Linux bridges are never executed.
         text = (ROOT / 'install.sh').read_text()

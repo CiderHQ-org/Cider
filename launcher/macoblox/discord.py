@@ -1,4 +1,4 @@
-"""Discord Rich Presence for Cider over Discord IPC Unix sockets."""
+"""Discord Rich Presence for Quadra over Discord IPC Unix sockets."""
 
 from __future__ import annotations
 
@@ -18,10 +18,10 @@ from . import core
 
 log = logging.getLogger("macoblox.discord")
 
-# CiderHQ's Discord application; "ciderhq" is the logo uploaded to it.
+# QuadraHQ's Discord application; its existing logo asset key stays compatible.
 CLIENT_ID = "1559277724160233553"
 LOGO = "ciderhq"
-WEBSITE_URL = "https://ciderhq.org"
+WEBSITE_URL = "https://quadrahq.org"
 
 CACHE_FILE = core.DATA_DIR / "game_cache.json"
 
@@ -575,7 +575,7 @@ class DiscordRPC:
         state: str | None = None,
         start_time: float | None = None,
         large_image: str = LOGO,
-        large_text: str = "Cider",
+        large_text: str = "Quadra",
         small_image: str | None = None,
         small_text: str | None = None,
         buttons: list[tuple[str, str]] | None = None,

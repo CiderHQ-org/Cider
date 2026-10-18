@@ -60,7 +60,7 @@ class RuntimeSelectionTests(unittest.TestCase):
 
     def test_flatpak_ignores_host_choice_and_invalid_host_configuration(self):
         self.selection.write_text("invalid")
-        resolved = self.resolve(FLATPAK_ID="org.ciderhq.Cider")
+        resolved = self.resolve(FLATPAK_ID="org.quadrahq.Quadra")
         self.assertEqual(resolved["sysroot"], "/app/libexec/darling")
         self.assertEqual(resolved["executable"], str(self.stock / "bin/darling"))
 
@@ -146,7 +146,7 @@ class RuntimeSelectionTests(unittest.TestCase):
 
     def test_flatpak_has_no_host_runtime_switches(self):
         self.install_cider_metadata()
-        self.assertEqual(self.discover(FLATPAK_ID="org.ciderhq.Cider"), {})
+        self.assertEqual(self.discover(FLATPAK_ID="org.quadrahq.Quadra"), {})
 
     def test_roundtrip_switch_preserves_both_custom_prefixes(self):
         self.install_cider_metadata()

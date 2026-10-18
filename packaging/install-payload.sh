@@ -19,8 +19,8 @@ for file in libMacOBloxShims.dylib libmacoblox-wayland.so; do
     exit 1
   }
 done
-share=$destdir/usr/share/ciderhq
-shim=$destdir$libdir/ciderhq/shim
+share=$destdir/usr/share/quadrahq
+shim=$destdir$libdir/quadrahq/shim
 install -d "$share/branding" "$shim" "$destdir/usr/bin"
 cp -r --no-preserve=ownership "$source_root/launcher" "$share/"
 rm -f "$share/launcher/install.sh"
@@ -29,33 +29,33 @@ find "$share/launcher" -type d -name __pycache__ -exec rm -rf -- {} +
 cp -r --no-preserve=ownership "$source_root/branding/icons" \
   "$source_root/branding/contributors" "$share/branding/"
 install -m644 "$source_root/branding/"*.png "$source_root/branding/"*.svg "$share/branding/"
-install -m644 "$source_root/branding/ciderhq.webp" "$share/branding/"
+install -m644 "$source_root/branding/quadrahq.webp" "$share/branding/"
 install -m644 "$source_root/patch_startup_throttle.py" "$share/"
 install -m644 "$source_root/README.md" "$share/"
 install -m755 "$source_root/install.sh" "$share/"
 install -m755 "$build_dir/libMacOBloxShims.dylib" \
   "$build_dir/libmacoblox-wayland.so" "$shim/"
 cp -r --no-preserve=ownership "$build_dir/frameworks" "$shim/"
-cat > "$destdir/usr/bin/ciderhq" <<WRAPPER
+cat > "$destdir/usr/bin/quadrahq" <<WRAPPER
 #!/bin/sh
-export MACOBLOX_PREBUILT_SHIM=$libdir/ciderhq/shim
-exec python3 /usr/share/ciderhq/launcher/ciderhq-launcher "\$@"
+export MACOBLOX_PREBUILT_SHIM=$libdir/quadrahq/shim
+exec python3 /usr/share/quadrahq/launcher/quadrahq-launcher "\$@"
 WRAPPER
-chmod 755 "$destdir/usr/bin/ciderhq"
+chmod 755 "$destdir/usr/bin/quadrahq"
 for size in 16 22 24 32 48 64 128 256 512 1024; do
-  install -Dm644 "$source_root/branding/icons/ciderhq-$size.png" \
-    "$destdir/usr/share/icons/hicolor/${size}x${size}/apps/ciderhq.png"
+  install -Dm644 "$source_root/branding/icons/quadrahq-$size.png" \
+    "$destdir/usr/share/icons/hicolor/${size}x${size}/apps/quadrahq.png"
 done
-for file in org.ciderhq.Cider.desktop org.ciderhq.Cider.URI.desktop \
-  org.ciderhq.Cider.Studio.desktop ciderhq-roblox-window.desktop; do
+for file in org.quadrahq.Quadra.desktop org.quadrahq.Quadra.URI.desktop \
+  org.quadrahq.Quadra.Studio.desktop quadrahq-roblox-window.desktop; do
   install -Dm644 "$source_root/packaging/$file" \
     "$destdir/usr/share/applications/$file"
 done
-install -Dm644 "$source_root/packaging/org.ciderhq.Cider.xml" \
-  "$destdir/usr/share/mime/packages/org.ciderhq.Cider.xml"
+install -Dm644 "$source_root/packaging/org.quadrahq.Quadra.xml" \
+  "$destdir/usr/share/mime/packages/org.quadrahq.Quadra.xml"
 install -Dm644 "$source_root/LICENSE" \
-  "$destdir/usr/share/licenses/ciderhq/LICENSE"
+  "$destdir/usr/share/licenses/quadrahq/LICENSE"
 install -m644 "$source_root/LICENSES/MIT-MacOBlox.txt" \
-  "$destdir/usr/share/licenses/ciderhq/"
+  "$destdir/usr/share/licenses/quadrahq/"
 install -m644 "$source_root/launcher/macoblox/assets/fonts/"*-OFL.txt \
-  "$destdir/usr/share/licenses/ciderhq/"
+  "$destdir/usr/share/licenses/quadrahq/"
