@@ -1,7 +1,7 @@
 # Native distro packages
 
 These are package recipes for Quadra. Each package
-builds the shim and native Wayland helper during packaging, installs desktop
+builds the shim, native Wayland helper and Metal framework during packaging, installs desktop
 and link handlers, and downloads Roblox on first setup. Personal settings and
 sign-in are stored in the user's directories. The website and user logs are
 excluded. Package updates use the distro's package manager.
@@ -15,13 +15,14 @@ excluded. Package updates use the distro's package manager.
 
 The release workflow builds Arch, Ubuntu 24.04 and Fedora packages in their
 own distro containers, then publishes the packages together after every build
-succeeds. It also attaches the immutable source archive and checksums and pins
+succeeds. The Rust Metal host is built once on Ubuntu 24.04 and checked with
+software Vulkan readback before being included in all three packages. It also attaches the immutable source archive and checksums and pins
 the stable AUR recipe on main. The recipes do not submit packages to distro
 repositories or the AUR.
 The `noreply@aubree.wtf` maintainer address is a placeholder: set the real
 packaging contact before submitting to a distro.
 
-Quadra 0.31 uses the `quadrahq` package name. The release workflow pins the
+Quadra 0.32 uses the `quadrahq` package name. The release workflow pins the
 source archive checksum and stable AUR recipe after publication. The frozen
 Cider 0.30 AUR recipe remains in `aur/ciderhq/`. Use `--local` to package
 unreleased source changes.
@@ -40,15 +41,21 @@ unreleased source changes.
   below these requirements.
 - Clang, LLD and pkg-config for the native build. Compile on the target distro
   or its build chroot so the helper uses that distro's library versions.
+- Rust 1.98+ (cargo/rustc) to build the Metal host. Release CI provides the
+  verified prebuilt host through `QUADRA_METAL_HOST_LIBRARY`; Debian uses the
+  `pkg.quadrahq.prebuilt-metal` build profile and RPM uses `--with prebuilt_metal`
+  for that CI path. Ordinary source builds compile it with Cargo.
 
 The recipes declare a PulseAudio-compatible playback helper, which works
 with PipeWire's PulseAudio service too. Native PipeWire playback and MangoHud
 are optional. Install the GPU's OpenGL/EGL driver; Vulkan/Zink also needs Mesa
-and the appropriate Vulkan driver.
+and the appropriate Vulkan driver. Native packages include the Metal bridge
+and depend on the Vulkan loader and LLVM shared libraries; users still install
+their hardware Vulkan driver. The default renderer remains OpenGL.
 
 ## Prepare sources
 
-The release workflow attaches `quadrahq-0.31-source.tar.gz` and pins its
+The release workflow attaches `quadrahq-0.32-source.tar.gz` and pins its
 checksum in `release.json`. To package local source edits:
 
 ```bash
@@ -70,7 +77,7 @@ overlay and RPM inputs in a new output directory. It requires `curl`, `tar`
 and `sha256sum`. To use an already downloaded release archive:
 
 ```bash
-./packaging/prepare-source.sh "$PWD/work/native-packages" /path/to/quadrahq-0.31-source.tar.gz
+./packaging/prepare-source.sh "$PWD/work/native-packages" /path/to/quadrahq-0.32-source.tar.gz
 ```
 
 The output directory must not already exist. Arch builds use their own AUR
@@ -86,7 +93,7 @@ Then install the packaging tools and native development dependencies:
 ```bash
 sudo apt install build-essential debhelper dh-python python3 clang lld \
   pkg-config libsdl2-dev libwayland-dev
-cd work/native-packages/Quadra-0.31
+cd work/native-packages/Quadra-0.32
 dpkg-buildpackage -b -us -uc
 ```
 
@@ -95,7 +102,7 @@ one directory above the source directory. Install using `apt`, which resolves
 dependencies from the configured repositories:
 
 ```bash
-sudo apt install ../quadrahq_0.31-1_amd64.deb
+sudo apt install ../quadrahq_0.32-1_amd64.deb
 ```
 
 The recipe uses debhelper for Python bytecode and desktop/icon/MIME cache

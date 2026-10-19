@@ -40,16 +40,28 @@ case $flavor in
     cp /work/prepared/aur/quadrahq/quadrahq-*.pkg.tar.zst /out/
     cp /work/prepared/aur/quadrahq/PKGBUILD /out/quadrahq.PKGBUILD
     cp /work/prepared/aur/quadrahq/.SRCINFO /out/quadrahq.SRCINFO
+    tar -tf "/out/quadrahq-$version-1-x86_64.pkg.tar.zst" > /work/package-files
     ;;
   ubuntu24.04)
     cd "/work/prepared/Quadra-$version"
-    dpkg-buildpackage -b -us -uc
+    DEB_BUILD_PROFILES=pkg.quadrahq.prebuilt-metal dpkg-buildpackage -b -us -uc
     cp /work/prepared/quadrahq_*.deb /out/
+    dpkg-deb --fsys-tarfile "/out/quadrahq_${version}-1_amd64.deb" | tar -tf - > /work/package-files
     ;;
   fedora)
-    rpmbuild --define '_topdir /work/prepared/rpm' -ba /work/prepared/rpm/SPECS/quadrahq.spec
+    rpmbuild --with prebuilt_metal --define '_topdir /work/prepared/rpm' -ba /work/prepared/rpm/SPECS/quadrahq.spec
     cp /work/prepared/rpm/RPMS/x86_64/*.rpm /out/
     cp /work/prepared/rpm/SRPMS/*.src.rpm /out/
+    rpm -qpl /work/prepared/rpm/RPMS/x86_64/quadrahq-*.rpm > /work/package-files
     ;;
 esac
+python3 - <<'PY'
+from pathlib import Path
+files = Path('/work/package-files').read_text().splitlines()
+for tail in ('/quadrahq/shim/metal/libquadra_metal_host.so',
+             '/quadrahq/shim/metal/Metal.framework/Metal',
+             '/quadrahq/shim/metal/Metal.framework/Versions/A/Metal'):
+    assert any(name.endswith(tail) for name in files), f'Missing Metal payload: {tail}'
+print('Verified packaged Metal framework and host library.')
+PY
 chmod -R a+rX /out

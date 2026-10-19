@@ -1,3 +1,10 @@
+quadrahq (0.32-1) unstable; urgency=medium
+
+  * Ship the experimental Metal on Vulkan bridge in native packages.
+  * Fix the Metal layer compositor crash and clear renderer state on switching.
+
+ -- Quadra maintainers <noreply@aubree.wtf>  Mon, 19 Oct 2026 18:20:00 -0500
+
 quadrahq (0.31-1) unstable; urgency=medium
 
   * Release the Quadra / QuadraHQ rebrand with migrated Cider user data.

@@ -9,6 +9,7 @@ override_dh_auto_configure:
 
 override_dh_auto_build:
 	MACOBLOX_BUILD_DIR="$(CURDIR)/debian/native-build" ./build_debug_shim.sh
+	MACOBLOX_BUILD_DIR="$(CURDIR)/debian/native-build" bash packaging/build-metal.sh
 
 override_dh_auto_install:
 	bash debian/install-payload.sh "$(CURDIR)" "$(CURDIR)/debian/native-build" "$(CURDIR)/debian/quadrahq" /usr/lib

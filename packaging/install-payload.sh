@@ -13,7 +13,7 @@ libdir=$4
   printf '%s\n' 'Use a package staging directory and an absolute /usr/lib path.' >&2
   exit 2
 }
-for file in libMacOBloxShims.dylib libmacoblox-wayland.so; do
+for file in libMacOBloxShims.dylib libmacoblox-wayland.so metal/libquadra_metal_host.so metal/Metal.framework/Metal; do
   [[ -f $build_dir/$file ]] || {
     printf 'Missing build artifact: %s\n' "$build_dir/$file" >&2
     exit 1
@@ -36,6 +36,10 @@ install -m755 "$source_root/install.sh" "$share/"
 install -m755 "$build_dir/libMacOBloxShims.dylib" \
   "$build_dir/libmacoblox-wayland.so" "$shim/"
 cp -r --no-preserve=ownership "$build_dir/frameworks" "$shim/"
+install -d "$shim/metal" "$share/prototype/metal-vulkan"
+install -m755 "$build_dir/metal/libquadra_metal_host.so" "$shim/metal/"
+cp -r --no-preserve=ownership "$build_dir/metal/Metal.framework" "$shim/metal/"
+install -m644 "$source_root/prototype/metal-vulkan/README.md" "$share/prototype/metal-vulkan/"
 cat > "$destdir/usr/bin/quadrahq" <<WRAPPER
 #!/bin/sh
 export MACOBLOX_PREBUILT_SHIM=$libdir/quadrahq/shim
@@ -56,6 +60,8 @@ install -Dm644 "$source_root/packaging/org.quadrahq.Quadra.xml" \
 install -Dm644 "$source_root/LICENSE" \
   "$destdir/usr/share/licenses/quadrahq/LICENSE"
 install -m644 "$source_root/LICENSES/MIT-MacOBlox.txt" \
+  "$destdir/usr/share/licenses/quadrahq/"
+cp -r --no-preserve=ownership "$source_root/LICENSES/metal" \
   "$destdir/usr/share/licenses/quadrahq/"
 install -m644 "$source_root/launcher/macoblox/assets/fonts/"*-OFL.txt \
   "$destdir/usr/share/licenses/quadrahq/"

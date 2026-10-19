@@ -1,9 +1,10 @@
-%global upstream_version 0.31
+%bcond_with prebuilt_metal
+%global upstream_version 0.32
 Name:           quadrahq
-Version:        0.31
+Version:        0.32
 Release:        1%{?dist}
 Summary:        Run the macOS Roblox client on Linux through Darling
-License:        GPL-3.0-only AND MIT AND OFL-1.1
+License:        GPL-3.0-only AND MIT AND ISC AND OFL-1.1
 URL:            https://quadrahq.org
 Source0:        https://github.com/CiderHQ-org/Cider/releases/download/v%{upstream_version}/quadrahq-%{upstream_version}-source.tar.gz#/quadrahq-%{upstream_version}.tar.gz
 Source1:        quadrahq-install-payload.sh
@@ -13,6 +14,10 @@ BuildRequires:  clang
 BuildRequires:  lld
 BuildRequires:  gcc-c++
 BuildRequires:  python3
+%if %{without prebuilt_metal}
+BuildRequires:  rust >= 1.98
+BuildRequires:  cargo >= 1.98
+%endif
 BuildRequires:  pkgconfig(sdl2)
 BuildRequires:  pkgconfig(wayland-client)
 BuildRequires:  pkgconfig(wayland-egl)
@@ -28,6 +33,7 @@ Requires:       hicolor-icon-theme
 Requires:       shared-mime-info
 Requires:       desktop-file-utils
 Requires:       libEGL.so.1()(64bit)
+Requires:       libvulkan.so.1()(64bit)
 Requires:       libX11.so.6()(64bit)
 Requires:       libXext.so.6()(64bit)
 Requires:       libXfixes.so.3()(64bit)
@@ -35,6 +41,7 @@ Requires:       libXi.so.6()(64bit)
 Requires:       libXcursor.so.1()(64bit)
 
 %if 0%{?suse_version}
+Recommends:     llvm
 Requires:       python3-gobject
 Requires:       python3-gobject-cairo
 Requires:       python3-cairo
@@ -44,6 +51,7 @@ Requires:       typelib-1_0-WebKit-6_0
 Requires:       pulseaudio-utils
 Recommends:     pipewire-tools
 %else
+Requires:       llvm-libs >= 15
 Requires:       python3-gobject
 Requires:       python3-cairo
 Requires:       gtk4 >= 4.14
@@ -73,6 +81,7 @@ GUI frameworks and stubs is required.
 
 %build
 MACOBLOX_BUILD_DIR="$PWD/native-build" ./build_debug_shim.sh
+MACOBLOX_BUILD_DIR="$PWD/native-build" bash packaging/build-metal.sh
 strip --strip-unneeded native-build/libmacoblox-wayland.so
 
 %install
@@ -90,6 +99,10 @@ python3 -m compileall -q -d "%{_datadir}/quadrahq/launcher" "%{buildroot}%{_data
 %{_datadir}/mime/packages/org.quadrahq.Quadra.xml
 
 %changelog
+* Mon Oct 19 2026 Quadra maintainers <noreply@aubree.wtf> - 0.32-1
+- Ship the experimental Metal on Vulkan bridge in native packages.
+- Fix the Metal layer compositor crash and clear renderer state on switching.
+
 * Mon Oct 19 2026 Quadra maintainers <noreply@aubree.wtf> - 0.31-1
 - Release the Quadra / QuadraHQ rebrand with migrated Cider user data.
 - Retry public Roblox download HTTP 403s through the Quadra cache.

@@ -221,6 +221,10 @@ def _metal_probe(library):
     pointer = ctypes.c_void_p
     words = ctypes.cast(api + 8, ctypes.POINTER(pointer))  # after version and size
     last_error = ctypes.CFUNCTYPE(ctypes.c_char_p)(words[0])
+    check_air = host.quadra_metal_host_check_air
+    check_air.restype, check_air.argtypes = ctypes.c_int, ()
+    if not check_air():
+        raise RuntimeError((last_error() or b"the LLVM shader upgrader is unavailable").decode(errors="replace"))
     release = ctypes.CFUNCTYPE(None, pointer)(words[1])
     device_create = ctypes.CFUNCTYPE(pointer, pointer)(words[2])
     device_info = ctypes.CFUNCTYPE(None, pointer, ctypes.c_char_p)(words[3])

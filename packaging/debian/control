@@ -3,6 +3,7 @@ Section: games
 Priority: optional
 Maintainer: Quadra maintainers <noreply@aubree.wtf>
 Build-Depends: debhelper-compat (= 13), dh-python, python3, clang, lld,
+ cargo (>= 1.98) <!pkg.quadrahq.prebuilt-metal>, rustc (>= 1.98) <!pkg.quadrahq.prebuilt-metal>,
  pkg-config, libsdl2-dev, libwayland-dev
 Standards-Version: 4.7.2
 Rules-Requires-Root: no
@@ -18,7 +19,8 @@ Architecture: amd64
 Depends: ${misc:Depends}, ${shlibs:Depends}, ${python3:Depends},
  unzip, python3-gi, python3-gi-cairo, python3-cairo,
  gir1.2-gtk-4.0 (>= 4.14), gir1.2-adw-1 (>= 1.5), gir1.2-webkit-6.0,
- pulseaudio-utils, libegl1, libx11-6, libxext6, libxfixes3, libxi6, libxcursor1,
+ pulseaudio-utils, libegl1, libvulkan1, libllvm19 | libllvm18,
+ libx11-6, libxext6, libxfixes3, libxi6, libxcursor1,
  hicolor-icon-theme, shared-mime-info, desktop-file-utils
 Recommends: pipewire-bin
 Suggests: darling, mangohud, mesa-vulkan-drivers, libvulkan1

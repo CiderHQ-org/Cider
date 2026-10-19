@@ -1686,6 +1686,18 @@ static API: QmApi = QmApi {
     log_once: log_text_once,
 };
 
+/// Check the dynamically loaded LLVM shader upgrader before starting the game.
+#[no_mangle]
+pub extern "C" fn quadra_metal_host_check_air() -> c_int {
+    guard(0, || match air::check_llvm() {
+        Ok(()) => 1,
+        Err(error) => {
+            set_error(error);
+            0
+        }
+    })
+}
+
 /// The table of quadra_metal.h, or null for another version.
 #[no_mangle]
 pub extern "C" fn quadra_metal_host_api(version: u32) -> *const QmApi {

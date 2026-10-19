@@ -68,6 +68,11 @@
     <control>keyboard</control>
   </supports>
   <releases>
+    <release version="0.32" date="2026-10-19">
+      <description>
+        <p>Adds experimental Metal on Vulkan rendering with a prebuilt bridge in native distro packages. Fixes the Metal layer compositor crash and preserves clean switching back to OpenGL. Verified with Write a Letter on native Wayland and NVIDIA. VR continues to require OpenGL or Zink.</p>
+      </description>
+    </release>
     <release version="0.31" date="2026-10-19">
       <description>
         <p>Rebrands Cider to Quadra / QuadraHQ at quadrahq.org while preserving the logo and migrating existing user data. Retries public Roblox deployment downloads through the Quadra cache after HTTP 403. Preserves captured right-drag camera motion when left-click is pressed, and records severe FPS drops for diagnosis. The intermittent FPS drop remains under investigation.</p>

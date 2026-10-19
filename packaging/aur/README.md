@@ -10,8 +10,8 @@ Quadra uses two package names for AUR repositories:
 
 Use `--local` below to package unreleased source changes.
 Source preparation can also generate a local recipe from `quadrahq/PKGBUILD.in`.
-The recipes build the Darling shim and native Wayland helper during package
-creation. They install the launcher, icons, desktop entries, MIME definition
+The recipes build the Darling shim, native Wayland helper and Metal on Vulkan
+bridge during package creation. Source builds need Rust 1.98 or newer. They install the launcher, icons, desktop entries, MIME definition
 and startup-patch helper. Roblox itself is downloaded by the launcher on first
 setup. Settings and sign-in stay in the user's directories; package updates
 are handled by pacman or an AUR helper.

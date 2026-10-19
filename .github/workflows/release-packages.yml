@@ -63,9 +63,36 @@ jobs:
           XDG_CONFIG_HOME="$config/config" XDG_CACHE_HOME="$config/cache" \
             XDG_DATA_HOME="$config/data" DPREFIX="$config/prefix" bash tests/run.sh
 
+  metal-host:
+    name: Metal host and GPU readback
+    needs: source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.source.outputs.revision }}
+      - name: Build and verify the portable host library
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang binutils libvulkan1 mesa-vulkan-drivers libllvm18
+          rustup toolchain install 1.98.1 --profile minimal
+          export RUSTUP_TOOLCHAIN=1.98.1
+          export MACOBLOX_BUILD_DIR="$RUNNER_TEMP/metal-build"
+          bash prototype/metal-vulkan/build.sh host
+          clang -O2 -Wall -Wextra tests/metal_host_test.c -ldl -o "$RUNNER_TEMP/metal-host-test"
+          "$RUNNER_TEMP/metal-host-test" "$MACOBLOX_BUILD_DIR/metal/libquadra_metal_host.so"
+          mkdir metal-host
+          cp "$MACOBLOX_BUILD_DIR/metal/libquadra_metal_host.so" metal-host/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: metal-host-internal
+          path: metal-host/
+          if-no-files-found: error
+
   build:
     name: Package (${{ matrix.flavor }})
-    needs: source
+    needs: [source, metal-host]
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     strategy:
@@ -86,6 +113,10 @@ jobs:
         with:
           name: quadra-source
           path: out
+      - uses: actions/download-artifact@v4
+        with:
+          name: metal-host-internal
+          path: metal-host
       - name: Stage a verified build sysroot
         run: python3 packaging/fetch-build-runtime.py --output "$RUNNER_TEMP/runtime"
       - name: Build in the target distro
@@ -94,6 +125,8 @@ jobs:
           IMAGE: ${{ matrix.image }}
         run: |
           docker run --rm -v "$GITHUB_WORKSPACE:/src:ro" -v "$GITHUB_WORKSPACE/out:/out" \
+            -v "$GITHUB_WORKSPACE/metal-host:/metal-host:ro" \
+            -e QUADRA_METAL_HOST_LIBRARY=/metal-host/libquadra_metal_host.so \
             -v "$RUNNER_TEMP/runtime/sysroot:/runtime:ro" "$IMAGE" \
             bash /src/packaging/ci/build-package.sh "$FLAVOR"
       - uses: actions/upload-artifact@v4
@@ -115,6 +148,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/download-artifact@v4
         with:
+          pattern: quadra-*
           path: dist
           merge-multiple: true
       - name: Publish the tested packages

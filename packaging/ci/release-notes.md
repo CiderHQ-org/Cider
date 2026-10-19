@@ -1,16 +1,16 @@
-Quadra 0.31 adds automatic recovery for blocked Roblox downloads and fixes right-drag mouse capture. It is the first release under the Quadra / QuadraHQ name at [quadrahq.org](https://quadrahq.org); the logo stays the same.
+Quadra 0.32 adds **Metal on Vulkan (experimental)** and includes the prebuilt bridge in the Arch, Debian/Ubuntu and Fedora packages.
 
-- **Roblox download HTTP 403 ([#36](https://github.com/CiderHQ-org/Cider/issues/36)):** Quadra tries Roblox first, then retries a denied public version check or macOS client download through the Quadra cache on `korona`. The same channel and upload are preserved. Account and game traffic stay on Roblox. Incomplete downloads leave the installed client intact.
-- **RMB + LMB capture ([#35](https://github.com/CiderHQ-org/Cider/issues/35)):** pressing left-click during captured right-drag camera movement now preserves right-drag motion. Either button can be released first without leaving the motion stream misclassified. Verified through real Darling AppKit in a private Wayland compositor.
-- **FPS-drop diagnostics ([#34](https://github.com/CiderHQ-org/Cider/issues/34)):** a severe sustained FPS drop now leaves one automatic log marker even when verbose FPS logging is off. **The intermittent 60-to-15 FPS drop remains undiagnosed; this release does not claim to fix it.** Collect diagnostics while a drop is happening.
-- **Quadra migration:** the command/package name is `quadrahq`, and the app ID is `org.quadrahq.Quadra`. Existing Cider and MacOBlox settings, cache and Darling session files migrate without replacing existing Quadra data. CiderDarling runtime identifiers and the current GitHub repositories remain compatible.
+Select **Settings → Environment → Game → Renderer → Metal on Vulkan (experimental)** and use the native **Wayland** window backend. Restart Roblox after changing renderers. Packaged installs need no Rust compiler; the first Metal launch upgrades and caches Roblox's shaders.
 
-Validation: 233 Python tests and the native regression suite passed; the shim built successfully; the mouse-button sequence passed through real AppKit; and a complete client update succeeded through the deployed HTTPS mirror after forced primary HTTP 403s, preserving the previous client backup.
+- Fixes the startup crash caused by Darling treating a Metal layer as a bitmap. Vulkan now presents through the window's own Wayland subsurface.
+- Keeps switching back to OpenGL clean by clearing the previous renderer's framework environment.
+- Uses immutable host resource borrows and separate temporary files for concurrent shader-cache writers.
+- Checks the Vulkan device and LLVM shader upgrader before starting Roblox, with a launcher error if they are unavailable.
 
-**Known issues:** the random FPS drop and the brief freeze after leaving a game remain under investigation.
+Validation: Write a Letter joined and rendered its 3D world, character and UI for 90 seconds, presenting over 600 Vulkan frames on an RTX 3060 Ti with native Wayland. All 2,266 shader libraries and 40 compute kernels passed the shader census. The native regression suite and 236 Python tests passed, as did real AppKit keyboard/captured-mouse checks and exact GPU readback at 1× and 4× MSAA.
 
-Update Quadra, then fully close and reopen the launcher before starting Roblox.
+**Experimental limits:** longer gameplay, resize/minimize stress, other GPUs and X11 presentation need more testing. VR requires OpenGL or Vulkan/Zink. Flatpak does not include the Metal bridge yet. The intermittent FPS drop (#34) and brief freeze after leaving a game remain under investigation.
 
-Install the package matching your distribution: `.pkg.tar.zst` for Arch derivatives, `.deb` for Ubuntu 24.04+/Debian 13+, or the binary `.rpm` for current Fedora. Packages include the launcher and prebuilt shims; select either Darling provider in the launcher. CiderDarling runtime updates download separately.
+Fully close and reopen the launcher after updating. OpenGL remains the default.
 
-The source archive, Arch recipe and source RPM are attached, with `SHA256SUMS` for verification.
+Install `.pkg.tar.zst` on Arch derivatives, `.deb` on Ubuntu 24.04+/Debian 13+, or the binary `.rpm` on current Fedora. Darling/CiderDarling runtime downloads remain separate. Source archives and build recipes are attached with `SHA256SUMS`.

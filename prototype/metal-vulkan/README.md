@@ -1,9 +1,9 @@
 # Metal on Vulkan (experimental)
 
 A third renderer next to OpenGL and Vulkan (Zink): Roblox's own **Metal** renderer, with every
-Metal call run on the host's Vulkan driver. Source builds expose it in
+Metal call run on the host's Vulkan driver. Native 0.32 packages and source builds expose it in
 **Settings → Environment → Game → Renderer → Metal on Vulkan (experimental)**.
-OpenGL remains the default. Current binary packages do not ship the bridge.
+OpenGL remains the default. Native packages ship the bridge; Flatpak does not yet.
 
 ## Why Metal, not "real" Vulkan
 

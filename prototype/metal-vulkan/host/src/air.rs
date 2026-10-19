@@ -139,6 +139,10 @@ fn llvm() -> Result<&'static Llvm, String> {
     .map_err(Clone::clone)
 }
 
+pub fn check_llvm() -> Result<(), String> {
+    llvm().map(|_| ())
+}
+
 /// Old bitcode in, current bitcode of the rewritten module out.
 fn upgrade_bitcode(bitcode: &[u8]) -> Result<Vec<u8>, String> {
     let llvm = llvm()?;

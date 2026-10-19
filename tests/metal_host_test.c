@@ -77,6 +77,8 @@ int main(int argc, char **argv) {
     CHECK(entry && !entry(QM_API_VERSION + 1));
     api = entry(QM_API_VERSION);
     CHECK(api && api->version == QM_API_VERSION && api->size == sizeof(qm_api));
+    int (*check_air)(void) = (int (*)(void))dlsym(library, "quadra_metal_host_check_air");
+    CHECK(check_air && check_air());
     void *device = api->device_create(NULL);
     CHECK(device);
     qm_device_info info = {0};
