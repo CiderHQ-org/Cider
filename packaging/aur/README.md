@@ -4,11 +4,11 @@ Quadra uses two package names for AUR repositories:
 
 | Package | Recipe | Source |
 | --- | --- | --- |
-| `quadrahq` | `quadrahq/PKGBUILD.in`; CI creates `PKGBUILD` and `.SRCINFO` after publication | Verified Quadra release |
+| `quadrahq` | `quadrahq/PKGBUILD` and `.SRCINFO` | Verified Quadra release |
 | `ciderhq` (legacy) | `ciderhq/PKGBUILD` and `.SRCINFO` | Published Cider 0.30 release |
 | `quadrahq-git` | `PKGBUILD` and `.SRCINFO` | Current GitHub checkout |
 
-Until the first Quadra archive is published, use `--local` below.
+Use `--local` below to package unreleased source changes.
 Source preparation can also generate a local recipe from `quadrahq/PKGBUILD.in`.
 The recipes build the Darling shim and native Wayland helper during package
 creation. They install the launcher, icons, desktop entries, MIME definition

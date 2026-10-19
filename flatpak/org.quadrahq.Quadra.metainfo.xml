@@ -68,6 +68,11 @@
     <control>keyboard</control>
   </supports>
   <releases>
+    <release version="0.31" date="2026-10-19">
+      <description>
+        <p>Rebrands Cider to Quadra / QuadraHQ at quadrahq.org while preserving the logo and migrating existing user data. Retries public Roblox deployment downloads through the Quadra cache after HTTP 403. Preserves captured right-drag camera motion when left-click is pressed, and records severe FPS drops for diagnosis. The intermittent FPS drop remains under investigation.</p>
+      </description>
+    </release>
     <release version="0.30" date="2026-10-17">
       <description>
         <p>Adds experimental VR: Roblox's own VR mode on a headset through an OpenXR runtime such as WiVRn (Meta Quest) or Monado, with head tracking, controllers, vibration and recentering, configured in the new VR settings tab. Fixes duplicated typing and an unreliable Control key with native Wayland.</p>

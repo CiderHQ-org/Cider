@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.31 — 2026-10-19
 
 - Retry public Roblox version and macOS client downloads through Quadra's
   self-hosted cache when the original endpoint returns HTTP 403 (#36). Keep
@@ -17,9 +17,9 @@
 - Migrate Cider and MacOBlox settings, cache, source installs and Darling
   session files without replacing existing Quadra data. Keep CiderDarling's
   runtime identifiers and the current GitHub repositories compatible.
-- Update native and Flatpak packaging. The published Cider 0.30 AUR recipe
-  remains pinned; build Quadra from this checkout with `--local` until its
-  release archive is published.
+- Release native packages under `quadrahq` and update Flatpak packaging. The
+  legacy Cider 0.30 AUR recipe remains pinned; the Quadra release source and
+  stable AUR recipe are published with checksums.
 
 ## 0.30 — 2026-10-17
 

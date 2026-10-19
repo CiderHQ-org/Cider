@@ -21,12 +21,10 @@ repositories or the AUR.
 The `noreply@aubree.wtf` maintainer address is a placeholder: set the real
 packaging contact before submitting to a distro.
 
-The first Quadra release archive has not been published. Use `--local` to
-package this checkout. `release.json` intentionally has no checksum until CI
-publishes the new archive; the old Cider archive cannot build these renamed
-recipes. The frozen Cider 0.30 AUR recipe remains in `aur/ciderhq/`.
-Choose a new release version before publishing; the existing Cider release
-must not be replaced.
+Quadra 0.31 uses the `quadrahq` package name. The release workflow pins the
+source archive checksum and stable AUR recipe after publication. The frozen
+Cider 0.30 AUR recipe remains in `aur/ciderhq/`. Use `--local` to package
+unreleased source changes.
 
 ## Requirements
 
@@ -50,8 +48,8 @@ and the appropriate Vulkan driver.
 
 ## Prepare sources
 
-The release workflow will attach `quadrahq-VERSION-source.tar.gz` and pin its
-checksum in `release.json`. Until then, package local source edits:
+The release workflow attaches `quadrahq-0.31-source.tar.gz` and pins its
+checksum in `release.json`. To package local source edits:
 
 ```bash
 ./packaging/prepare-source.sh "$PWD/work/quadrahq-packages" --local
@@ -67,12 +65,12 @@ From the Quadra checkout:
 ./packaging/prepare-source.sh "$PWD/work/native-packages"
 ```
 
-After publication, this downloads the checksum-verified Quadra release and places the Debian
+This downloads the checksum-verified Quadra release and places the Debian
 overlay and RPM inputs in a new output directory. It requires `curl`, `tar`
 and `sha256sum`. To use an already downloaded release archive:
 
 ```bash
-./packaging/prepare-source.sh "$PWD/work/native-packages" /path/to/quadrahq-0.30-source.tar.gz
+./packaging/prepare-source.sh "$PWD/work/native-packages" /path/to/quadrahq-0.31-source.tar.gz
 ```
 
 The output directory must not already exist. Arch builds use their own AUR
@@ -88,7 +86,7 @@ Then install the packaging tools and native development dependencies:
 ```bash
 sudo apt install build-essential debhelper dh-python python3 clang lld \
   pkg-config libsdl2-dev libwayland-dev
-cd work/native-packages/Quadra-0.30
+cd work/native-packages/Quadra-0.31
 dpkg-buildpackage -b -us -uc
 ```
 
@@ -97,7 +95,7 @@ one directory above the source directory. Install using `apt`, which resolves
 dependencies from the configured repositories:
 
 ```bash
-sudo apt install ../quadrahq_0.30-1_amd64.deb
+sudo apt install ../quadrahq_0.31-1_amd64.deb
 ```
 
 The recipe uses debhelper for Python bytecode and desktop/icon/MIME cache

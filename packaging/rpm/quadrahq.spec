@@ -1,6 +1,6 @@
-%global upstream_version 0.30
+%global upstream_version 0.31
 Name:           quadrahq
-Version:        0.30
+Version:        0.31
 Release:        1%{?dist}
 Summary:        Run the macOS Roblox client on Linux through Darling
 License:        GPL-3.0-only AND MIT AND OFL-1.1
@@ -90,6 +90,12 @@ python3 -m compileall -q -d "%{_datadir}/quadrahq/launcher" "%{buildroot}%{_data
 %{_datadir}/mime/packages/org.quadrahq.Quadra.xml
 
 %changelog
+* Mon Oct 19 2026 Quadra maintainers <noreply@aubree.wtf> - 0.31-1
+- Release the Quadra / QuadraHQ rebrand with migrated Cider user data.
+- Retry public Roblox download HTTP 403s through the Quadra cache.
+- Preserve captured right-drag motion with both mouse buttons held.
+- Record severe FPS drops for diagnosis; the intermittent FPS issue remains open.
+
 * Sat Oct 17 2026 Quadra maintainers <noreply@aubree.wtf> - 0.30-1
 - Rebrand to Quadra / QuadraHQ at quadrahq.org; retain the existing logo.
 - Migrate settings, cache and sign-in from Cider and MacOBlox.
