@@ -154,6 +154,45 @@ class GraphicsTests(unittest.TestCase):
         self.assertEqual(graphics.renderer_environment("opengl"), {})
         self.assertEqual(core.DEFAULT_SETTINGS["renderer"], "opengl")
 
+    def test_metal_paths_reach_both_host_and_guest_without_changing_egl(self):
+        session = bare_session(dict(core.DEFAULT_SETTINGS, renderer="metal"))
+        session.web_socket = session.dns = session.audio = None
+        with patch.dict(os.environ, {}, clear=True), \
+                patch.object(core, "METAL_DIR", Path("/build with spaces/metal")), \
+                patch.object(core, "host_vram_bytes", return_value=0), \
+                patch.object(core, "icon_argb_file", side_effect=OSError):
+            host = session.environment()
+            guest = dict(item.split("=", 1) for item in session.shim_variables())
+        self.assertEqual(host["MACOBLOX_METAL"], "1")
+        self.assertEqual(guest["MACOBLOX_METAL_HOST_LIBRARY"], host["MACOBLOX_METAL_HOST_LIBRARY"])
+        self.assertEqual(guest["MACOBLOX_METAL_FRAMEWORKS"], "/Volumes/SystemRoot/build with spaces/metal")
+        self.assertNotIn("MESA_LOADER_DRIVER_OVERRIDE", host)
+        self.assertNotIn("MESA_LOADER_DRIVER_OVERRIDE", guest)
+
+    def test_renderer_switch_clears_previous_darling_metal_framework(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            application = root / "RobloxPlayer.app/Contents/MacOS/RobloxPlayer"
+            application.parent.mkdir(parents=True)
+            application.write_text('#!/bin/sh\nprintf "%s\\n" "${MACOBLOX_METAL:-off}" "${DYLD_FRAMEWORK_PATH:-unset}"\n')
+            application.chmod(0o755)
+            inherited = {**os.environ, "MACOBLOX_METAL": "1",
+                         "MACOBLOX_METAL_FRAMEWORKS": "/previous/metal", "DYLD_FRAMEWORK_PATH": "/previous/metal"}
+            for variables, expected in (([], ["off", "unset"]),
+                    (["MACOBLOX_METAL=1", "MACOBLOX_METAL_FRAMEWORKS=/new path/metal"], ["1", "/new path/metal"])):
+                result = subprocess.run(["bash", "--noprofile", "--norc", "-c", core.LAUNCH_SCRIPT,
+                                         "test", str(root), "/shim", "", *variables],
+                                        env=inherited, capture_output=True, text=True, check=True)
+                self.assertEqual(result.stdout.splitlines(), expected)
+
+    def test_metal_probe_refuses_software_and_reports_device_errors(self):
+        for record, status, message in (({"device": "llvmpipe"}, 0, "software Vulkan device"),
+                                         ({"error": "missing swapchain extension"}, 1, "missing swapchain extension")):
+            with self.subTest(record=record), patch.object(graphics.subprocess, "run",
+                    return_value=subprocess.CompletedProcess([], status, json.dumps(record), "")):
+                with self.assertRaisesRegex(RuntimeError, message):
+                    graphics.validate_metal({}, "/metal.so")
+
     def test_wayland_nvidia_adds_egl_icd_and_reuses_atomic_cache(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

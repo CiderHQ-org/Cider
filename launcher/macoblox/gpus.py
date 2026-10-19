@@ -138,6 +138,10 @@ def gpu_environment(adapter, renderer):
     physical-device list. NVIDIA EGL uses PRIME rather than Mesa's selector.
     """
     inherited = {name: os.environ[name] for name in GPU_ENVIRONMENT if name in os.environ}
+    # Metal on Vulkan draws through the Vulkan device; Darling's own
+    # compositor still uses EGL, as with OpenGL.
+    vulkan_device = renderer in ("vulkan", "metal")
+    egl_driver = renderer in ("opengl", "metal")
     if adapter is None:
         if renderer == "vulkan":
             inherited.pop("__EGL_VENDOR_LIBRARY_FILENAMES", None)
@@ -150,7 +154,7 @@ def gpu_environment(adapter, renderer):
     inherited.pop("MESA_VK_DEVICE_SELECT", None)
     inherited.pop("__NV_PRIME_RENDER_OFFLOAD_PROVIDER", None)
     inherited.update({
-        "DRI_PRIME": prime + ("!" if renderer == "vulkan" else ""),
+        "DRI_PRIME": prime + ("!" if vulkan_device else ""),
         "__NV_PRIME_RENDER_OFFLOAD": "1" if nvidia else "0",
         "__GLX_VENDOR_LIBRARY_NAME": "nvidia" if nvidia else "mesa",
         "__VK_LAYER_NV_optimus": "NVIDIA_only" if nvidia else "non_NVIDIA_only",
@@ -160,9 +164,9 @@ def gpu_environment(adapter, renderer):
         # NVIDIA EGL selects RandR providers, not PCI IDs. Never claim a PCI
         # choice selected one particular GPU when several NVIDIA screens exist.
         # Automatic remains available for an explicit desktop/terminal provider.
-        if renderer == "opengl" and adapter.get("nvidia_count", 1) > 1:
+        if egl_driver and adapter.get("nvidia_count", 1) > 1:
             raise RuntimeError("Selecting between multiple NVIDIA GPUs with OpenGL needs an X11 provider. Select Automatic and use __NV_PRIME_RENDER_OFFLOAD_PROVIDER for that driver setup, or select Vulkan.")
-    if renderer == "opengl":
+    if egl_driver:
         if nvidia:
             manifest = _nvidia_egl_manifest()
             if not manifest:

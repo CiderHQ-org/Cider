@@ -56,6 +56,19 @@ with patch.object(core, "load_settings", return_value=dict(core.DEFAULT_SETTINGS
     row.set_selected(0)
     assert copy.get_selected() == 0
     assert window.settings["renderer"] == saved[-1]["renderer"] == "opengl"
+    with patch.object(core, "PREBUILT_SHIM", None), \
+            patch.object(graphics, "missing_metal_dependencies", return_value=[]):
+        queued_before = len(pending)
+        row.set_selected(2)
+        assert copy.get_selected() == 2 and window.settings["renderer"] == "metal"
+        assert len(pending) == queued_before
+        copy.set_selected(0)
+    with patch.object(core, "PREBUILT_SHIM", "/prebuilt"), \
+            patch.object(core, "metal_built", return_value=False):
+        row.set_selected(2)
+        assert row.get_selected() == copy.get_selected() == 0
+        assert window.settings["renderer"] == "opengl"
+        assert "not part of this package" in str(errors[-1])
     window.destroy()
 
-print("PASS: renderer waits for installation, cancelled auth preserves OpenGL, success persists Vulkan, switch back works")
+print("PASS: renderer installation, cancellation, Metal selection, unavailable packages and switching back")

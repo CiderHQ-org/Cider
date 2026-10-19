@@ -1,7 +1,12 @@
-"""Optional host OpenGL-over-Vulkan rendering through Mesa Zink.
+"""Renderers other than OpenGL: Mesa Zink, and Metal on Vulkan.
 
-Roblox still uses its macOS OpenGL renderer. Zink translates that renderer
-to Vulkan on Linux; Darling's incomplete Metal path stays disabled.
+- "vulkan": Roblox keeps its macOS OpenGL renderer; Mesa Zink runs it on
+  Vulkan.
+- "metal": Roblox runs its Metal renderer. Quadra's Metal.framework
+  (prototype/metal-vulkan/framework) replaces Darling's and runs each call on the host's
+  Vulkan driver through metal2vulkan (prototype/metal-vulkan/host). Roblox's macOS client has
+  no Vulkan backend of its own (its device factory makes OpenGL and Metal
+  devices only), so this is the native Vulkan route.
 """
 import ctypes
 import hashlib
@@ -14,7 +19,7 @@ import sys
 import tempfile
 import threading
 
-RENDERERS = ("opengl", "vulkan")
+RENDERERS = ("opengl", "vulkan", "metal")
 _dependency_lock = threading.Lock()
 
 
@@ -159,9 +164,83 @@ def mangohud_environment(renderer, enabled=False):
     return variables
 
 
+def vulkan_loader():
+    """The host's Vulkan loader, or None."""
+    roots = ("/usr/lib", "/usr/lib64", "/usr/lib/x86_64-linux-gnu", "/usr/local/lib",
+             "/usr/local/lib64", "/app/lib", "/app/lib/x86_64-linux-gnu")
+    return next((str(Path(root) / "libvulkan.so.1") for root in roots
+                 if (Path(root) / "libvulkan.so.1").exists()), None)
+
+
+def missing_metal_dependencies():
+    return [] if vulkan_loader() else ["Vulkan loader"]
+
+
+def metal_environment(metal_dir, shader_cache):
+    """Host and guest variables of the Metal renderer. metal_dir holds
+    Metal.framework and libquadra_metal_host.so (prototype/metal-vulkan/build.sh)."""
+    metal_dir = Path(metal_dir)
+    return {
+        "MACOBLOX_METAL": "1",
+        # dlopened by the host side of Darling: a host path.
+        "MACOBLOX_METAL_HOST_LIBRARY": str(metal_dir / "libquadra_metal_host.so"),
+        # Read by the host library; HOME is /Users/<name> inside Darling.
+        "MACOBLOX_METAL_SHADER_CACHE": str(shader_cache),
+    }
+
+
+def validate_metal(environment, host_library):
+    """Open the Vulkan device the game will use, in a separate process."""
+    probe_environment = {name: value for name, value in environment.items() if name != "LD_PRELOAD"}
+    try:
+        result = subprocess.run([sys.executable, str(Path(__file__)), "--metal-probe", str(host_library)],
+                                env=probe_environment, capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise RuntimeError("Metal on Vulkan could not open a Vulkan device. Select OpenGL in Settings.") from error
+    try:
+        data = json.loads(result.stdout.strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        data = {}
+    name = data.get("device", "")
+    if result.returncode or not name:
+        reason = data.get("error") or (result.stderr or "").strip()[-600:] or f"probe exited with code {result.returncode}"
+        raise RuntimeError(f"Metal on Vulkan is unavailable: {reason}. Select OpenGL in Settings.")
+    if any(software in name.lower() for software in ("llvmpipe", "lavapipe", "swiftshader")):
+        raise RuntimeError(f"Metal on Vulkan found only a software Vulkan device ({name}). Install your GPU's Vulkan driver or select OpenGL.")
+    return name
+
+
+def _metal_probe(library):
+    """quadra_metal.h's device_create and device_info, nothing else."""
+    host = ctypes.CDLL(library)
+    entry = host.quadra_metal_host_api
+    entry.restype, entry.argtypes = ctypes.c_void_p, (ctypes.c_uint32,)
+    api = entry(1)
+    if not api:
+        raise RuntimeError("the Metal host library is from another version of Quadra")
+    pointer = ctypes.c_void_p
+    words = ctypes.cast(api + 8, ctypes.POINTER(pointer))  # after version and size
+    last_error = ctypes.CFUNCTYPE(ctypes.c_char_p)(words[0])
+    release = ctypes.CFUNCTYPE(None, pointer)(words[1])
+    device_create = ctypes.CFUNCTYPE(pointer, pointer)(words[2])
+    device_info = ctypes.CFUNCTYPE(None, pointer, ctypes.c_char_p)(words[3])
+    device = device_create(None)
+    if not device:
+        raise RuntimeError((last_error() or b"no Vulkan device").decode(errors="replace"))
+    info = ctypes.create_string_buffer(512)
+    device_info(device, info)
+    name = info.raw[:256].split(b"\0", 1)[0].decode(errors="replace")
+    release(device)
+    return {"device": name}
+
+
 def renderer_environment(renderer):
     if renderer == "opengl":
         return {}
+    if renderer == "metal":
+        # The paths come from the launcher (metal_environment); Darling's
+        # own compositor keeps using EGL as with OpenGL.
+        return {"MACOBLOX_METAL": "1"}
     if renderer != "vulkan":
         raise ValueError(f"Unknown renderer: {renderer}")
     # GLVND would otherwise choose NVIDIA's EGL implementation, ignoring
@@ -508,6 +587,13 @@ def _probe():
 
 
 if __name__ == "__main__":
+    if len(sys.argv) == 3 and sys.argv[1] == "--metal-probe":
+        try:
+            print(json.dumps(_metal_probe(sys.argv[2])))
+        except Exception as error:
+            print(json.dumps({"error": str(error)}))
+            sys.exit(1)
+        sys.exit(0)
     try:
         print(json.dumps(_probe()))
     except Exception as error:

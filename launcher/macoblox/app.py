@@ -1764,13 +1764,14 @@ class SettingsPage(Adw.Bin):
         finally:
             self.window.end(resume_pending=False)
 
-    RENDERER_CODES = ("opengl", "vulkan")
+    RENDERER_CODES = ("opengl", "vulkan", "metal")
 
     def _renderer_row(self):
         row = Adw.ComboRow(
             title=_("Renderer"),
-            subtitle=_("Applies on next launch. Missing Mesa EGL/Zink packages need administrator authentication."),
-            model=Gtk.StringList.new([_("OpenGL"), _("Vulkan (Zink, experimental)")]))
+            subtitle=_("Applies on next launch. Zink runs Roblox's OpenGL renderer on Vulkan; Metal on Vulkan runs its Metal renderer on Vulkan (built on first use, VR stays on OpenGL)."),
+            model=Gtk.StringList.new([_("OpenGL"), _("Vulkan (Zink, experimental)"),
+                                      _("Metal on Vulkan (experimental)")]))
         selected = self.window.settings.get("renderer", "opengl")
         row.set_selected(self.RENDERER_CODES.index(selected) if selected in self.RENDERER_CODES else 0)
         self._renderer_rows.append((row, row.connect("notify::selected", self._select_renderer)))
@@ -1788,6 +1789,21 @@ class SettingsPage(Adw.Bin):
         window = self.window
         selected = self.RENDERER_CODES[row.get_selected()]
         from . import graphics
+        if selected == "metal":
+            if core.PREBUILT_SHIM and not core.metal_built():
+                self._show_renderer(window.settings.get("renderer", "opengl"))
+                _error_dialog(window, _("Metal on Vulkan is unavailable"),
+                              _("Metal on Vulkan is not part of this package"))
+                return
+            missing = graphics.missing_metal_dependencies()
+            if missing:
+                self._show_renderer(window.settings.get("renderer", "opengl"))
+                _error_dialog(window, _("Metal on Vulkan is unavailable"),
+                              _("Install these first: {programs}", programs=", ".join(missing)))
+                return
+            window.set_setting("renderer", selected)
+            self._show_renderer(selected)
+            return
         if selected == "opengl" or not graphics.missing_vulkan_dependencies():
             window.set_setting("renderer", selected)
             self._show_renderer(selected)

@@ -47,6 +47,12 @@ SHIM = SHIM_DIR / "libMacOBloxShims.dylib"
 # Frameworks RobloxPlayer links that Darling lacks; stubs from frameworks/.
 FRAMEWORKS = ["CoreML", "CoreHaptics", "DeviceCheck"]
 FRAMEWORKS_BUILD = SHIM_DIR / "frameworks"
+# Metal on Vulkan (renderer "metal"): Metal.framework and the host library,
+# built by prototype/metal-vulkan/build.sh the first time the renderer is used.
+METAL_DIR = SHIM_DIR / "metal"
+METAL_HOST_LIBRARY = METAL_DIR / "libquadra_metal_host.so"
+METAL_FRAMEWORK = METAL_DIR / "Metal.framework" / "Versions" / "A" / "Metal"
+METAL_BUILD_SCRIPT = PROJECT / "prototype" / "metal-vulkan" / "build.sh"
 # Keep the selected client, build root and guest prefix together even when
 # regular Darling and CiderDarling are both installed.
 DARLING_RUNTIME = resolve_runtime()
@@ -1447,6 +1453,49 @@ def shim_built():
         return False
 
 
+def _metal_sources_hash():
+    digest = hashlib.sha256(__version__.encode())
+    digest.update(str(DARLING_SYSROOT).encode())
+    root = PROJECT / "prototype" / "metal-vulkan"
+    for path in sorted([root / "quadra_metal.h", METAL_BUILD_SCRIPT, *(root / "framework").glob("*"),
+                        root / "host" / "Cargo.toml", root / "host" / "Cargo.lock", *(root / "host" / "src").glob("*.rs")]):
+        try:
+            digest.update(path.name.encode() + b"\0" + path.read_bytes())
+        except OSError:
+            pass
+    return digest.hexdigest()
+
+
+def metal_built():
+    if not (METAL_HOST_LIBRARY.exists() and METAL_FRAMEWORK.exists()):
+        return False
+    if PREBUILT_SHIM:
+        return True
+    try:
+        return (METAL_DIR / "sources.sha256").read_text().strip() == _metal_sources_hash()
+    except OSError:
+        return False
+
+
+def build_metal():
+    """prototype/metal-vulkan/build.sh: the framework needs clang and lld, the host library
+    Rust 1.98 or newer (its first build downloads its crates)."""
+    if PREBUILT_SHIM:
+        return metal_built(), _("Metal on Vulkan is not part of this package")
+    if not shutil.which("cargo"):
+        return False, _("Metal on Vulkan needs Rust (cargo) 1.98 or newer to build. Install Rust or select another renderer.")
+    stamp = _metal_sources_hash()
+    result = subprocess.run([str(METAL_BUILD_SCRIPT)], capture_output=True, text=True,
+                            env=dict(os.environ, MACOBLOX_BUILD_DIR=str(BUILD_DIR),
+                                     DARLING_SYSROOT=str(DARLING_SYSROOT)))
+    if result.returncode == 0:
+        try:
+            _write_atomically(METAL_DIR / "sources.sha256", stamp + "\n")
+        except OSError:
+            pass
+    return result.returncode == 0, (result.stdout + result.stderr).strip()[-4000:]
+
+
 def missing_tools():
     """Programs the launcher needs that are not installed."""
     needed = {DARLING_EXECUTABLE: "darling", "unzip": "unzip"}
@@ -1926,6 +1975,7 @@ def icon_argb_file():
 # Automatic launch cannot retain the previous game's offload/ICD overrides.
 LAUNCH_SCRIPT = "unset " + " ".join(GPU_ENVIRONMENT) + "\n" + r'''
 project=$1 shim_dir=$2 launch_uri=$3; shift 3
+unset MACOBLOX_METAL MACOBLOX_METAL_FRAMEWORKS MACOBLOX_METAL_HOST_LIBRARY MACOBLOX_METAL_SHADER_CACHE DYLD_FRAMEWORK_PATH
 for kv in "$@"; do export "$kv"; done
 # Roblox's own frame rate limit (FramerateCap, its Maximum Frame Rate
 # setting), from the launcher's FPS limit. Set here, inside Darling, right
@@ -1959,6 +2009,9 @@ cd "$app" || exit 1
 export DYLD_FORCE_FLAT_NAMESPACE=1
 export DYLD_INSERT_LIBRARIES="$shim_dir/libMacOBloxShims.dylib"
 export DYLD_LIBRARY_PATH="$shim_dir:$app"
+if [ -n "${MACOBLOX_METAL_FRAMEWORKS:-}" ]; then
+  export DYLD_FRAMEWORK_PATH="$MACOBLOX_METAL_FRAMEWORKS"
+fi
 if [ -n "$launch_uri" ]; then
   # Roblox's native macOS browser handoff is the -protocolString argument.
   # Keep the value as one opaque argument; the client owns the protocol
@@ -2368,8 +2421,11 @@ class RobloxSession:
         if self._gpu_environment is None:
             self.gpu_adapter = gpus.selected_gpu(self.settings.get("gpu", "auto"))
             self._gpu_environment = gpus.gpu_environment(self.gpu_adapter, renderer)
+        metal = graphics.metal_environment(METAL_DIR, CACHE_DIR / "metal-shader-cache") \
+            if renderer == "metal" else {}
         return {
             **graphics.renderer_environment(renderer),
+            **metal,
             **self._gpu_environment,
             **graphics.mangohud_environment(renderer, self.settings.get("mangohud", False)),
             **display.window_environment(self.settings, SHIM_DIR / "libmacoblox-wayland.so"),
@@ -2411,6 +2467,10 @@ class RobloxSession:
         ]
         from . import display
         variables.append(f"MACOBLOX_DPI_SCALE={display.validated_dpi_scale(self.settings.get('dpi_scale', 1.0)):.3f}")
+        if self.settings.get("renderer", "opengl") == "metal":
+            # The launch script makes it DYLD_FRAMEWORK_PATH just before exec:
+            # Quadra's Metal.framework in place of Darling's.
+            variables.append(f"MACOBLOX_METAL_FRAMEWORKS=/Volumes/SystemRoot{METAL_DIR}")
         # Host graphics libraries see the guest environment after exec.
         variables.extend(f"{name}={value}" for name, value in
                          self._graphics_environment().items())
@@ -2516,6 +2576,18 @@ class RobloxSession:
         if self.settings.get("renderer", "opengl") == "vulkan":
             from . import graphics
             graphics.ensure_vulkan_dependencies()
+        if self.settings.get("renderer", "opengl") == "metal":
+            from . import graphics
+            missing = graphics.missing_metal_dependencies()
+            if missing:
+                raise RuntimeError(_("Metal on Vulkan needs: {items}. Install them or select another renderer.",
+                                     items=", ".join(missing)))
+            if not metal_built():
+                self.notes.append("Building Metal on Vulkan (prototype/metal-vulkan/build.sh)")
+                ok, output = build_metal()
+                if not ok:
+                    raise RuntimeError(_("Could not build Metal on Vulkan:\n{output}", output=output))
+            (CACHE_DIR / "metal-shader-cache").mkdir(parents=True, exist_ok=True)
         env = self.environment()
         if env.get("MACOBLOX_WAYLAND") != "1":
             ensure_x11(env)
@@ -2523,6 +2595,9 @@ class RobloxSession:
         if self.settings.get("renderer", "opengl") == "vulkan":
             from . import graphics
             renderer_name = graphics.validate_vulkan(env)
+        elif self.settings.get("renderer", "opengl") == "metal":
+            from . import graphics
+            renderer_name = "Metal on Vulkan (" + graphics.validate_metal(env, METAL_HOST_LIBRARY) + ")"
         self.renderer_name = renderer_name
         # A game closed a moment ago may still be shutting down. A new one next
         # to it shared its darlingserver, and when that went both died. Give it

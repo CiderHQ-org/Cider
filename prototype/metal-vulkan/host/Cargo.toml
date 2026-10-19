@@ -1,0 +1,40 @@
+[package]
+name = "quadra-metal-host"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.98"
+license = "GPL-3.0-only"
+publish = false
+description = "Host side of Quadra's Metal on Vulkan: metal2vulkan-runtime behind the C table of ../quadra_metal.h"
+
+[lib]
+name = "quadra_metal_host"
+crate-type = ["cdylib", "rlib"]
+path = "src/lib.rs"
+
+[dependencies]
+# GPL-2.0-or-later OR LGPL-3.0-or-later. Pinned: the runtime is unstable.
+metal2vulkan-runtime = { git = "https://github.com/steelbrain/metal2vulkan", rev = "720ef1ce9ae2a2068999a8675717418b9416283e" }
+metal2vulkan = { git = "https://github.com/steelbrain/metal2vulkan", rev = "720ef1ce9ae2a2068999a8675717418b9416283e", features = ["ash"] }
+ash = { version = "0.38", default-features = false, features = ["std", "loaded"] }
+libc = "0.2"
+# SHA-256: metallib HASH tags and the upgrade cache keys.
+sha2 = "0.10"
+
+[dev-dependencies]
+metal2vulkan-air = { git = "https://github.com/steelbrain/metal2vulkan", rev = "720ef1ce9ae2a2068999a8675717418b9416283e" }
+
+[profile.release]
+opt-level = 3
+debug = "line-tables-only"
+incremental = true
+
+# metal/host/examples/pack_census.rs: every library of a shader pack through the runtime.
+[[example]]
+name = "pack_census"
+path = "examples/pack_census.rs"
+
+# metal/host/examples/air_census.rs: decodes AIR bitcode files as the translator does.
+[[example]]
+name = "air_census"
+path = "examples/air_census.rs"

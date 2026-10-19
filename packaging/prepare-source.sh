@@ -34,10 +34,10 @@ from pathlib import Path
 root, output, version = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3]
 paths = {Path(name.decode()) for name in subprocess.check_output(
     ['git', '-C', str(root), 'ls-files', '-z']).split(b'\0') if name}
-directories = ('launcher', 'branding', 'packaging', 'frameworks', 'flatpak', 'docs', 'experimental', 'LICENSES')
+directories = ('launcher', 'branding', 'packaging', 'frameworks', 'flatpak', 'docs', 'experimental', 'prototype', 'LICENSES')
 new_files = subprocess.check_output(['git', '-C', str(root), 'ls-files', '-z',
                                     '--others', '--exclude-standard', '--', *directories])
-public_extensions = {'.py', '.sh', '.c', '.m', '.h', '.cpp', '.svg', '.desktop', '.xml', '.json', '.yml', '.in', '.md', '.spec',
+public_extensions = {'.py', '.sh', '.c', '.m', '.h', '.cpp', '.rs', '.toml', '.lock', '.svg', '.desktop', '.xml', '.json', '.yml', '.in', '.md', '.spec',
                      '.png', '.webp', '.jpg', '.ttf', '.mp3'}
 public_names = {'.SRCINFO', 'PKGBUILD', 'quadrahq-launcher', 'ciderhq-launcher', 'macoblox-launcher'}
 paths.update(path for name in new_files.split(b'\0') if name

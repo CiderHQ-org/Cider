@@ -290,8 +290,17 @@ fails, select **OpenGL** again.
 Vulkan gameplay is experimental. Client startup
 and the MangoHud Vulkan overlay have been tested on an RTX 3060 Ti, with GL
 tracing disabled. Heavy gameplay and other GPUs still need testing. This uses
-the macOS client's OpenGL renderer; Metal and native client Vulkan are separate
-backends.
+the macOS client's OpenGL renderer.
+
+Source builds also offer **Metal on Vulkan (experimental)** in the same menu.
+This runs Roblox's Metal renderer through the pinned
+[metal2vulkan](https://github.com/steelbrain/metal2vulkan) runtime. Native Wayland
+login, home and Write a Letter have been verified on an RTX 3060 Ti. The first
+launch builds the bridge and upgrades the shader cache; it needs Rust 1.98+,
+clang/lld, libLLVM 15+ and a hardware Vulkan driver. Current binary packages do
+not include this renderer. VR requires OpenGL or Zink; X11 and other GPUs still
+need testing. See the [Metal prototype notes](prototype/metal-vulkan/README.md)
+for build commands and validation details.
 
 With [MangoHud](https://github.com/flightlessmango/MangoHud) installed, enable
 **Settings → Environment → Game → MangoHud overlay** and restart Roblox.

@@ -2683,6 +2683,13 @@ extern void glTexParameteri(unsigned int, unsigned int, int);
 static void (*orig_ca_renderer_render_layer)(id, SEL, id, double, double);
 static void hooked_ca_renderer_render_layer(id self, SEL cmd, id layer,
                                            double z, double current_time) {
+    // Metal drawables are presented by their native Vulkan subsurface. The
+    // Darling GL compositor only understands bitmap layers and attempts to
+    // upload even nil contents, dereferencing a NULL CGDataProvider.
+    Class metal_layer = (Class)objc_getClass("QMMetalLayer");
+    if (metal_layer && ((unsigned char (*)(id, SEL, Class))objc_msgSend)(
+            layer, sel_registerName("isKindOfClass:"), metal_layer))
+        return;
     id number = ((id (*)(id, SEL))objc_msgSend)(layer, sel_registerName("_textureId"));
     unsigned int texture = number ? ((unsigned int (*)(id, SEL))objc_msgSend)(
         number, sel_registerName("unsignedIntValue")) : 0;

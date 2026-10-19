@@ -99,6 +99,9 @@ def shim_variables(settings):
     """MACOBLOX_* variables for the shim, and a line for the launch log."""
     if not settings.get("vr", False):
         return [], "VR: off"
+    if settings.get("renderer", "opengl") == "metal":
+        # The VR device attaches to Roblox's OpenGL device (vr_device.c).
+        return [], "VR: off (it needs the OpenGL or Vulkan (Zink) renderer)"
     runtime = active_runtime() if loader_installed() else None
     if runtime is None:
         return [], "VR: requested, but no OpenXR loader and runtime were found"

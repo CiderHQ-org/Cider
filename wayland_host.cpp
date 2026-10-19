@@ -450,6 +450,9 @@ unsigned create_subwindow(unsigned parent_id,int x,int y,int width,int height) {
 void *subwindow_surface(unsigned id) {
     return sync([=]() -> void * {auto found=subwindows.find(id);return found==subwindows.end()?nullptr:found->second.egl_window;});
 }
+void *subwindow_wl_surface(unsigned id) {
+    return sync([=]() -> void * {auto found=subwindows.find(id);return found==subwindows.end()?nullptr:found->second.surface;});
+}
 void subwindow_frame(unsigned id,int x,int y,int width,int height) {
     sync([=]{
         auto found=subwindows.find(id);if(found==subwindows.end() || !valid_subwindow_frame(x,y,width,height))return;
@@ -579,7 +582,8 @@ const char *clipboard(const char *text) {
 }
 const char *error(){return failure.c_str();}
 const macoblox_wayland_api api={MACOBLOX_WAYLAND_ABI,display,create,surface,action,poll,screen,cursor,clipboard,error,
-                              create_subwindow,subwindow_surface,subwindow_frame,subwindow_visible,destroy_subwindow};
+                              create_subwindow,subwindow_surface,subwindow_frame,subwindow_visible,destroy_subwindow,
+                              subwindow_wl_surface};
 void shutdown() {
     stopping.store(true);
     if(ui.joinable()) {

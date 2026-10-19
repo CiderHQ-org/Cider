@@ -612,3 +612,28 @@ int macoblox_wayland_warp(NSPoint position) {
     MacOBloxWaylandDisplay *display=((id(*)(id,SEL))objc_msgSend)((id)objc_getClass("NSDisplay"),sel_registerName("currentDisplay"));
     [display warpMouse:position];return 0;
 }
+/* Metal views (prototype/metal-vulkan/framework/QMLayer.m): a subsurface of the window's own
+ * Wayland surface, for a Vulkan swapchain. The frame is the view's rectangle
+ * in window coordinates, as an AppKit GL view's subwindow gets it. */
+static BOOL metal_view_parent(id platform) {
+    extern Class object_getClass(id);
+    return platform && object_getClass(platform)==(Class)objc_getClass("MacOBloxWaylandWindow");
+}
+unsigned macoblox_wayland_metal_view(id window,NSRect value,void **display,void **surface) {
+    if(!api || !window || !display || !surface)return 0;
+    id platform=[window platformWindow];
+    if(!metal_view_parent(platform))return 0;
+    MacOBloxWaylandWindow *parent=platform;int x,y,width,height;
+    if(!parent->handle || !subwindow_frame(parent,value,&x,&y,&width,&height))return 0;
+    unsigned view=api->create_subwindow(parent->handle,x,y,width,height);
+    if(!view){char line[300];int length=snprintf(line,sizeof line,"[Quadra Wayland] Metal view failed: %s\n",api->error());if(length>0)write(2,line,length);return 0;}
+    *display=api->display();*surface=api->subwindow_wl_surface(view);
+    if(!*surface){api->destroy_subwindow(view);return 0;}
+    return view;
+}
+void macoblox_wayland_metal_view_frame(unsigned view,id window,NSRect value) {
+    id platform=window?[window platformWindow]:nil;int x,y,width,height;
+    if(!api || !view || !metal_view_parent(platform))return;
+    if(subwindow_frame((MacOBloxWaylandWindow *)platform,value,&x,&y,&width,&height))api->subwindow_frame(view,x,y,width,height);
+}
+void macoblox_wayland_metal_view_destroy(unsigned view){if(api && view)api->destroy_subwindow(view);}

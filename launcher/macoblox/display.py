@@ -30,7 +30,7 @@ def window_environment(settings, helper):
         raise RuntimeError("The Wayland helper is missing. Install SDL2/Wayland development libraries and rebuild, or select X11.")
     values = {"MACOBLOX_WAYLAND": "1", "EGL_PLATFORM": "wayland",
               "MACOBLOX_WAYLAND_HELPER": str(helper)}
-    if settings.get("renderer", "opengl") == "vulkan":
+    if settings.get("renderer", "opengl") in ("vulkan", "metal"):
         from .graphics import wayland_vulkan_environment
         values.update(wayland_vulkan_environment())
     return values
@@ -56,14 +56,15 @@ class WaylandProbeWindow:
                         ("screen", pointer), ("cursor", pointer), ("clipboard", pointer),
                         ("error", error), ("create_subwindow", create_subwindow),
                         ("subwindow_surface", surface), ("subwindow_frame", subwindow_frame),
-                        ("subwindow_visible", subwindow_visible), ("destroy_subwindow", destroy_subwindow)]
+                        ("subwindow_visible", subwindow_visible), ("destroy_subwindow", destroy_subwindow),
+                        ("subwindow_wl_surface", surface)]
 
         self.library = ctypes.CDLL(os.environ["MACOBLOX_WAYLAND_HELPER"])
         get_api = self.library.macoblox_wayland_host_api
         get_api.restype = ctypes.POINTER(API)
         value = get_api()
         # Check only the ABI header before reading newly added function slots.
-        if not value or ctypes.cast(value, ctypes.POINTER(uint)).contents.value != 3:
+        if not value or ctypes.cast(value, ctypes.POINTER(uint)).contents.value != 4:
             raise RuntimeError("Wayland helper failed to initialize or is outdated. Rebuild Quadra before using Wayland.")
         self.api = value.contents
         self.native = self.api.display()

@@ -78,6 +78,16 @@ RU = {
     "Renderer": "Рендерер",
     "OpenGL": "OpenGL",
     "Vulkan (Zink, experimental)": "Vulkan (Zink, экспериментальный)",
+    "Metal on Vulkan (experimental)": "Metal через Vulkan (экспериментальный)",
+    "Applies on next launch. Zink runs Roblox's OpenGL renderer on Vulkan; Metal on Vulkan runs its Metal renderer on Vulkan (built on first use, VR stays on OpenGL).":
+        "Применяется при следующем запуске. Zink запускает OpenGL-рендерер Roblox через Vulkan; Metal через Vulkan запускает его Metal-рендерер через Vulkan (собирается при первом использовании, VR работает только с OpenGL).",
+    "Metal on Vulkan is unavailable": "Metal через Vulkan недоступен",
+    "Metal on Vulkan needs: {items}. Install them or select another renderer.":
+        "Для Metal через Vulkan нужны: {items}. Установите их или выберите другой рендерер.",
+    "Could not build Metal on Vulkan:\n{output}": "Не удалось собрать Metal через Vulkan:\n{output}",
+    "Metal on Vulkan needs Rust (cargo) 1.98 or newer to build. Install Rust or select another renderer.":
+        "Для сборки Metal через Vulkan нужен Rust (cargo) 1.98 или новее. Установите Rust или выберите другой рендерер.",
+    "Metal on Vulkan is not part of this package": "Metal через Vulkan не входит в этот пакет",
     "Installing Vulkan dependencies… Authorize the administrator prompt to continue.":
         "Устанавливаются зависимости Vulkan… Подтвердите запрос администратора для продолжения.",
     "Could not install Vulkan dependencies": "Не удалось установить зависимости Vulkan",

@@ -1,7 +1,7 @@
 /* Private, versioned ABI between the Darwin shim and the Linux window helper. */
 #ifndef MACOBLOX_WAYLAND_BRIDGE_H
 #define MACOBLOX_WAYLAND_BRIDGE_H
-#define MACOBLOX_WAYLAND_ABI 3
+#define MACOBLOX_WAYLAND_ABI 4
 enum { MW_MOTION=1, MW_DOWN, MW_UP, MW_SCROLL, MW_KEY_DOWN, MW_KEY_UP,
        MW_TEXT, MW_RESIZE, MW_FOCUS, MW_BLUR, MW_CLOSE, MW_CAPTURE };
 enum { MW_SHOW=1, MW_HIDE, MW_TITLE, MW_RESIZE_WINDOW, MW_FULLSCREEN,
@@ -32,5 +32,8 @@ struct macoblox_wayland_api {
     void (*subwindow_frame)(unsigned int, int, int, int, int);
     void (*subwindow_visible)(unsigned int, int);
     void (*destroy_subwindow)(unsigned int);
+    /* ABI 4: a view's own wl_surface, for a Vulkan swapchain (Metal views,
+     * prototype/metal-vulkan/framework/QMLayer.m) in place of its EGL window. */
+    void *(*subwindow_wl_surface)(unsigned int);
 };
 #endif

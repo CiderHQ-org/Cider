@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Resume the experimental Metal on Vulkan renderer: replace Darling's Metal
+  framework, present through a native Wayland subsurface, and skip Metal
+  layers in Darling's bitmap compositor to prevent the startup crash.
+- Add the renderer to Settings for source builds. Verify Roblox login, home
+  and Write a Letter on NVIDIA, plus exact render/readback and MSAA resolve.
+  OpenGL remains the default; VR still requires OpenGL or Zink.
+
 ## 0.31 — 2026-10-19
 
 - Retry public Roblox version and macOS client downloads through Quadra's
