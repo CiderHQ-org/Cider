@@ -1,10 +1,13 @@
-# October 13 runtime and hardware investigations
+# Runtime and hardware investigations
 
 The supplied logs stay outside Git. This record contains observations and
 test scope, not accounts, join links or copies of user logs.
 
 | Report | Evidence | Change or next diagnostic |
 | --- | --- | --- |
+| [Issue 36](https://github.com/CiderHQ-org/Cider/issues/36), setup/update HTTP 403 | The screenshot shows a setup HTTP 403. Both public deployment endpoints work from korona. A real HTTPS test forced primary 403s, then fetched and installed the complete client from the mirror, validating its version and preserving the old client backup. | Retry only the same public channel/upload through the deployed cache. Never proxy sign-in or game traffic. Reject truncated downloads before changing the installed client. |
+| [Issue 35](https://github.com/CiderHQ-org/Cider/issues/35), RMB then LMB freezes camera/pointer | The attached log uses native Wayland, runtime b0fcb070 and Zink on Renoir. The AppKit bridge gave left-drag motion priority over captured right-drag motion. | Keep right-drag motion during camera capture, with independent button transitions. Real AppKit in a private compositor verifies RMB+LMB deltas and both release orders. Retest in the reporter's game is still needed. |
+| [Issue 34](https://github.com/CiderHQ-org/Cider/issues/34), intermittent 60+ to 15 FPS | Also reproduced intermittently by the maintainer, with no deterministic trigger or slow-frame trace yet. | Automatically log one `[Quadra FPS drop]` marker when a surface that sustained 45+ FPS falls to 20 or lower. No pacing or cap changes. Enable **Frame rate in the log** and collect diagnostics while the drop is happening to distinguish a render/presentation stall from CPU scheduling. This issue is not yet diagnosed or fixed. |
 | SkellyDude, Ryzen 5 4500U/Radeon | Runtime 4312, Zink, no MangoHud; exits during shim/startup initialization with frontend status 1 | The exact 4312 math library contains recursive sincos functions. Quadra now interposes compiler-safe float/double and pi wrappers. Retest on that machine is still needed. |
 | [Issue 27](https://github.com/CiderHQ-org/Cider/issues/27), Arch startup | Runtime 4312; frontend status 1 while one selected-prefix game process is alive | Preserve and monitor the live guest after frontend disconnect. Add the old-runtime math repair. |
 | Claire, GTX 1060 | Runtime a8dae, Zink and MangoHud; one short log and one later frontend exit, without a native crash stack | Only Zink crashes are confirmed. Compare OpenGL without MangoHud, then collect diagnostics with debugger access enabled. Shader-availability warnings alone do not identify the crash. |

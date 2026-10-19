@@ -58,6 +58,10 @@ and [CiderDarling](https://github.com/CiderHQ-org/CiderDarling).
 
 Every **Latest** version is a source release. Use the installer below to install or update.
 
+If Roblox's public version or client download endpoint returns HTTP 403,
+Quadra retries the same request through its public download cache on
+`vps.korona.lat`. Login and game traffic continue to go directly to Roblox.
+
 ```bash
 curl -fsSL https://quadrahq.org/install.sh | bash
 ```

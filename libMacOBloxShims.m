@@ -2731,6 +2731,7 @@ extern int CGAssociateMouseAndMouseCursorPosition(unsigned int connected);
 extern int CGWarpMouseCursorPosition(MacOBloxPoint position);
 #define MACOBLOX_LOCK_RADIUS 100.0
 #include "pointer_motion.h"
+#include "mouse_motion.h"
 #include "drag_cursor.h"
 static MacOBloxPointerMotion macoblox_pointer_motion;
 static volatile int macoblox_native_motion_active;
@@ -3177,11 +3178,8 @@ static void* macoblox_x11_display_connection(id display) {
 // is computed upward and hooked_mouse_event_delta_y flips it for the game,
 // so the raw y (downward, as macOS reports it) is stored flipped.
 static unsigned long macoblox_motion_type(unsigned int buttons, unsigned int* button) {
-    if (buttons & (1u << 1)) { *button = 1; return 6; }
-    if (buttons & (1u << 3)) { *button = 3; return 7; }
-    if (buttons & (1u << 2)) { *button = 2; return 27; }
-    *button = 0;
-    return 5;
+    return macoblox_mouse_motion_event(buttons,
+        __atomic_load_n(&macoblox_pointer_grabbed,__ATOMIC_ACQUIRE),button);
 }
 
 static void macoblox_flush_raw_motion(id display) {

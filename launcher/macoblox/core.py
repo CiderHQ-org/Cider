@@ -32,6 +32,7 @@ from .rootless_scope import rootless_process_in_prefix
 from .paths import migrate_directories, user_directory
 from .runtime import resolve_runtime, guest_variables
 from .transport_monitor import TransportMonitor
+from .roblox_downloads import open_public
 
 PROJECT = Path(__file__).resolve().parents[2]
 # Everything the launcher writes: the project folder for a git checkout, the
@@ -292,9 +293,8 @@ def latest_version(channel=None, required_log=None):
     if not isinstance(channel, str) or (channel and not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", channel)):
         raise RuntimeError("Invalid Roblox update channel")
     url = VERSION_URL + ("/channel/" + channel if channel else "")
-    request = urllib.request.Request(url, headers={"User-Agent": "MacOBlox"})
     try:
-        with urllib.request.urlopen(request, timeout=10) as response:
+        with open_public(url, timeout=10) as response:
             data = json.loads(response.read(65536))
     except urllib.error.HTTPError as error:
         if channel and error.code in (401, 403):
@@ -471,10 +471,12 @@ def update_roblox(upload, progress=None, expected_version=None):
         raise RuntimeError("Invalid Roblox client upload identifier")
     DOWNLOADS.mkdir(parents=True, exist_ok=True)
     archive = DOWNLOADS / f"{upload}-RobloxPlayer.zip"
-    request = urllib.request.Request(DOWNLOAD_URL.format(upload=upload),
-                                     headers={"User-Agent": "MacOBlox"})
     try:
-        with urllib.request.urlopen(request, timeout=30) as response, open(archive, "wb") as out:
+        def fallback_progress():
+            if progress:
+                progress(0.0, _("Roblox returned 403; trying Quadra's download server"))
+        with open_public(DOWNLOAD_URL.format(upload=upload), timeout=30,
+                         on_fallback=fallback_progress) as response, open(archive, "wb") as out:
             total = int(response.headers.get("Content-Length") or 0)
             done = 0
             while chunk := response.read(1 << 16):
@@ -483,6 +485,8 @@ def update_roblox(upload, progress=None, expected_version=None):
                 if progress and total:
                     progress(done / total * 0.9, _("Downloading {done} of {total} MB",
                                                       done=done >> 20, total=total >> 20))
+            if total and done != total:
+                raise OSError(f"Incomplete Roblox download: received {done} of {total} bytes. The installed client was kept.")
     except BaseException:
         archive.unlink(missing_ok=True)  # no half-downloaded client left behind
         raise

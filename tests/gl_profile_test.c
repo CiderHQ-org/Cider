@@ -123,7 +123,38 @@ void *dlsym(void *handle, const char *name) {
 
 static void clear_log(void) { log_length = 0; logged[0] = 0; }
 
-int main(void) {
+int main(int argc, char **argv) {
+    if (argc == 2 && !strcmp(argv[1], "--fps-drop")) {
+        setenv("MACOBLOX_FPS_LOG", "0", 1);
+        time_numer = time_denom = 1;
+        clock_ticks = 1;
+        macoblox_frame_presented(mock_display, mock_surface, 1);
+        for (int i=0;i<300;i++) {
+            clock_ticks += 16666667;
+            macoblox_frame_presented(mock_display, mock_surface, 1);
+        }
+        assert(!log_length); /* Normal play is quiet without verbose FPS logs. */
+        for (int i=0;i<75;i++) {
+            clock_ticks += 66666667;
+            macoblox_frame_presented(mock_display, mock_surface, 1);
+        }
+        assert(strstr(logged,"[Quadra FPS drop] fps=15.0 baseline=60.0"));
+        clear_log();
+        for (int i=0;i<75;i++) {
+            clock_ticks += 66666667;
+            macoblox_frame_presented(mock_display, mock_surface, 1);
+        }
+        assert(!log_length); /* One marker per drop, rather than per slow frame. */
+        forget_configured_surface(mock_surface);
+        macoblox_frame_presented(mock_display, mock_surface, 1);
+        for (int i=0;i<75;i++) {
+            clock_ticks += 66666667;
+            macoblox_frame_presented(mock_display, mock_surface, 1);
+        }
+        assert(!log_length); /* A new surface has no inherited fast baseline. */
+        puts("PASS: automatic 60-to-15 FPS evidence without verbose logging, no spam or inherited baseline");
+        return 0;
+    }
     unsetenv("MACOBLOX_GL_COMPAT");
     const unsigned char *first = macoblox_glGetString(0x1F01);
     assert(!strcmp((const char *)first, "Radeon A"));

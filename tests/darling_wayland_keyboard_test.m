@@ -33,6 +33,7 @@ typedef struct {NSUInteger location,length;} Range;
 @end
 @interface NSEvent:NSObject
 + (NSUInteger)modifierFlags; - (NSUInteger)type; - (unsigned short)keyCode;
+- (double)deltaX; - (double)deltaY; - (long)buttonNumber;
 + (id)keyEventWithType:(NSUInteger)type location:(Point)point modifierFlags:(NSUInteger)flags timestamp:(double)time windowNumber:(long)number context:(id)context characters:(id)text charactersIgnoringModifiers:(id)plain isARepeat:(BOOL)repeat keyCode:(unsigned short)key;
 @end
 @interface NSDisplay:NSObject
@@ -40,10 +41,28 @@ typedef struct {NSUInteger location,length;} Range;
 - (id)nextEventMatchingMask:(unsigned long long)mask untilDate:(id)date inMode:(id)mode dequeue:(BOOL)dequeue;
 @end
 @interface NSWindow:NSObject
+- (void)sendEvent:(id)event;
 - (id)initWithContentRect:(Rect)frame styleMask:(NSUInteger)style backing:(NSUInteger)backing defer:(BOOL)defer;
 - (void)makeKeyAndOrderFront:(id)sender; - (BOOL)makeFirstResponder:(id)responder;
 - (void)setContentView:(id)view; - (id)platformWindow; - (void)close;
 - (long)windowNumber;
+@end
+static unsigned motion_kind;
+static long motion_button;
+static double motion_x,motion_y;
+@interface RecordingWindow:NSWindow @end
+@implementation RecordingWindow
+- (void)sendEvent:(NSEvent *)event {
+    unsigned type=[event type];
+    if((type>=1 && type<=7) || (type>=25 && type<=27)) {
+        if(type==5 || type==6 || type==7 || type==27) {
+            motion_kind=type;motion_button=[event buttonNumber];
+            motion_x=[event deltaX];motion_y=[event deltaY];
+        }
+        return;
+    }
+    [super sendEvent:event];
+}
 @end
 @interface NSObject (HostHandle)
 - (NSUInteger)windowHandle;
@@ -81,7 +100,7 @@ int main(void) {
     alarm(20);
     NSAutoreleasePool *pool=[NSAutoreleasePool new];
     NSApplication *app=[NSApplication sharedApplication];[app finishLaunching];
-    NSWindow *window=[[NSWindow alloc] initWithContentRect:(Rect){{0,0},{400,280}} styleMask:11 backing:2 defer:1];
+    NSWindow *window=[[RecordingWindow alloc] initWithContentRect:(Rect){{0,0},{400,280}} styleMask:11 backing:2 defer:1];
     RecordingTextView *view=[[RecordingTextView alloc] initWithFrame:(Rect){{0,0},{400,280}}];
     [view setRichText:0]; // Roblox chat/search are plain text, not an RTF editor
     [window setContentView:view];[window makeKeyAndOrderFront:0];[app _setKeyWindow:window];
@@ -134,6 +153,15 @@ int main(void) {
         timestamp:0 windowNumber:[window windowNumber] context:0 characters:@"c"
         charactersIgnoringModifiers:@"c" isARepeat:0 keyCode:8]];
     CHECK([[other string] isEqual:@"bc"]);
+    inject(handle,18);pump(app);
+    CHECK(motion_kind==7 && motion_button==1 && motion_x==7 && motion_y==-9);
+    inject(handle,19);pump(app);
+    CHECK(motion_kind==7 && motion_button==1 && motion_x==3 && motion_y==4);
+    inject(handle,20);pump(app);CHECK(motion_kind==5);
+    inject(handle,21);pump(app);CHECK(motion_kind==7 && motion_button==1);
+    inject(handle,22);pump(app);CHECK(motion_kind==6 && motion_button==0);
+    inject(handle,23);pump(app);CHECK(motion_kind==5);
+    puts("PASS: real AppKit captured RMB+LMB keeps right-drag deltas and both release orders restore ordinary motion");
     puts("PASS: real AppKit single text delivery, repeats, Unicode, Ctrl+A/C/X/V, word editing, deletion, navigation, dual Ctrl, focus loss and responder ordering");fflush(0);
     [window close];[pool drain];return 0;
 }

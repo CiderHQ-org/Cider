@@ -313,6 +313,8 @@ RU = {
     "Roblox installed": "Roblox установлен",
     "Downloading {done} of {total} MB": "Загрузка {done} из {total} МБ",
     "Unpacking": "Распаковка",
+    "Roblox returned 403; trying Quadra's download server":
+        "Roblox вернул 403; пробуем сервер загрузок Quadra",
     "Done": "Готово",
     "The download is not a zip archive": "Скачанный файл не является zip-архивом",
     "The archive has no RobloxPlayer.app": "В архиве нет RobloxPlayer.app",

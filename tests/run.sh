@@ -23,6 +23,7 @@ clang -O2 -Wall -Wextra -pthread tests/graphics_context_test.c graphics_context.
 "$test_build/graphics-context"
 clang -O2 -Wall -Wextra tests/gl_profile_test.c graphics_context.c -o "$test_build/gl-profile"
 "$test_build/gl-profile"
+"$test_build/gl-profile" --fps-drop
 clang -O2 -Wall -Wextra tests/layer_image_test.c -o "$test_build/layer-image"
 "$test_build/layer-image"
 clang -O2 -Wall -Wextra tests/shader_compat_test.c shader_compat.c -o "$test_build/shader"
@@ -43,6 +44,8 @@ clang -O2 -Wall -Wextra tests/wayland_coordinates_test.c -o "$test_build/wayland
 "$test_build/wayland-coordinates"
 clang -O2 -Wall -Wextra tests/drag_cursor_test.c -o "$test_build/drag-cursor"
 "$test_build/drag-cursor"
+clang -O2 -Wall -Wextra tests/mouse_motion_test.c -o "$test_build/mouse-motion"
+"$test_build/mouse-motion"
 if pkg-config --exists openxr egl; then
   clang -O2 -Wall -Wextra tests/vr_openxr_abi_test.c tests/vr_openxr_abi_khronos.c -o "$test_build/vr-openxr-abi"
   "$test_build/vr-openxr-abi"

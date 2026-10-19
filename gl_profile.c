@@ -460,6 +460,8 @@ static volatile unsigned int configured_lock;
 static struct {
     void *display, *surface;
     unsigned long long start, frames;
+    double baseline;
+    int drop_reported;
 } frame_windows[CONFIGURED_SURFACES];
 static unsigned int frame_next;
 static volatile unsigned int frame_lock;
@@ -548,12 +550,17 @@ void macoblox_frame_presenting(void *cgl_context) {
 }
 
 void macoblox_frame_presented(void *display, void *surface, unsigned int succeeded) {
+    /* Keep normal play quiet, but retain one numeric breadcrumb for an
+     * intermittent severe drop even when verbose FPS logging is disabled.
+     * This observes successful presentations; it never changes pacing. */
     static int fps_log = -1;
-    if (!succeeded || !surface || !environment_flag("MACOBLOX_FPS_LOG", &fps_log))
+    if (!succeeded || !surface)
         return;
+    int verbose = environment_flag("MACOBLOX_FPS_LOG", &fps_log);
     unsigned long long now = mach_absolute_time();
     double fps = 0;
-    int report = 0;
+    double baseline = 0;
+    int report = 0, dropped = 0;
     macoblox_lock(&frame_lock);
     if (!frame_timebase.denom && (mach_timebase_info(&frame_timebase) || !frame_timebase.denom))
         frame_timebase.numer = frame_timebase.denom = 1;
@@ -568,6 +575,8 @@ void macoblox_frame_presented(void *display, void *surface, unsigned int succeed
         frame_windows[slot].surface = surface;
         frame_windows[slot].start = now;
         frame_windows[slot].frames = 0;
+        frame_windows[slot].baseline = 0;
+        frame_windows[slot].drop_reported = 0;
     } else {
         frame_windows[slot].frames++;
         double nanoseconds = (double)(now - frame_windows[slot].start) * frame_timebase.numer / frame_timebase.denom;
@@ -576,12 +585,24 @@ void macoblox_frame_presented(void *display, void *surface, unsigned int succeed
             frame_windows[slot].start = now;
             frame_windows[slot].frames = 0;
             report = 1;
+            baseline = frame_windows[slot].baseline;
+            if (baseline >= 45 && fps <= 20 && fps <= baseline * 0.4 &&
+                !frame_windows[slot].drop_reported) {
+                frame_windows[slot].drop_reported = 1;
+                dropped = 1;
+            }
+            if (fps >= 45) {
+                frame_windows[slot].baseline = fps;
+                frame_windows[slot].drop_reported = 0;
+            }
         }
     }
     macoblox_unlock(&frame_lock);
-    if (report) {
+    if (report && (verbose || dropped)) {
         char line[96];
-        int length = snprintf(line, sizeof line, "[Quadra FPS] %.1f surface=%p\n", fps, surface);
+        int length = dropped
+            ? snprintf(line, sizeof line, "[Quadra FPS drop] fps=%.1f baseline=%.1f surface=%p\n", fps, baseline, surface)
+            : snprintf(line, sizeof line, "[Quadra FPS] %.1f surface=%p\n", fps, surface);
         if (length > 0) write(2, line, (unsigned long)length < sizeof line ? (unsigned long)length : sizeof line - 1);
     }
 }

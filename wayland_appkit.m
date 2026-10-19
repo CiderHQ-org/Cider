@@ -1,6 +1,7 @@
 /* AppKit's native Wayland display. Interfaces are declared here because the
  * Darling runtime packages do not include SDK headers. */
 #include "wayland_bridge.h"
+#include "mouse_motion.h"
 #include "cursor_pixels.h"
 #include "wayland_coordinates.h"
 typedef unsigned long NSUInteger;
@@ -589,7 +590,8 @@ int macoblox_wayland_dispatch_event(id event) {
             pointer_event(input.window,window->frame,(NSPoint){input.x,input.y});NSPoint location={input.x,window->frame.size.height-input.y};unsigned type=5;
             if(input.type==MW_DOWN || input.type==MW_UP){if(input.button<32){if(input.type==MW_DOWN)window->buttons|=1u<<input.button;else window->buttons&=~(1u<<input.button);}type=input.button==1?(input.type==MW_DOWN?1:2):input.button==3?(input.type==MW_DOWN?3:4):(input.type==MW_DOWN?25:26);}
             else if(input.type==MW_SCROLL)type=22;
-            else type=(window->buttons&(1u<<1))?6:(window->buttons&(1u<<3))?7:window->buttons?27:5;
+            else type=macoblox_mouse_motion_event(window->buttons,
+                __atomic_load_n(&captured,__ATOMIC_ACQUIRE)==window->handle,&input.button);
             /* Existing deltaY compatibility hook flips Cocoa's vertical delta. */
             NSEvent *event=[NSEvent mouseEventWithType:type location:location modifierFlags:input.modifiers window:owner clickCount:input.clicks?:1 deltaX:input.dx deltaY:input.type==MW_SCROLL?input.dy:-input.dy];
             tag_event(event,input.modifiers);

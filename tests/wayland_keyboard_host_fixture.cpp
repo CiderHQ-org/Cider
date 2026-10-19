@@ -20,6 +20,14 @@ extern "C" void macoblox_wayland_keyboard_fixture(unsigned id,int scenario) {
             key(scan,symbol,KMOD_LCTRL);key(scan,symbol,KMOD_LCTRL,false);
             key(SDL_SCANCODE_LCTRL,SDLK_LCTRL,KMOD_NONE,false);
         };
+        auto button=[=](unsigned number,bool down) {
+            SDL_Event event{};event.type=down?SDL_MOUSEBUTTONDOWN:SDL_MOUSEBUTTONUP;
+            event.button.windowID=id;event.button.button=number;event.button.clicks=1;translate(event);
+        };
+        auto motion=[=](int dx,int dy) {
+            SDL_Event event{};event.type=SDL_MOUSEMOTION;event.motion.windowID=id;
+            event.motion.xrel=dx;event.motion.yrel=dy;translate(event);
+        };
         SDL_SetModState(KMOD_NONE); // final batch state must not erase snapshots
         switch(scenario) {
         case 1:key(SDL_SCANCODE_A,SDLK_a,KMOD_NONE);text("a");key(SDL_SCANCODE_A,SDLK_a,KMOD_NONE,false);break;
@@ -51,6 +59,15 @@ extern "C" void macoblox_wayland_keyboard_fixture(unsigned id,int scenario) {
         case 15:ctrl(SDL_SCANCODE_LEFT,SDLK_LEFT);break;
         case 16:ctrl(SDL_SCANCODE_RIGHT,SDLK_RIGHT);break;
         case 17:ctrl(SDL_SCANCODE_BACKSPACE,SDLK_BACKSPACE);break;
+        case 18:
+            focus(true);button(3,true);capture(windows.at(id),id,true);
+            button(1,true);motion(7,-9);break;
+        case 19:button(1,false);motion(3,4);break;
+        case 20:button(3,false);capture(windows.at(id),id,false);motion(1,2);break;
+        case 21:
+            button(1,true);button(3,true);capture(windows.at(id),id,true);motion(7,-9);break;
+        case 22:button(3,false);capture(windows.at(id),id,false);motion(3,4);break;
+        case 23:button(1,false);motion(1,2);break;
         }
     });
 }

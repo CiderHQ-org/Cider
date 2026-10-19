@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Retry public Roblox version and macOS client downloads through Quadra's
+  self-hosted cache when the original endpoint returns HTTP 403 (#36). Keep
+  account traffic on Roblox and reject incomplete client downloads.
+- Preserve right-drag camera motion when left-click is pressed during mouse
+  capture; release either button without leaving a frozen pointer (#35).
+- Record one automatic FPS-drop marker per sustained 45+ to 20-or-lower FPS
+  transition. The intermittent 60-to-15 FPS issue (#34) still needs a trace
+  captured during a drop; this diagnostic does not change game pacing.
+
 - Rebrand Cider / CiderHQ to **Quadra / QuadraHQ** at **quadrahq.org**, keeping
   the existing logo. The command is `quadrahq` and the app ID is
   `org.quadrahq.Quadra`.
