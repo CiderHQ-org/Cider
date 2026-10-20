@@ -143,8 +143,8 @@ class ShaderPatchTests(unittest.TestCase):
             self.assertEqual(list(Path(directory).iterdir()), [pack])
 
     def test_known_manifest_only_changes_four_whitespace_bytes(self):
-        self.assertEqual(len(shaders.RELEASES), 2)
-        self.assertEqual(len({release.sha256 for release in shaders.RELEASES}), 2)
+        self.assertTrue(shaders.RELEASES)
+        self.assertEqual(len({release.sha256 for release in shaders.RELEASES}), len(shaders.RELEASES))
         for release in shaders.RELEASES:
             with self.subTest(size=release.size):
                 self.assertEqual(sum(len(source.sites) for source in release.sources), 4)

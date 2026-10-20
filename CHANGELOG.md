@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Add verified RakNet compatibility for Roblox **0.744.0.7441080**
+  (`version-546c6da637854de3`). Inspect the relocated transport selection,
+  fallback and shared/legacy dummy-connection paths, and recognize the new
+  startup-throttle location. Retain complete executable SHA-256 validation
+  and atomic replacement.
+- Recognize the official 0.744 GLSL pack and repair the same four whitespace
+  sites in its unchanged HeightmapDebugPS sources. Preserve all shader tokens,
+  descriptors and source ranges; complete pack and source hashes are required.
+
 ## 0.32 — 2026-10-19
 
 - Resume the experimental Metal on Vulkan renderer: replace Darling's Metal

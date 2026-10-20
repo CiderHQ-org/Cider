@@ -57,6 +57,19 @@ RELEASES = (Release(
                "9d13523b7b5076b2949bad827db313204a074e27720e978332227721e261b4bd",
                (2571,), (0x52C, 0x54B)),
     ),
+), Release(
+    # Official 0.744.0.7441080 pack, upload version-546c6da637854de3.
+    # Both affected sources are unchanged; the descriptor/source tables moved.
+    4561972,
+    "911fd9000641a4181b6ab45741b05d67a963639936cb65edba14505727557528",
+    (
+        Source(0x39E43C, 21402,
+               "9f113af818c8b2df6a584edc16f323326878cf9d20ef5e034790c9a69d2573df",
+               (2565, 2566, 2567), (0x52C, 0x54B)),
+        Source(0x3A37D6, 21572,
+               "9d13523b7b5076b2949bad827db313204a074e27720e978332227721e261b4bd",
+               (2568,), (0x52C, 0x54B)),
+    ),
 ))
 
 

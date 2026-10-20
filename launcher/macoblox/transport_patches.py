@@ -1,7 +1,7 @@
 """Verified RakNet compatibility patches for known client executables.
 
-Offsets and instructions were inspected in the x86_64 7411056, 7421053, 7431129
-and 7431134 releases downloaded from Roblox's deployment CDN.
+Offsets and instructions were inspected in the x86_64 7411056, 7421053, 7431129,
+7431134 and 7441080 releases downloaded from Roblox's deployment CDN.
 Normalize only the listed patches before checking the complete executable's
 SHA-256. A client update or an unexpected modification is unsupported; no
 heuristic search or partial application is allowed.
@@ -87,6 +87,23 @@ RELEASES = (Release(
              "dummy connection late shared/legacy callers"),
     ),
     (Site(0x11CB3D0, b"\x89\xf3", b"\x31\xdb", "startup throttle"),),
+), Release(
+    # 0.744.0.7441080, official upload version-546c6da637854de3.
+    # Flag registrations and internal branch targets retain 743's transport
+    # control flow; object fields and code/data addresses have moved. Skip
+    # both early dummy paths to 0x1056e7649 after optional-state setup, and
+    # keep the late caller on its cleanup path at 0x1056e7839.
+    128453408,
+    "a901265fc499c0a151dae1809664f7d6b71135ac74044e84076852f008e436d7",
+    (
+        Site(0x4CEE2E8, bytes.fromhex("554889e5"), bytes.fromhex("31c0c390"), "transport selection"),
+        Site(0x56E5595, b"\x01", b"\xff", "fallback connection"),
+        Site(0x56E73F7, bytes.fromhex("0f85e1010000"), bytes.fromhex("e94d02000090"),
+             "dummy connection early shared/legacy callers"),
+        Site(0x56E7833, bytes.fromhex("0f8480010000"), bytes.fromhex("909090909090"),
+             "dummy connection late shared/legacy callers"),
+    ),
+    (Site(0x11F480C, b"\x89\xf3", b"\x31\xdb", "startup throttle"),),
 ))
 
 
