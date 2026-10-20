@@ -13,6 +13,8 @@
 //!    - memory atomics take their trailing `volatile` flag (false);
 //!    - a fragment output's `air.render_target` names its dual-source index (0) after its
 //!      attachment.
+//!    - one-element array wrappers used for runtime-sized StructuredBuffers lose their old
+//!      `air.buffer_size` hint, which modern AIR otherwise treats as a fixed object boundary.
 //! 3. LLVM parses the text and writes current bitcode, which replaces the function's in the
 //!    library (`MDSZ`, `HASH` and the bitcode section follow).
 //!
@@ -357,11 +359,36 @@ const FAST_MATH: [&str; 8] = ["fast", "nnan", "ninf", "nsz", "arcp", "contract",
 pub fn rewrite(text: &str) -> Result<String, String> {
     let lines: Vec<&str> = text.lines().collect();
     let entry = entry_of(&lines);
+    // Old HLSL-to-Metal compilers spell StructuredBuffer<T> as a struct containing
+    // T[1], with buffer_size equal to one element. It is a runtime-sized buffer,
+    // not a reference limited to that element. Modern AIR uses no buffer_size
+    // for it; keeping the old hint clips Vulkan descriptors to one record.
+    let runtime_arrays: Vec<&str> = lines
+        .iter()
+        .filter_map(|line| {
+            let (name, body) = line.split_once(" = type ")?;
+            if !body.starts_with("{ [1 x ") || !body.ends_with("] }") {
+                return None;
+            }
+            name.strip_prefix("%struct.")
+        })
+        .collect();
     let mut out = String::with_capacity(text.len() + text.len() / 8);
     let mut current: Option<String> = None;
     let mut temporaries = 0usize;
     for raw in &lines {
         let mut line = raw.to_string();
+        if line.contains("!\"air.buffer\"") && runtime_arrays.iter().any(|name| {
+            line.contains(&format!("!\"air.arg_type_name\", !\"{name}\""))
+        }) {
+            if let Some(at) = line.find(", !\"air.buffer_size\", i32 ") {
+                let end = at + ", !\"air.buffer_size\", i32 ".len();
+                let digits = line[end..].chars().take_while(|c| c.is_ascii_digit()).count();
+                if digits > 0 {
+                    line.replace_range(at..end + digits, "");
+                }
+            }
+        }
         // A fragment output names its attachment and (AIR 2.3 and later) its dual-source index.
         if let Some(at) = line.find("!\"air.render_target\", i32 ") {
             let digits_at = at + "!\"air.render_target\", i32 ".len();
@@ -538,7 +565,7 @@ fn upgrade_library(bytes: &[u8]) -> Result<Vec<u8>, String> {
 
 fn cache_directory() -> Option<PathBuf> {
     let root = std::env::var_os("MACOBLOX_METAL_SHADER_CACHE")?;
-    let directory = PathBuf::from(root).join("air-upgrade-v1");
+    let directory = PathBuf::from(root).join("air-upgrade-v2");
     std::fs::create_dir_all(&directory).ok()?;
     Some(directory)
 }
@@ -569,3 +596,6 @@ pub fn prepare(bytes: &[u8]) -> Result<Cow<'_, [u8]>, String> {
     }
     Ok(upgraded.into())
 }
+
+#[cfg(test)]
+mod tests;

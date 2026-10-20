@@ -47,10 +47,14 @@ RobloxPlayer (guest, Mach-O)            host (ELF)
     access operand (taken from the entry's argument metadata), samples gain `min_lod_clamp`,
     and these return `{texel, i8}`; atomics gain their `volatile` flag; `air.render_target`
     gains its index;
+  - runtime-sized StructuredBuffers represented as one-element array wrappers lose the old
+    `air.buffer_size` hint. Keeping it clips Vulkan descriptors to one instance record, so
+    instance uploads overwrite that record and leave most models invisible;
   - the text is reassembled as current bitcode.
 
   `normalize_metallib` then inserts the empty extended header that format 2.7 has. Results are
-  cached by SHA-256 in `$MACOBLOX_METAL_SHADER_CACHE/air-upgrade-v1`.
+  cached by SHA-256 in `$MACOBLOX_METAL_SHADER_CACHE/air-upgrade-v2`. The new namespace
+  automatically regenerates corrected upgrades after updating from 0.32.
 
 ## Status
 
@@ -61,14 +65,20 @@ RobloxPlayer (guest, Mach-O)            host (ELF)
 - Verified 2026-10-19 with Roblox 0.743.0.7431134, CiderDarling `b0fcb070`, native
   Wayland (a private KWin compositor using GPU rendering), NVIDIA RTX 3060 Ti:
   login and signed-in home render correctly; Write a Letter (`8425637426`) joins
-  and draws its 3D world, character and UI. More than 600 Vulkan frames presented
-  successfully during the 90-second test, without Metal API refusal messages.
+  and renders the spawn house's walls, windows, floor and doorway, with its character
+  and UI. Verified after dismissing the rules dialog in a 110-second session, with
+  more than 600 Vulkan frames presented and no Vulkan validation errors.
 - Fixed the paused prototype's startup crash in Darling's
   `-[CARenderer _renderLayer:z:currentTime:]`: `QMMetalLayer` returns nil contents,
   and the shim excludes it from the GL bitmap compositor. Vulkan presents its
   pixels directly through the native subsurface. Other CALayers still composite.
 - The real C ABI GPU test verifies every RGBA texel after render clears and
   texture-to-buffer readback, both at 1 sample and with 4× MSAA resolve.
+- A self-authored legacy AIR regression assembles a metallib, upgrades it, and checks
+  all 64 records after a GPU scatter upload. It runs in the Metal host CI job:
+  `cargo test --locked --release --manifest-path prototype/metal-vulkan/host/Cargo.toml --lib -- --include-ignored`.
+  The actual client's full-instance upload and transform-update kernels also passed
+  exact readback of 64 records on the RTX 3060 Ti after this repair.
 - Shared host handles use immutable Rust borrows; only thread-confined encoders
   receive mutable borrows. Concurrent AIR cache writers use separate temporary
   files before atomic replacement. Switching renderers clears the previous
