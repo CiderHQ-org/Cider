@@ -1,3 +1,10 @@
+quadrahq (0.34-1) unstable; urgency=medium
+
+  * Release Quadra M2VK as the selectable Metal-to-Vulkan renderer.
+  * Include staged shader and resource preloading with memory limits and Skip.
+
+ -- Quadra maintainers <noreply@aubree.wtf>  Thu, 22 Oct 2026 00:15:00 -0500
+
 quadrahq (0.33-1) unstable; urgency=medium
 
   * Integrate Quadra M2VK with bounded shader and resource preloading.
