@@ -1,7 +1,7 @@
 %bcond_with prebuilt_metal
-%global upstream_version 0.34
+%global upstream_version 0.35
 Name:           quadrahq
-Version:        0.34
+Version:        0.35
 Release:        1%{?dist}
 Summary:        Run the macOS Roblox client on Linux through Darling
 License:        GPL-3.0-only AND MIT AND ISC AND OFL-1.1
@@ -99,6 +99,12 @@ python3 -m compileall -q -d "%{_datadir}/quadrahq/launcher" "%{buildroot}%{_data
 %{_datadir}/mime/packages/org.quadrahq.Quadra.xml
 
 %changelog
+* Thu Oct 22 2026 Quadra maintainers <noreply@aubree.wtf> - 0.35-1
+- Redesign the launcher with Grid, classic GNOME and monochrome appearances.
+- Retry blocked Roblox deployments through alternate official download servers.
+- Fix Shift Lock centering and interrupted camera capture after switching windows.
+- Bound integrated GPU graphics budgets by device memory and shared RAM headroom.
+
 * Thu Oct 22 2026 Quadra maintainers <noreply@aubree.wtf> - 0.34-1
 - Release Quadra M2VK and staged shader/resource preloading.
 

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.35 — 2026-10-22
 
 - Redesign the launcher with square controls, a grid backdrop and a compact
   dashboard. Add immediate, saved appearance choices for Grid, the original
@@ -16,6 +16,14 @@
 - Bound Metal on Vulkan's graphics budget by the selected device's heap,
   Vulkan's available memory budget where supported, and system RAM headroom
   on integrated GPUs. Use a conservative 512 MiB fallback (#38).
+
+## 0.34 — 2026-10-22
+
+- Integrate the pinned Quadra M2VK performance and stability fork, including
+  native Wayland presentation, pipeline retention and resource lifetime fixes.
+- Prepare learned pipelines, installed shader libraries and bounded local
+  resources before playing, with progress and Skip and play controls. Add
+  optional performance diagnostics and memory-aware compilation limits.
 - Add verified RakNet compatibility for Roblox **0.744.0.7441080**
   (`version-546c6da637854de3`). Inspect the relocated transport selection,
   fallback and shared/legacy dummy-connection paths, and recognize the new

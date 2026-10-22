@@ -299,7 +299,7 @@ and the MangoHud Vulkan overlay have been tested on an RTX 3060 Ti, with GL
 tracing disabled. Heavy gameplay and other GPUs still need testing. This uses
 the macOS client's OpenGL renderer.
 
-**Quadra M2VK (experimental)** is available in the same menu in Quadra 0.34.
+**Quadra M2VK (experimental)** is available in the same menu in Quadra 0.35.
 This runs Roblox's Metal renderer through the pinned
 [QuadraM2VK](https://github.com/CiderHQ-org/QuadraM2VK) fork of metal2vulkan. Existing
 Metal selections automatically use this entry. Native Wayland

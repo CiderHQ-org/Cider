@@ -1,3 +1,12 @@
+quadrahq (0.35-1) unstable; urgency=medium
+
+  * Redesign the launcher with Grid, classic GNOME and monochrome appearances.
+  * Retry blocked Roblox deployments through alternate official download servers.
+  * Fix Shift Lock centering and interrupted camera capture after switching windows.
+  * Bound integrated GPU graphics budgets by device memory and shared RAM headroom.
+
+ -- Quadra maintainers <noreply@aubree.wtf>  Thu, 22 Oct 2026 18:25:00 -0500
+
 quadrahq (0.34-1) unstable; urgency=medium
 
   * Release Quadra M2VK as the selectable Metal-to-Vulkan renderer.

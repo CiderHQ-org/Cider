@@ -68,6 +68,11 @@
     <control>keyboard</control>
   </supports>
   <releases>
+    <release version="0.35" date="2026-10-22">
+      <description>
+        <p>Redesigns the launcher with square controls and a grid backdrop, plus saved choices for classic GNOME and aubree.lat monochrome. Retries blocked Roblox deployment downloads on alternate official servers. Fixes Shift Lock centering and camera capture interrupted by switching windows, and bounds native Quadra M2VK graphics budgets on shared-memory GPUs.</p>
+      </description>
+    </release>
     <release version="0.32" date="2026-10-19">
       <description>
         <p>Adds experimental Metal on Vulkan rendering with a prebuilt bridge in native distro packages. Fixes the Metal layer compositor crash and preserves clean switching back to OpenGL. Verified with Write a Letter on native Wayland and NVIDIA. VR continues to require OpenGL or Zink.</p>
