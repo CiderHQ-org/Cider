@@ -747,11 +747,13 @@ class PlayPage(Adw.Bin):
         self.appearance_stack.add_named(self._dashboard(), "custom")
         self._custom_appearance = False
         self.set_child(toolbar_view)
+        self._darling_status_timer = 0
+        self.connect("map", self._watch_darling_status)
+        self.connect("unmap", self._pause_darling_status)
         self.refresh()
 
     def _dashboard(self):
         body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18, css_classes=["play-dashboard"])
-        body.append(Gtk.Label(label=_("ROBLOX ON LINUX"), xalign=0, css_classes=["play-eyebrow"]))
         hero = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, css_classes=["play-hero"])
         head = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12, css_classes=["play-hero-head"])
         identity = Gtk.Box(spacing=14)
@@ -760,8 +762,6 @@ class PlayPage(Adw.Bin):
         identity.append(logo)
         titles = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3, hexpand=True)
         titles.append(Gtk.Label(label="Quadra", xalign=0, css_classes=["play-title"]))
-        titles.append(Gtk.Label(label=_("Your next session starts here."), xalign=0, wrap=True,
-                                css_classes=["play-description"]))
         identity.append(titles)
         head.append(identity)
         self.dashboard_state = Gtk.Label(xalign=0, halign=Gtk.Align.START, css_classes=["play-badge"])
@@ -801,6 +801,21 @@ class PlayPage(Adw.Bin):
         body.append(links)
         clamp = Adw.Clamp(child=body, maximum_size=760, tightening_threshold=600)
         return Gtk.ScrolledWindow(child=clamp, hscrollbar_policy=Gtk.PolicyType.NEVER)
+
+    def _refresh_darling_status(self):
+        self._darling_running = core.darlingserver_running()
+        self.dashboard_state.set_label(_("Darling running") if self._darling_running else _("Darling stopped"))
+        return True
+
+    def _watch_darling_status(self, *_args):
+        self._refresh_darling_status()
+        if not self._darling_status_timer:
+            self._darling_status_timer = GLib.timeout_add_seconds(2, self._refresh_darling_status)
+
+    def _pause_darling_status(self, *_args):
+        if self._darling_status_timer:
+            GLib.source_remove(self._darling_status_timer)
+            self._darling_status_timer = 0
 
     def set_appearance(self, appearance):
         custom = appearance != "gnome"
@@ -886,13 +901,12 @@ class PlayPage(Adw.Bin):
 
         version = core.installed_version()
         parts = [_("Roblox {version}", version=version) if version else _("Roblox not found")]
-        parts.append(_("Darling running") if core.darlingserver_running()
+        self._refresh_darling_status()
+        parts.append(_("Darling running") if self._darling_running
                      else _("Darling starts with the game"))
         if version and not running and not core.signed_in():
             parts.append(_("Sign in with Quick Login"))
         self.status.set_description(" · ".join(parts))
-        state = _("Running") if running else _("Starting…") if active else _("Working…") if busy else _("Ready to play") if version else _("Not installed")
-        self.dashboard_state.set_label(state)
         self.dashboard_facts["client"].set_label(version or _("Not installed"))
         renderer = {"opengl": "OpenGL", "vulkan": "Vulkan / Zink", "metal": "Quadra M2VK"}.get(
             self.window.settings.get("renderer", "opengl"), "OpenGL")

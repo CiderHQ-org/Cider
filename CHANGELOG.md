@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Remove the launcher's top tagline and welcome subtitle. Replace the ready
+  badge with the selected Darling runtime's running/stopped status, refreshed
+  while the Play page is visible.
+
 ## 0.35 — 2026-10-22
 
 - Redesign the launcher with square controls, a grid backdrop and a compact

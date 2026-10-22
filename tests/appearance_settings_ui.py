@@ -58,7 +58,7 @@ with ExitStack() as context:
         auto_check_ciderdarling_updates=False, auto_check_roblox_updates=False)))
     context.enter_context(patch.object(core, "save_settings", side_effect=lambda value: saved.append(dict(value))))
     context.enter_context(patch.object(core, "installed_version", return_value="0.744.0.7441080"))
-    context.enter_context(patch.object(core, "darlingserver_running", return_value=False))
+    darling = context.enter_context(patch.object(core, "darlingserver_running", return_value=False))
     context.enter_context(patch.object(core, "signed_in", return_value=True))
     context.enter_context(patch.object(app.LauncherWindow, "_periodic_ciderdarling_updates", return_value=False))
     context.enter_context(patch.object(app.GameLogsView, "update"))
@@ -67,6 +67,14 @@ with ExitStack() as context:
     settle(.4)
     # All three choices act on the same live widgets, including pending logs.
     page, flags, play = window.play_page, window.flags_page, window.play_page.play
+    assert page.dashboard_state.get_label() == "Darling stopped"
+    darling.return_value = True
+    deadline = time.monotonic() + 4
+    while page.dashboard_state.get_label() != "Darling running" and time.monotonic() < deadline:
+        settle(.05)
+    assert page.dashboard_state.get_label() == "Darling running"
+    darling.return_value = False
+    page.refresh()
     logs = page.logs_view
     logs.buffer.set_text("[ERROR] test failure\n[INFO] same log after theme switch\n")
     row = window.settings_page.appearance_row
@@ -111,6 +119,7 @@ with ExitStack() as context:
     window.set_language("en")
     settle(.2)
     window.destroy()
+    assert page._darling_status_timer == 0
     theme.install("gnome")
 
 print("PASS: three live appearances persist, native CSS restores, controls/logs/unsaved pages/session survive, play/log tabs keep their order")

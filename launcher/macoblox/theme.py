@@ -525,9 +525,7 @@ _LAUNCHER_CSS = """
 .launcher-header { border-bottom: 1px solid %(line_lo)s; }
 .launcher-header windowtitle .subtitle { font-family: %(mono)s; font-size: 10px; color: %(dim)s; }
 .play-dashboard { padding: 28px; }
-.play-eyebrow { font-family: %(mono)s; font-size: 10.5px; letter-spacing: 1.5px; color: %(dim)s; }
 .play-title { font-size: 34px; font-weight: 600; letter-spacing: -1px; color: %(text)s; }
-.play-description { font-size: 13px; color: %(dim)s; }
 .play-hero { background-color: alpha(%(surface)s, 0.94); border: 1px solid %(line)s; }
 .play-hero-head { padding: 24px 22px 18px; }
 .play-badge { font-family: %(mono)s; font-size: 10.5px; color: %(accent)s; padding: 5px 8px; border: 1px solid %(line)s; }
