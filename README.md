@@ -292,15 +292,27 @@ and the MangoHud Vulkan overlay have been tested on an RTX 3060 Ti, with GL
 tracing disabled. Heavy gameplay and other GPUs still need testing. This uses
 the macOS client's OpenGL renderer.
 
-**Metal on Vulkan (experimental)** is available in the same menu.
+**Quadra M2VK (experimental)** is available in the same menu starting with Quadra 0.33.
 This runs Roblox's Metal renderer through the pinned
-[metal2vulkan](https://github.com/steelbrain/metal2vulkan) runtime. Native Wayland
-login, home and Write a Letter have been verified on an RTX 3060 Ti. Native
-0.32 packages include the prebuilt bridge and its Vulkan/LLVM runtime dependencies; the first launch upgrades the shader cache. Building from source
+[QuadraM2VK](https://github.com/CiderHQ-org/QuadraM2VK) fork of metal2vulkan. Existing
+Metal selections automatically use this entry. Native Wayland
+login, home and Write a Letter have been verified on an RTX 3060 Ti.
+Native packages include the prebuilt bridge and its Vulkan/LLVM runtime dependencies; the first launch upgrades the shader cache. Building from source
 requires Rust 1.98+, clang/lld, libLLVM 15+ and a hardware Vulkan driver. Flatpak
 does not include the bridge yet. VR requires OpenGL or Zink; X11 and other GPUs still
 need testing. See the [Metal prototype notes](prototype/metal-vulkan/README.md)
 for build commands and validation details.
+
+**Shader preloading** in the same Game settings learns successful Metal pipelines locally
+and prepares them on later launches for the installed client version. A progress dialog
+offers **Skip and play**. **Prepare client shader libraries** also prepares installed
+libraries on the first launch, while **Preload local textures and fonts** warms bounded
+bundled resources. The helper stops on memory pressure, stalled progress, timeout or Skip.
+New shaders and downloaded world assets can still cause work during play. Optional
+**Quadra M2VK performance diagnostics** records bounded timing, memory and cache observations;
+it is off by default. The integrated bridge passed authored software Vulkan and RTX 3060 Ti
+checks, including native Wayland and pipeline reuse. Gameplay reports describe the preceding
+presentation and retention fixes; the new launcher stages have no controlled game FPS result.
 
 With [MangoHud](https://github.com/flightlessmango/MangoHud) installed, enable
 **Settings → Environment → Game → MangoHud overlay** and restart Roblox.

@@ -23,6 +23,7 @@ class SessionHousekeepingTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.base = Path(self.temporary.name)
+        self.patch("QUIT_SENTINEL", self.base / "game-closing")
 
     def patch(self, name, value):
         context = patch.object(core, name, value)

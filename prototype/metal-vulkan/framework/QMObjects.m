@@ -207,8 +207,11 @@ static int builtin_kind(const char *name) {
       fromRegion:(MTLRegion)region mipmapLevel:(NSUInteger)level slice:(NSUInteger)slice {
     qm_origin origin = {region.origin.x, region.origin.y, region.origin.z};
     qm_size size = {region.size.width, region.size.height, region.size.depth};
-    NSUInteger depth = region.size.depth ? region.size.depth : 1;
-    uint64_t length = image ? image * depth : row * (region.size.height ? region.size.height : 1);
+    uint64_t length = 0;
+    if (!qm->texture_copy_byte_length(handle, origin, size, level, slice, row, image, &length)) {
+        qm_error("getBytes copy span");
+        return;
+    }
     if (!qm->texture_get_bytes(handle, bytes, length, row, image, origin, size, level, slice))
         qm_error("getBytes");
 }
@@ -311,7 +314,7 @@ static int builtin_kind(const char *name) {
  * runs Metal's Mac2/Common3 feature set; Apple-family (tile GPU) features
  * are not offered. */
 - (BOOL)supportsFamily:(NSInteger)family {
-    BOOL answer = (family >= 2001 && family <= 2002) || (family >= 3001 && family <= 3003);
+    BOOL answer = qm->device_supports_family(handle, family);
     char text[96];
     snprintf(text, sizeof text, "[Quadra Metal] supportsFamily %ld -> %d", (long)family, answer);
     log_once(text);
@@ -469,8 +472,9 @@ static int builtin_kind(const char *name) {
         *reflection = nil;
     return [self newComputePipelineStateWithFunction:function error:error];
 }
-- (id)newCommandQueue {
-    void *queue = qm->queue_new(handle);
+- (id)newCommandQueue { return [self newCommandQueueWithMaxCommandBufferCount:64]; }
+- (id)newCommandQueueWithMaxCommandBufferCount:(NSUInteger)count {
+    void *queue = qm->queue_new_with_limit(handle, count);
     if (!queue) {
         qm_error("newCommandQueue");
         return nil;
@@ -483,7 +487,12 @@ static int builtin_kind(const char *name) {
     object->ready = queue_ready;
     return object;
 }
-- (id)newCommandQueueWithMaxCommandBufferCount:(NSUInteger)count { return [self newCommandQueue]; }
+- (id)newFence {
+    QMObject *fence = [QMObject new];
+    fence->handle = qm->fence_new(handle);
+    if (!fence->handle) { [fence release]; return nil; }
+    return fence;
+}
 - (MTLSizeAndAlign)heapTextureSizeAndAlignWithDescriptor:(id)descriptor {
     qm_texture_desc value;
     qm_texture_desc_from(descriptor, &value);
@@ -509,7 +518,9 @@ static int builtin_kind(const char *name) {
     id *drawables;
     unsigned drawable_count;
     int status; /* QM_STATUS_* as this side last saw it */
-    BOOL retains;
+    BOOL retains, tracked, scheduled_done, completed_done;
+    qm_cond_t done;
+    qm_thread_t worker;
 }
 @end
 
@@ -517,6 +528,8 @@ static void *queue_worker(void *argument);
 
 @implementation QMCommandQueue
 - (void)dealloc {
+    pthread_cond_destroy(&ready);
+    pthread_mutex_destroy(&lock);
     free(pending);
     [super dealloc];
 }
@@ -532,6 +545,8 @@ static void *queue_worker(void *argument);
     qm_mutex_t buffer_lock = QM_MUTEX_INIT;
     object->lock = buffer_lock;
     object->retains = retains;
+    qm_cond_t buffer_done = QM_COND_INIT;
+    object->done = buffer_done;
     return [object autorelease];
 }
 - (id)commandBuffer { return [self commandBufferRetaining:YES]; }
@@ -541,6 +556,7 @@ static void *queue_worker(void *argument);
 /* Command buffers with handlers or drawables wait, in commit order, on this
  * queue's own guest thread, which then runs their blocks. */
 - (void)track:(id)commandBuffer {
+    BOOL fallback = NO;
     pthread_mutex_lock(&lock);
     if (count == capacity) {
         unsigned grown = capacity ? capacity * 2 : 16;
@@ -559,11 +575,14 @@ static void *queue_worker(void *argument);
         qm_thread_t thread;
         if (!pthread_create(&thread, 0, queue_worker, self))
             pthread_detach(thread);
-        else
-            qm_log("[Quadra Metal] could not start a command queue thread");
+        else {
+            qm_log("[Quadra Metal] command queue thread creation failed; draining on the committing thread");
+            fallback = YES;
+        }
     }
     pthread_cond_broadcast(&ready);
     pthread_mutex_unlock(&lock);
+    if (fallback) queue_worker(self);
 }
 @end
 
@@ -581,20 +600,35 @@ static void *queue_worker(void *argument) {
     QMCommandQueue *queue = argument;
     for (;;) {
         pthread_mutex_lock(&queue->lock);
-        while (!queue->count)
-            pthread_cond_wait(&queue->ready, &queue->lock);
+        while (!queue->count) {
+            const struct qm_timespec idle = {1, 0};
+            int result = pthread_cond_timedwait_relative_np(&queue->ready, &queue->lock, &idle);
+            if (result && !queue->count) {
+                queue->running = NO;
+                pthread_mutex_unlock(&queue->lock);
+                [queue release];
+                return 0;
+            }
+        }
         QMCommandBuffer *buffer = queue->pending[queue->head];
         queue->head = (queue->head + 1) % queue->capacity;
         queue->count--;
         pthread_mutex_unlock(&queue->lock);
 
+        qm->command_buffer_wait_scheduled(buffer->handle);
         pthread_mutex_lock(&buffer->lock);
+        buffer->worker = pthread_self();
+        if (buffer->status < QM_STATUS_SCHEDULED) buffer->status = QM_STATUS_SCHEDULED;
         QMCommandBufferHandler *scheduled = buffer->scheduled;
         unsigned scheduled_count = buffer->scheduled_count;
         buffer->scheduled = 0;
         buffer->scheduled_count = 0;
         pthread_mutex_unlock(&buffer->lock);
         run_handlers(scheduled, scheduled_count, buffer);
+        pthread_mutex_lock(&buffer->lock);
+        buffer->scheduled_done = YES;
+        pthread_cond_broadcast(&buffer->done);
+        pthread_mutex_unlock(&buffer->lock);
 
         int status = qm->command_buffer_wait(buffer->handle);
         double now = qm_now();
@@ -615,6 +649,10 @@ static void *queue_worker(void *argument) {
         }
         free(drawables);
         run_handlers(completed, completed_count, buffer);
+        pthread_mutex_lock(&buffer->lock);
+        buffer->completed_done = YES;
+        pthread_cond_broadcast(&buffer->done);
+        pthread_mutex_unlock(&buffer->lock);
         [buffer release];
     }
     return 0;
@@ -631,6 +669,8 @@ static void *queue_worker(void *argument) {
     free(completed);
     free(scheduled);
     free(drawables);
+    pthread_cond_destroy(&done);
+    pthread_mutex_destroy(&lock);
     [queue release];
     [super dealloc];
 }
@@ -654,14 +694,25 @@ static void append_block(QMCommandBufferHandler **list, unsigned *count, QMComma
         return;
     }
     append_block(&completed, &completed_count, block);
+    BOOL start = status >= QM_STATUS_COMMITTED && !tracked;
+    if (start) tracked = YES;
     pthread_mutex_unlock(&lock);
+    if (start) [queue track:self];
 }
 - (void)addScheduledHandler:(QMCommandBufferHandler)block {
     if (!block)
         return;
     pthread_mutex_lock(&lock);
+    if (status >= QM_STATUS_SCHEDULED) {
+        pthread_mutex_unlock(&lock);
+        block(self);
+        return;
+    }
     append_block(&scheduled, &scheduled_count, block);
+    BOOL start = status >= QM_STATUS_COMMITTED && !tracked;
+    if (start) tracked = YES;
     pthread_mutex_unlock(&lock);
+    if (start) [queue track:self];
 }
 - (void)presentDrawable:(id)drawable {
     if (!drawable || ![drawable isKindOfClass:[QMDrawable class]])
@@ -690,23 +741,36 @@ static void append_block(QMCommandBufferHandler **list, unsigned *count, QMComma
     }
     status = QM_STATUS_COMMITTED;
     BOOL track = completed_count || scheduled_count || drawable_count;
-    pthread_mutex_unlock(&lock);
-    if (!qm->command_buffer_commit(handle))
+    tracked = track;
+    if (!qm->command_buffer_commit(handle)) {
+        status = QM_STATUS_ERROR;
         qm_error("commit");
+    }
+    pthread_mutex_unlock(&lock);
     if (track)
         [queue track:self];
 }
-- (void)waitUntilScheduled {}
+- (void)waitUntilScheduled {
+    pthread_mutex_lock(&lock);
+    BOOL committed = status >= QM_STATUS_COMMITTED;
+    pthread_mutex_unlock(&lock);
+    if (!committed) return;
+    qm->command_buffer_wait_scheduled(handle);
+    pthread_mutex_lock(&lock);
+    while (tracked && !scheduled_done && !(worker && pthread_equal(worker, pthread_self())))
+        pthread_cond_wait(&done, &lock);
+    pthread_mutex_unlock(&lock);
+}
 - (void)waitUntilCompleted {
     pthread_mutex_lock(&lock);
-    int seen = status;
+    BOOL committed = status >= QM_STATUS_COMMITTED;
     pthread_mutex_unlock(&lock);
-    if (seen < QM_STATUS_COMMITTED || seen >= QM_STATUS_COMPLETED)
-        return;
+    if (!committed) return;
     int result = qm->command_buffer_wait(handle);
     pthread_mutex_lock(&lock);
-    if (status < result && !completed_count && !drawable_count)
-        status = result;
+    while (tracked && !completed_done && !(worker && pthread_equal(worker, pthread_self())))
+        pthread_cond_wait(&done, &lock);
+    if (status < result) status = result;
     pthread_mutex_unlock(&lock);
 }
 - (NSUInteger)status {
@@ -752,10 +816,10 @@ static void append_block(QMCommandBufferHandler **list, unsigned *count, QMComma
 - (void)pushDebugGroup:(NSString *)name {}
 - (void)popDebugGroup {}
 - (void)insertDebugSignpost:(NSString *)name {}
-- (void)updateFence:(id)fence {}
-- (void)waitForFence:(id)fence {}
-- (void)updateFence:(id)fence afterStages:(NSUInteger)stages {}
-- (void)waitForFence:(id)fence beforeStages:(NSUInteger)stages {}
+- (void)updateFence:(id)fence { qm->encoder_fence(handle, qm_handle(fence), 1, 3); }
+- (void)waitForFence:(id)fence { qm->encoder_fence(handle, qm_handle(fence), 0, 3); }
+- (void)updateFence:(id)fence afterStages:(NSUInteger)stages { qm->encoder_fence(handle, qm_handle(fence), 1, (uint32_t)stages); }
+- (void)waitForFence:(id)fence beforeStages:(NSUInteger)stages { qm->encoder_fence(handle, qm_handle(fence), 0, (uint32_t)stages); }
 - (id)device { return qm_device; }
 @end
 
@@ -775,12 +839,16 @@ static void append_block(QMCommandBufferHandler **list, unsigned *count, QMComma
     qm->render_set_buffer(handle, QM_STAGE_FRAGMENT, qm_handle(value), offset, (uint32_t)index);
 }
 - (void)setVertexBuffers:(const id *)values offsets:(const NSUInteger *)offsets withRange:(NSRange)range {
-    for (NSUInteger index = 0; index < range.length; index++)
-        [self setVertexBuffer:values[index] offset:offsets[index] atIndex:range.location + index];
+    void *handles[31];
+    if (range.length > 31 || range.location > 31 - range.length) { qm_log("[Quadra Metal] invalid buffer range"); return; }
+    for (NSUInteger i = 0; i < range.length; i++) handles[i] = qm_handle(values[i]);
+    qm->render_set_buffers(handle, QM_STAGE_VERTEX, handles, (const uint64_t *)offsets, (uint32_t)range.location, (uint32_t)range.length);
 }
 - (void)setFragmentBuffers:(const id *)values offsets:(const NSUInteger *)offsets withRange:(NSRange)range {
-    for (NSUInteger index = 0; index < range.length; index++)
-        [self setFragmentBuffer:values[index] offset:offsets[index] atIndex:range.location + index];
+    void *handles[31];
+    if (range.length > 31 || range.location > 31 - range.length) { qm_log("[Quadra Metal] invalid buffer range"); return; }
+    for (NSUInteger i = 0; i < range.length; i++) handles[i] = qm_handle(values[i]);
+    qm->render_set_buffers(handle, QM_STAGE_FRAGMENT, handles, (const uint64_t *)offsets, (uint32_t)range.location, (uint32_t)range.length);
 }
 - (void)setVertexBufferOffset:(NSUInteger)offset atIndex:(NSUInteger)index {
     qm->render_set_buffer_offset(handle, QM_STAGE_VERTEX, offset, (uint32_t)index);
@@ -801,12 +869,16 @@ static void append_block(QMCommandBufferHandler **list, unsigned *count, QMComma
     qm->render_set_texture(handle, QM_STAGE_FRAGMENT, qm_handle(texture), (uint32_t)index);
 }
 - (void)setVertexTextures:(const id *)textures withRange:(NSRange)range {
-    for (NSUInteger index = 0; index < range.length; index++)
-        [self setVertexTexture:textures[index] atIndex:range.location + index];
+    void *handles[128];
+    if (range.length > 128 || range.location > 128 - range.length) { qm_log("[Quadra Metal] invalid textures range"); return; }
+    for (NSUInteger i = 0; i < range.length; i++) handles[i] = qm_handle(textures[i]);
+    qm->render_set_textures(handle, QM_STAGE_VERTEX, handles, (uint32_t)range.location, (uint32_t)range.length);
 }
 - (void)setFragmentTextures:(const id *)textures withRange:(NSRange)range {
-    for (NSUInteger index = 0; index < range.length; index++)
-        [self setFragmentTexture:textures[index] atIndex:range.location + index];
+    void *handles[128];
+    if (range.length > 128 || range.location > 128 - range.length) { qm_log("[Quadra Metal] invalid textures range"); return; }
+    for (NSUInteger i = 0; i < range.length; i++) handles[i] = qm_handle(textures[i]);
+    qm->render_set_textures(handle, QM_STAGE_FRAGMENT, handles, (uint32_t)range.location, (uint32_t)range.length);
 }
 - (void)setVertexSamplerState:(id)sampler atIndex:(NSUInteger)index {
     qm->render_set_sampler(handle, QM_STAGE_VERTEX, qm_handle(sampler), (uint32_t)index);
@@ -815,12 +887,16 @@ static void append_block(QMCommandBufferHandler **list, unsigned *count, QMComma
     qm->render_set_sampler(handle, QM_STAGE_FRAGMENT, qm_handle(sampler), (uint32_t)index);
 }
 - (void)setVertexSamplerStates:(const id *)samplers withRange:(NSRange)range {
-    for (NSUInteger index = 0; index < range.length; index++)
-        [self setVertexSamplerState:samplers[index] atIndex:range.location + index];
+    void *handles[16];
+    if (range.length > 16 || range.location > 16 - range.length) { qm_log("[Quadra Metal] invalid sampler range"); return; }
+    for (NSUInteger i = 0; i < range.length; i++) handles[i] = qm_handle(samplers[i]);
+    qm->render_set_samplers(handle, QM_STAGE_VERTEX, handles, (uint32_t)range.location, (uint32_t)range.length);
 }
 - (void)setFragmentSamplerStates:(const id *)samplers withRange:(NSRange)range {
-    for (NSUInteger index = 0; index < range.length; index++)
-        [self setFragmentSamplerState:samplers[index] atIndex:range.location + index];
+    void *handles[16];
+    if (range.length > 16 || range.location > 16 - range.length) { qm_log("[Quadra Metal] invalid sampler range"); return; }
+    for (NSUInteger i = 0; i < range.length; i++) handles[i] = qm_handle(samplers[i]);
+    qm->render_set_samplers(handle, QM_STAGE_FRAGMENT, handles, (uint32_t)range.location, (uint32_t)range.length);
 }
 - (void)setViewport:(MTLViewport)viewport {
     double values[6] = {viewport.originX, viewport.originY, viewport.width, viewport.height, viewport.znear, viewport.zfar};
@@ -875,13 +951,15 @@ static void append_block(QMCommandBufferHandler **list, unsigned *count, QMComma
                   indexBuffer:(id)indices indexBufferOffset:(NSUInteger)offset {
     qm->render_draw_indexed(handle, (uint32_t)type, count, (uint32_t)indexType, qm_handle(indices), offset, 1, 0, 0);
 }
-- (void)useResource:(id)resource usage:(NSUInteger)usage {}
-- (void)useResource:(id)resource usage:(NSUInteger)usage stages:(NSUInteger)stages {}
-- (void)useResources:(const id *)resources count:(NSUInteger)count usage:(NSUInteger)usage {}
+- (void)useResource:(id)resource usage:(NSUInteger)usage { qm->encoder_use_resource(handle, qm_handle(resource), (uint32_t)usage, 3); }
+- (void)useResource:(id)resource usage:(NSUInteger)usage stages:(NSUInteger)stages { qm->encoder_use_resource(handle, qm_handle(resource), (uint32_t)usage, (uint32_t)stages); }
+- (void)useResources:(const id *)resources count:(NSUInteger)count usage:(NSUInteger)usage {
+    for (NSUInteger i = 0; i < count; i++) [self useResource:resources[i] usage:usage];
+}
 - (void)useHeap:(id)heap {}
 - (void)useHeaps:(const id *)heaps count:(NSUInteger)count {}
 - (void)textureBarrier {}
-- (void)memoryBarrierWithScope:(NSUInteger)scope afterStages:(NSUInteger)after beforeStages:(NSUInteger)before {}
+- (void)memoryBarrierWithScope:(NSUInteger)scope afterStages:(NSUInteger)after beforeStages:(NSUInteger)before { qm->render_barrier(handle, (uint32_t)scope, (uint32_t)after, (uint32_t)before); }
 @end
 
 @interface QMBlitCommandEncoder : QMEncoder
@@ -959,6 +1037,7 @@ static void append_block(QMCommandBufferHandler **list, unsigned *count, QMComma
 /* --- Compute, with the builtin upload kernels as blits ------------------------- */
 
 #define COMPUTE_SLOTS 31
+#define COMPUTE_TEXTURE_SLOTS 128
 
 @interface QMComputeCommandEncoder : QMEncoder {
 @public
@@ -966,8 +1045,11 @@ static void append_block(QMCommandBufferHandler **list, unsigned *count, QMComma
     id buffers[COMPUTE_SLOTS];
     NSUInteger offsets[COMPUTE_SLOTS];
     void *bytes[COMPUTE_SLOTS];
-    NSUInteger byte_lengths[COMPUTE_SLOTS];
-    id textures[COMPUTE_SLOTS];
+    NSUInteger byte_lengths[COMPUTE_SLOTS], byte_capacities[COMPUTE_SLOTS];
+    BOOL inline_bytes[COMPUTE_SLOTS];
+    id textures[COMPUTE_TEXTURE_SLOTS];
+    NSUInteger threadgroup_lengths[31];
+    uint32_t threadgroup_set;
     id samplers[16];
     BOOL ended;
 }
@@ -978,9 +1060,10 @@ static void append_block(QMCommandBufferHandler **list, unsigned *count, QMComma
     [pipeline release];
     for (unsigned index = 0; index < COMPUTE_SLOTS; index++) {
         [buffers[index] release];
-        [textures[index] release];
         free(bytes[index]);
     }
+    for (unsigned index = 0; index < COMPUTE_TEXTURE_SLOTS; index++)
+        [textures[index] release];
     for (unsigned index = 0; index < 16; index++)
         [samplers[index] release];
     [super dealloc];
@@ -998,13 +1081,16 @@ static void append_block(QMCommandBufferHandler **list, unsigned *count, QMComma
     if (pipeline && pipeline->handle)
         qm->compute_set_pipeline(handle, pipeline->handle);
     for (unsigned index = 0; index < COMPUTE_SLOTS; index++) {
-        if (bytes[index])
+        if (inline_bytes[index])
             qm->compute_set_bytes(handle, bytes[index], byte_lengths[index], index);
         else if (buffers[index])
             qm->compute_set_buffer(handle, qm_handle(buffers[index]), offsets[index], index);
-        if (textures[index])
-            qm->compute_set_texture(handle, qm_handle(textures[index]), index);
     }
+    for (unsigned index = 0; index < COMPUTE_TEXTURE_SLOTS; index++)
+        if (textures[index]) qm->compute_set_texture(handle, qm_handle(textures[index]), index);
+    for (unsigned index = 0; index < 31; index++)
+        if (threadgroup_set & (1u << index))
+            qm->compute_set_threadgroup_memory(handle, threadgroup_lengths[index], index);
     for (unsigned index = 0; index < 16; index++)
         if (samplers[index])
             qm->compute_set_sampler(handle, qm_handle(samplers[index]), index);
@@ -1029,8 +1115,8 @@ static void append_block(QMCommandBufferHandler **list, unsigned *count, QMComma
     [buffers[index] release];
     buffers[index] = value;
     offsets[index] = offset;
-    free(bytes[index]);
-    bytes[index] = 0;
+    inline_bytes[index] = NO;
+    byte_lengths[index] = 0;
     if (handle)
         qm->compute_set_buffer(handle, qm_handle(value), offset, (uint32_t)index);
 }
@@ -1048,17 +1134,28 @@ static void append_block(QMCommandBufferHandler **list, unsigned *count, QMComma
 - (void)setBytes:(const void *)value length:(NSUInteger)length atIndex:(NSUInteger)index {
     if (index >= COMPUTE_SLOTS)
         return;
-    free(bytes[index]);
-    bytes[index] = malloc(length ? length : 1);
-    memcpy(bytes[index], value, length);
+    if (length > 4096 || (length && !value)) {
+        qm_log("[Quadra Metal] invalid inline byte span");
+        return;
+    }
+    if (byte_capacities[index] < (length ? length : 1)) {
+        NSUInteger capacity = 16;
+        while (capacity < length) capacity *= 2;
+        void *grown = realloc(bytes[index], capacity);
+        if (!grown) { qm_log("[Quadra Metal] inline byte allocation failed"); return; }
+        bytes[index] = grown;
+        byte_capacities[index] = capacity;
+    }
+    if (length) memcpy(bytes[index], value, length);
     byte_lengths[index] = length;
+    inline_bytes[index] = YES;
     [buffers[index] release];
     buffers[index] = nil;
     if (handle)
         qm->compute_set_bytes(handle, value, length, (uint32_t)index);
 }
 - (void)setTexture:(id)texture atIndex:(NSUInteger)index {
-    if (index >= COMPUTE_SLOTS)
+    if (index >= COMPUTE_TEXTURE_SLOTS)
         return;
     [texture retain];
     [textures[index] release];
@@ -1084,20 +1181,31 @@ static void append_block(QMCommandBufferHandler **list, unsigned *count, QMComma
         [self setSamplerState:values[index] atIndex:range.location + index];
 }
 - (void)setThreadgroupMemoryLength:(NSUInteger)length atIndex:(NSUInteger)index {
-    if (length)
-        log_once("[Quadra Metal] setThreadgroupMemoryLength is not passed on yet");
+    if (index >= 31) { qm_log("[Quadra Metal] invalid threadgroup memory index"); return; }
+    threadgroup_lengths[index] = length;
+    threadgroup_set |= 1u << index;
+    if (handle) qm->compute_set_threadgroup_memory(handle, length, (uint32_t)index);
 }
-- (void)useResource:(id)resource usage:(NSUInteger)usage {}
-- (void)useResources:(const id *)resources count:(NSUInteger)count usage:(NSUInteger)usage {}
+- (void)useResource:(id)resource usage:(NSUInteger)usage { qm->encoder_use_resource([self encoder], qm_handle(resource), (uint32_t)usage, 3); }
+- (void)useResources:(const id *)resources count:(NSUInteger)count usage:(NSUInteger)usage {
+    for (NSUInteger i = 0; i < count; i++) [self useResource:resources[i] usage:usage];
+}
+- (void)updateFence:(id)fence { qm->encoder_fence([self encoder], qm_handle(fence), 1, 3); }
+- (void)waitForFence:(id)fence { qm->encoder_fence([self encoder], qm_handle(fence), 0, 3); }
 - (void)useHeap:(id)heap {}
-- (void)memoryBarrierWithScope:(NSUInteger)scope {}
-- (void)memoryBarrierWithResources:(const id *)resources count:(NSUInteger)count {}
+- (void)memoryBarrierWithScope:(NSUInteger)scope {
+    void *encoder = [self encoder];
+    if (encoder) qm->compute_barrier(encoder, (uint32_t)scope);
+}
+- (void)memoryBarrierWithResources:(const id *)resources count:(NSUInteger)count {
+    [self memoryBarrierWithScope:3]; /* A global buffer/texture barrier covers these resources. */
+}
 
 /* blitTexture*: params at buffer 0 (uint3 offset, uint3 size, uint2 stride,
  * in elements), bytes at buffer 1, the texture at 0. */
 - (void)runBuiltin:(int)kind {
     const uint32_t *params = 0;
-    if (bytes[0] && byte_lengths[0] >= 40)
+    if (inline_bytes[0] && byte_lengths[0] >= 40)
         params = bytes[0];
     else if (buffers[0] && ((QMBuffer *)buffers[0])->contents)
         params = (const uint32_t *)((char *)((QMBuffer *)buffers[0])->contents + offsets[0]);
@@ -1121,6 +1229,7 @@ static void append_block(QMCommandBufferHandler **list, unsigned *count, QMComma
         image = row * size.height;
     if (handle) {
         qm->compute_end(handle);
+        qm->release(handle);
         handle = 0;
     }
     void *blit = qm->blit_encoder_new(buffer->handle);
@@ -1144,11 +1253,11 @@ static void append_block(QMCommandBufferHandler **list, unsigned *count, QMComma
     qm->compute_dispatch(encoder, a, b);
 }
 - (void)dispatchThreads:(MTLSize)threads threadsPerThreadgroup:(MTLSize)group {
-    MTLSize groups = {(threads.width + group.width - 1) / (group.width ? group.width : 1),
-                      (threads.height + group.height - 1) / (group.height ? group.height : 1),
-                      (threads.depth + group.depth - 1) / (group.depth ? group.depth : 1)};
-    log_once("[Quadra Metal] dispatchThreads runs whole threadgroups");
-    [self dispatchThreadgroups:groups threadsPerThreadgroup:group];
+    if (pipeline && pipeline->builtin) { [self runBuiltin:pipeline->builtin]; return; }
+    void *encoder = [self encoder];
+    if (!encoder) return;
+    qm_size a = {threads.width, threads.height, threads.depth}, b = {group.width, group.height, group.depth};
+    qm->compute_dispatch_threads(encoder, a, b);
 }
 @end
 

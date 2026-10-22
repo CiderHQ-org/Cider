@@ -1281,6 +1281,34 @@ class SettingsPage(Adw.Bin):
         self._renderer_rows = []
         game.add(self._renderer_row())
 
+        self.shader_preload_switch = Adw.SwitchRow(
+            title=_("Shader preloading"),
+            subtitle=_("Quadra M2VK: prepare learned shaders before playing. New shaders may still compile during play."),
+            active=settings.get("metal_shader_preload", True))
+        self.shader_preload_switch.connect("notify::active", lambda row, *_args: window.set_setting(
+            "metal_shader_preload", row.get_active()))
+        game.add(self.shader_preload_switch)
+
+        for key, title, subtitle in (
+                ("metal_library_preload", "Prepare client shader libraries",
+                 "Quadra M2VK: prepare installed shader libraries before playing, including the first launch."),
+                ("metal_resource_preload", "Preload local textures and fonts",
+                 "Quadra M2VK: warm bundled resources before playing. Downloaded world assets still load in game.")):
+            row = Adw.SwitchRow(title=_(title), subtitle=_(subtitle), active=settings.get(key, True))
+            row.set_sensitive(self.shader_preload_switch.get_active())
+            self.shader_preload_switch.connect("notify::active", lambda switch, _prop, row=row:
+                                               row.set_sensitive(switch.get_active()))
+            row.connect("notify::active", lambda row, _prop, key=key: window.set_setting(key, row.get_active()))
+            game.add(row)
+
+        metal_diagnostics = Adw.SwitchRow(
+            title=_("Quadra M2VK performance diagnostics"),
+            subtitle=_("Record compilation, encoding, GPU timing and memory use for performance reports."),
+            active=settings.get("metal_diagnostics", False))
+        metal_diagnostics.connect("notify::active", lambda row, *_args: window.set_setting(
+            "metal_diagnostics", row.get_active()))
+        game.add(metal_diagnostics)
+
         self._gpu_codes = ["auto"]
         self._gpu_rows = []
         self.gpu_row = self._gpu_row()
@@ -1764,14 +1792,15 @@ class SettingsPage(Adw.Bin):
         finally:
             self.window.end(resume_pending=False)
 
+    # Keep the stored Metal key so existing selections follow Quadra M2VK.
     RENDERER_CODES = ("opengl", "vulkan", "metal")
 
     def _renderer_row(self):
         row = Adw.ComboRow(
             title=_("Renderer"),
-            subtitle=_("Applies on next launch. Zink runs Roblox's OpenGL renderer on Vulkan; Metal on Vulkan runs its Metal renderer on Vulkan (built on first use, VR stays on OpenGL)."),
+            subtitle=_("Applies on next launch. Zink uses Roblox's OpenGL renderer; Quadra M2VK uses its Metal renderer on Vulkan. VR uses OpenGL or Zink."),
             model=Gtk.StringList.new([_("OpenGL"), _("Vulkan (Zink, experimental)"),
-                                      _("Metal on Vulkan (experimental)")]))
+                                      _("Quadra M2VK (experimental)")]))
         selected = self.window.settings.get("renderer", "opengl")
         row.set_selected(self.RENDERER_CODES.index(selected) if selected in self.RENDERER_CODES else 0)
         self._renderer_rows.append((row, row.connect("notify::selected", self._select_renderer)))
@@ -1792,13 +1821,13 @@ class SettingsPage(Adw.Bin):
         if selected == "metal":
             if core.PREBUILT_SHIM and not core.metal_built():
                 self._show_renderer(window.settings.get("renderer", "opengl"))
-                _error_dialog(window, _("Metal on Vulkan is unavailable"),
-                              _("Metal on Vulkan is not part of this package"))
+                _error_dialog(window, _("Quadra M2VK is unavailable"),
+                              _("Quadra M2VK is not part of this package"))
                 return
             missing = graphics.missing_metal_dependencies()
             if missing:
                 self._show_renderer(window.settings.get("renderer", "opengl"))
-                _error_dialog(window, _("Metal on Vulkan is unavailable"),
+                _error_dialog(window, _("Quadra M2VK is unavailable"),
                               _("Install these first: {programs}", programs=", ".join(missing)))
                 return
             window.set_setting("renderer", selected)
@@ -3307,6 +3336,11 @@ class LauncherWindow(Adw.ApplicationWindow):
             return
         self.settings_page.flush()
         session = core.RobloxSession(dict(self.settings), launch_uri=launch_uri)
+        self._shader_preload_session = session
+        session.shader_preload_progress = lambda done, total: GLib.idle_add(
+            self._show_shader_preload, session, done, total)
+        session.preload_stage_progress = lambda phase, done, total: GLib.idle_add(
+            self._show_shader_preload, session, done, total, phase)
         self.web = self._web_bridge()
         if self.web:
             session.web_socket = self.web.guest_path
@@ -3315,11 +3349,46 @@ class LauncherWindow(Adw.ApplicationWindow):
         def start():
             try:
                 session.start()  # cleans up after itself when it fails
+                GLib.idle_add(self._close_shader_preload, session)
                 GLib.idle_add(self._started, session, None)
             except Exception as error:
+                GLib.idle_add(self._close_shader_preload, session)
                 GLib.idle_add(self._started, session, error)
 
         threading.Thread(target=start, daemon=True).start()
+
+    def _show_shader_preload(self, session, done, total, phase="pipelines"):
+        if (getattr(self, "_shader_preload_session", None) is not session
+                or session.shader_preload_cancel.is_set() or self.busy != "starting"):
+            return False
+        dialog = getattr(self, "_shader_preload_dialog", None)
+        if dialog is None:
+            dialog = Adw.AlertDialog(
+                heading=_("Preparing Roblox"),
+                body=_("Preparing shaders and local resources. You can skip and start playing."))
+            self._shader_preload_bar = Gtk.ProgressBar(show_text=True)
+            dialog.set_extra_child(self._shader_preload_bar)
+            dialog.add_response("skip", _("Skip and play"))
+            dialog.set_close_response("skip")
+            self._shader_preload_response = dialog.connect("response", lambda *_args: session.shader_preload_cancel.set())
+            self._shader_preload_dialog = dialog
+            dialog.present(self)
+        labels = {"libraries": _("Preparing shader libraries"), "pipelines": _("Warming learned shaders"),
+                  "resources": _("Warming local textures and fonts")}
+        dialog.set_heading(labels.get(phase, _("Preparing Roblox")))
+        self._shader_preload_bar.set_fraction(done / total if total else 0)
+        self._shader_preload_bar.set_text(_("{done} of {total} items", done=done, total=total))
+        return False
+
+    def _close_shader_preload(self, session):
+        if getattr(self, "_shader_preload_session", None) is session:
+            dialog = getattr(self, "_shader_preload_dialog", None)
+            if dialog is not None:
+                dialog.disconnect(self._shader_preload_response)
+                dialog.close()
+            self._shader_preload_dialog = None
+            self._shader_preload_session = None
+        return False
 
     def _web_bridge(self):
         """The browser window for Roblox's embedded pages (sign-in with a

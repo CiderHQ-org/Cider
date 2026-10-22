@@ -38,6 +38,7 @@ with patch.object(core, "load_settings", return_value=dict(core.DEFAULT_SETTINGS
             if isinstance(widget, Adw.ComboRow) and widget.get_title() == "Renderer"]
     assert len(rows) == 2
     row, copy = rows
+    assert row.get_model().get_string(2) == copy.get_model().get_string(2) == "Quadra M2VK (experimental)"
     row.set_selected(1)
     assert not row.get_sensitive() and not copy.get_sensitive() and window.settings["renderer"] == "opengl"
     work, done = pending.pop()

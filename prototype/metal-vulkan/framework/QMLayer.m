@@ -272,14 +272,20 @@ static id layer_next_drawable(id self, SEL _cmd) {
         qm->surface_configure(state->surface, &config);
         state->config = config;
     }
-    void *texture = 0;
-    void *drawable_handle = qm->surface_next_drawable(state->surface, &texture);
+    void *surface = state->surface;
+    /* The layer owns the surface. Keep it alive while the driver waits, with no
+     * layer mutex held: AppKit must still update its state during that wait. */
+    [self retain];
     pthread_mutex_unlock(&state->lock);
-    if (!drawable_handle)
+    void *texture = 0;
+    void *drawable_handle = qm->surface_next_drawable(surface, &texture);
+    if (!drawable_handle) {
+        [self release];
         return nil;
+    }
     QMDrawable *drawable = [QMDrawable new];
     drawable->handle = drawable_handle;
-    drawable->layer = [self retain];
+    drawable->layer = self; /* transfers the retain held across acquisition */
     drawable->texture = [QMTexture newWithHandle:texture owner:nil];
     return [drawable autorelease];
 }

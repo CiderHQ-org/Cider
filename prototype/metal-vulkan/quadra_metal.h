@@ -20,7 +20,7 @@
 
 #include <stdint.h>
 
-#define QM_API_VERSION 1
+#define QM_API_VERSION 2
 
 typedef struct { uint64_t x, y, z; } qm_origin;
 typedef struct { uint64_t width, height, depth; } qm_size;
@@ -251,9 +251,34 @@ typedef struct qm_api {
 
     /* Logging into the game's launch log (stderr), once per distinct text. */
     void (*log_once)(const char *text);
+
+    /* ABI 2. Span validation happens before any host slice or guest pointer access. */
+    int (*texture_copy_byte_length)(void *texture, qm_origin origin, qm_size size,
+        uint64_t level, uint64_t slice, uint64_t row, uint64_t image, uint64_t *out);
+    void (*compute_dispatch_threads)(void *encoder, qm_size threads, qm_size per_group);
+    void (*compute_set_threadgroup_memory)(void *encoder, uint64_t length, uint32_t index);
+    void (*compute_barrier)(void *encoder, uint32_t scope);
+    int (*command_buffer_wait_scheduled)(void *command_buffer);
+    void *(*queue_new_with_limit)(void *device, uint64_t count);
+    void *(*fence_new)(void *device);
+    void (*encoder_fence)(void *encoder, void *fence, int update, uint32_t stages);
+    void (*encoder_use_resource)(void *encoder, void *resource, uint32_t usage, uint32_t stages);
+    void (*render_barrier)(void *encoder, uint32_t scope, uint32_t after, uint32_t before);
+    void (*render_set_buffers)(void *encoder, int stage, void *const *buffers, const uint64_t *offsets, uint32_t first, uint32_t count);
+    void (*render_set_textures)(void *encoder, int stage, void *const *textures, uint32_t first, uint32_t count);
+    void (*render_set_samplers)(void *encoder, int stage, void *const *samplers, uint32_t first, uint32_t count);
 } qm_api;
 
 typedef const qm_api *(*qm_api_entry)(uint32_t version);
 #define QM_API_SYMBOL "quadra_metal_host_api"
+
+/* Optional Linux host-tool exports; callbacks stay in the launcher's helper process. */
+typedef void (*qm_preload_progress)(uint32_t completed, uint32_t total, uint32_t failed, void *context);
+typedef int (*qm_preload_entry)(qm_preload_progress progress, void *context, uint32_t maximum);
+typedef int (*qm_preload_device_entry)(void *device, qm_preload_progress progress, void *context, uint32_t maximum);
+typedef uint64_t (*qm_diagnostics_entry)(void *device, char *buffer, uint64_t capacity);
+#define QM_PRELOAD_SYMBOL "quadra_metal_host_preload"
+#define QM_PRELOAD_DEVICE_SYMBOL "quadra_metal_host_preload_device"
+#define QM_DIAGNOSTICS_SYMBOL "quadra_metal_host_diagnostics"
 
 #endif

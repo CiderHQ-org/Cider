@@ -47,7 +47,7 @@ SHIM = SHIM_DIR / "libMacOBloxShims.dylib"
 # Frameworks RobloxPlayer links that Darling lacks; stubs from frameworks/.
 FRAMEWORKS = ["CoreML", "CoreHaptics", "DeviceCheck"]
 FRAMEWORKS_BUILD = SHIM_DIR / "frameworks"
-# Metal on Vulkan (renderer "metal"): Metal.framework and the host library,
+# Quadra M2VK (renderer "metal"): Metal.framework and the host library,
 # built by prototype/metal-vulkan/build.sh the first time the renderer is used.
 METAL_DIR = SHIM_DIR / "metal"
 METAL_HOST_LIBRARY = METAL_DIR / "libquadra_metal_host.so"
@@ -107,6 +107,10 @@ DEFAULT_SETTINGS = {
     "display_backend": "x11",
     "dpi_scale": 1.0,
     "renderer": "opengl",
+    "metal_shader_preload": True,
+    "metal_library_preload": True,
+    "metal_resource_preload": True,
+    "metal_diagnostics": False,
     "gpu": "auto",
     "roblox_channel": "",
     "mangohud": False,
@@ -1367,7 +1371,8 @@ def cleanup_logs(keep, current=None, max_bytes=LOGS_MAX_BYTES):
     total, and CiderDarling traces likewise. `current` is never removed;
     logs from run_debug.sh and other tools are left alone."""
     for glob, pattern in (("launch-*.log", r"launch-\d{8}-\d{6}\.log"),
-                          ("ciderdarling-trace-*.jsonl", r"ciderdarling-trace-\d{8}-\d{6}\.jsonl")):
+                          ("ciderdarling-trace-*.jsonl", r"ciderdarling-trace-\d{8}-\d{6}\.jsonl"),
+                          ("metal-performance-*.jsonl", r"metal-performance-\d{8}-\d{6}-\d+\.jsonl")):
         logs = []
         for path in LOGS.glob(glob):
             try:
@@ -1457,10 +1462,12 @@ def _metal_sources_hash():
     digest = hashlib.sha256(__version__.encode())
     digest.update(str(DARLING_SYSROOT).encode())
     root = PROJECT / "prototype" / "metal-vulkan"
-    for path in sorted([root / "quadra_metal.h", METAL_BUILD_SCRIPT, *(root / "framework").glob("*"),
-                        root / "host" / "Cargo.toml", root / "host" / "Cargo.lock", *(root / "host" / "src").glob("*.rs")]):
+    sources = [root / "quadra_metal.h", METAL_BUILD_SCRIPT, *(root / "framework").glob("*"),
+               root / "host" / "Cargo.toml", root / "host" / "Cargo.lock", *(root / "host" / "src").rglob("*.rs")]
+    # Cargo.toml and Cargo.lock pin the immutable Quadra M2VK dependency.
+    for path in sorted(sources):
         try:
-            digest.update(path.name.encode() + b"\0" + path.read_bytes())
+            digest.update(str(path.relative_to(PROJECT)).encode() + b"\0" + path.read_bytes())
         except OSError:
             pass
     return digest.hexdigest()
@@ -1481,9 +1488,9 @@ def build_metal():
     """prototype/metal-vulkan/build.sh: the framework needs clang and lld, the host library
     Rust 1.98 or newer (its first build downloads its crates)."""
     if PREBUILT_SHIM:
-        return metal_built(), _("Metal on Vulkan is not part of this package")
+        return metal_built(), _("Quadra M2VK is not part of this package")
     if not shutil.which("cargo"):
-        return False, _("Metal on Vulkan needs Rust (cargo) 1.98 or newer to build. Install Rust or select another renderer.")
+        return False, _("Quadra M2VK needs Rust (cargo) 1.98 or newer to build. Install Rust or select another renderer.")
     stamp = _metal_sources_hash()
     result = subprocess.run([str(METAL_BUILD_SCRIPT)], capture_output=True, text=True,
                             env=dict(os.environ, MACOBLOX_BUILD_DIR=str(BUILD_DIR),
@@ -2387,6 +2394,11 @@ class RobloxSession:
 
     def __init__(self, settings, launch_uri=None):
         self.settings = settings
+        self.shader_preload_progress = None
+        self.preload_stage_progress = None
+        self.shader_preload_cancel = threading.Event()
+        self._metal_preload_skipped = False
+        self.metal_diagnostics_path = LOGS / (time.strftime("metal-performance-%Y%m%d-%H%M%S-") + str(os.getpid()) + ".jsonl")
         # This is intentionally opaque.  Do not split, decode, normalize or
         # otherwise inspect a browser handoff before giving it to Roblox.
         self.launch_uri = launch_uri
@@ -2421,8 +2433,14 @@ class RobloxSession:
         if self._gpu_environment is None:
             self.gpu_adapter = gpus.selected_gpu(self.settings.get("gpu", "auto"))
             self._gpu_environment = gpus.gpu_environment(self.gpu_adapter, renderer)
-        metal = graphics.metal_environment(METAL_DIR, CACHE_DIR / "metal-shader-cache") \
+        metal = graphics.metal_environment(METAL_DIR, CACHE_DIR / "metal-shader-cache",
+                                          preload=self.settings.get("metal_shader_preload", True),
+                                          preload_key=installed_version() or "unknown-client",
+                                          diagnostics=self.settings.get("metal_diagnostics", False),
+                                          diagnostics_file=self.metal_diagnostics_path) \
             if renderer == "metal" else {}
+        if metal and self._metal_preload_skipped:
+            metal["MACOBLOX_METAL_PRELOAD_IN_PROCESS"] = "0"
         return {
             **graphics.renderer_environment(renderer),
             **metal,
@@ -2580,14 +2598,17 @@ class RobloxSession:
             from . import graphics
             missing = graphics.missing_metal_dependencies()
             if missing:
-                raise RuntimeError(_("Metal on Vulkan needs: {items}. Install them or select another renderer.",
+                raise RuntimeError(_("Quadra M2VK needs: {items}. Install them or select another renderer.",
                                      items=", ".join(missing)))
             if not metal_built():
-                self.notes.append("Building Metal on Vulkan (prototype/metal-vulkan/build.sh)")
+                self.notes.append("Building Quadra M2VK (prototype/metal-vulkan/build.sh)")
                 ok, output = build_metal()
                 if not ok:
-                    raise RuntimeError(_("Could not build Metal on Vulkan:\n{output}", output=output))
-            (CACHE_DIR / "metal-shader-cache").mkdir(parents=True, exist_ok=True)
+                    raise RuntimeError(_("Could not build Quadra M2VK:\n{output}", output=output))
+            try:
+                (CACHE_DIR / "metal-shader-cache").mkdir(parents=True, exist_ok=True)
+            except OSError as error:
+                self.notes.append(f"Metal shader cache unavailable; using bounded memory caching: {error}")
         env = self.environment()
         if env.get("MACOBLOX_WAYLAND") != "1":
             ensure_x11(env)
@@ -2597,7 +2618,7 @@ class RobloxSession:
             renderer_name = graphics.validate_vulkan(env)
         elif self.settings.get("renderer", "opengl") == "metal":
             from . import graphics
-            renderer_name = "Metal on Vulkan (" + graphics.validate_metal(env, METAL_HOST_LIBRARY) + ")"
+            renderer_name = "Quadra M2VK (" + graphics.validate_metal(env, METAL_HOST_LIBRARY) + ")"
         self.renderer_name = renderer_name
         # A game closed a moment ago may still be shutting down. A new one next
         # to it shared its darlingserver, and when that went both died. Give it
@@ -2612,6 +2633,27 @@ class RobloxSession:
         if _foreign_darlingservers():
             restart_darling()
             self.notes.append("Restarted Darling: its server came from another runtime installation")
+        if self.settings.get("renderer", "opengl") == "metal":
+            from . import metal_preload
+            try:
+                result = metal_preload.run(METAL_HOST_LIBRARY, env,
+                                          progress=self.shader_preload_progress,
+                                          cancel=self.shader_preload_cancel,
+                                          library_pack=(APP_BUNDLE / "Contents/Resources/shaders/shaders_metal_osx.pack"
+                                                        if self.settings.get("metal_library_preload", True) else None),
+                                          resource_root=(APP_BUNDLE / "Contents/Resources"
+                                                         if self.settings.get("metal_resource_preload", True) else None),
+                                          stage_progress=self.preload_stage_progress)
+                self.notes.append("Shader preloading: {status}, {completed}/{total} pipelines, {failed} skipped".format(**result))
+                for phase, counts in result.get("stages", {}).items():
+                    self.notes.append(f"Preload {phase}: " + json.dumps(counts, sort_keys=True))
+                if result["status"] in ("skipped", "timeout", "failed", "disabled", "memory-limited"):
+                    self._metal_preload_skipped = True
+                    env["MACOBLOX_METAL_PRELOAD_IN_PROCESS"] = "0"
+            except (OSError, subprocess.SubprocessError) as error:
+                self._metal_preload_skipped = True
+                env["MACOBLOX_METAL_PRELOAD_IN_PROCESS"] = "0"
+                self.notes.append(f"Shader preloading unavailable; starting Roblox: {error}")
         self.notes.extend(prepare_prefix(env) or [])
         # The shim reads the pending file as a fallback: never an old click.
         from . import uri
@@ -2680,6 +2722,8 @@ class RobloxSession:
                 log.write(f"Requested cleanup of {orphans} selected-prefix Darling process(es) left without their darlingserver\n".encode())
             if self.trace_path:
                 log.write(f"CiderDarling trace: {self.trace_path}\n".encode())
+            if self.settings.get("renderer") == "metal" and self.settings.get("metal_diagnostics", False):
+                log.write(f"Metal performance trace: {self.metal_diagnostics_path}\n".encode())
             for note in self.notes:
                 log.write(f"[Quadra Startup] {note}\n".encode(errors="replace"))
             for _attempt in range(2):

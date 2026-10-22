@@ -464,6 +464,9 @@ def collect(output_dir=None, *, gdb=False, symbolize=True, interval=SAMPLE_INTER
     trace = _latest(core.LOGS, "ciderdarling-trace-*.jsonl")
     if trace:
         sources[f"logs/{trace.name}"] = trace
+    metal_trace = _latest(core.LOGS, "metal-performance-*.jsonl")
+    if metal_trace:
+        sources[f"logs/{metal_trace.name}"] = metal_trace
     for server in sorted(Path(core.LOGS).glob("darlingserver-*.out")):
         sources[f"logs/{server.name}"] = server
     for name, path in sources.items():

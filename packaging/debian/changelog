@@ -1,3 +1,10 @@
+quadrahq (0.33-1) unstable; urgency=medium
+
+  * Integrate Quadra M2VK with bounded shader and resource preloading.
+  * Improve Metal presentation, pipeline reuse, resource safety and diagnostics.
+
+ -- Quadra maintainers <noreply@aubree.wtf>  Wed, 21 Oct 2026 23:55:00 -0500
+
 quadrahq (0.32-1) unstable; urgency=medium
 
   * Ship the experimental Metal on Vulkan bridge in native packages.

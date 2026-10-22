@@ -16,12 +16,66 @@ use crate::util::log_once;
 use ash::vk;
 use metal2vulkan::metal::{PixelFormat, TextureType, TextureUsage};
 use metal2vulkan_runtime::{
-    CommandBuffer, CommandQueue, Device, DeviceOptions, ResourceOptions, Texture, TextureDescriptor,
-    VkImageLayouts,
+    CommandBuffer, CommandQueue, Device, DeviceOptions, ResourceOptions, Texture,
+    TextureDescriptor, VkImageLayouts,
 };
 use std::ffi::{c_char, c_int, c_uint, c_ulong, c_void, CStr, CString};
-use std::sync::mpsc::{channel, Sender};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{sync_channel, SyncSender};
 use std::sync::{Arc, Mutex, Weak};
+
+/// Mailbox stays synchronized to vblank while replacing obsolete pending frames. FIFO's
+/// compositor backpressure must not be mistaken for a shader or GPU bottleneck.
+fn select_present_mode(
+    available: &[vk::PresentModeKHR],
+    display_sync: bool,
+    requested: Option<&str>,
+) -> vk::PresentModeKHR {
+    let wanted: &[vk::PresentModeKHR] = match requested {
+        Some("fifo") => &[vk::PresentModeKHR::FIFO],
+        Some("mailbox") => &[vk::PresentModeKHR::MAILBOX, vk::PresentModeKHR::FIFO],
+        Some("immediate") => &[
+            vk::PresentModeKHR::IMMEDIATE,
+            vk::PresentModeKHR::MAILBOX,
+            vk::PresentModeKHR::FIFO,
+        ],
+        _ if display_sync => &[vk::PresentModeKHR::MAILBOX, vk::PresentModeKHR::FIFO],
+        _ => &[
+            vk::PresentModeKHR::IMMEDIATE,
+            vk::PresentModeKHR::MAILBOX,
+            vk::PresentModeKHR::FIFO,
+        ],
+    };
+    wanted
+        .iter()
+        .copied()
+        .find(|mode| available.contains(mode))
+        .unwrap_or(vk::PresentModeKHR::FIFO)
+}
+
+fn image_count(requested: u32, minimum: u32, maximum: u32, mode: vk::PresentModeKHR) -> u32 {
+    let mut count = requested.clamp(2, 3).max(minimum);
+    // Mailbox's nonblocking guarantee, when the application owns no other images, needs
+    // minImageCount + 1, rather than a hardcoded assumption of three images on every driver.
+    if mode == vk::PresentModeKHR::MAILBOX {
+        count = count.max(minimum.saturating_add(1));
+    }
+    if maximum != 0 {
+        count = count.min(maximum);
+    }
+    count
+}
+
+fn composite_alpha(supported: vk::CompositeAlphaFlagsKHR) -> Option<vk::CompositeAlphaFlagsKHR> {
+    [
+        vk::CompositeAlphaFlagsKHR::OPAQUE,
+        vk::CompositeAlphaFlagsKHR::INHERIT,
+        vk::CompositeAlphaFlagsKHR::PRE_MULTIPLIED,
+        vk::CompositeAlphaFlagsKHR::POST_MULTIPLIED,
+    ]
+    .into_iter()
+    .find(|mode| supported.contains(*mode))
+}
 
 #[repr(C)]
 pub struct QmSurfaceTarget {
@@ -59,12 +113,18 @@ pub fn add_surface_extensions(options: &mut DeviceOptions) {
             .collect(),
         Err(_) => Vec::new(),
     };
-    for name in [ash::khr::surface::NAME, ash::khr::xlib_surface::NAME, ash::khr::wayland_surface::NAME] {
+    for name in [
+        ash::khr::surface::NAME,
+        ash::khr::xlib_surface::NAME,
+        ash::khr::wayland_surface::NAME,
+    ] {
         if available.iter().any(|have| have.as_c_str() == name) {
             options.instance_extensions.push(name.to_owned());
         }
     }
-    options.device_extensions.push(ash::khr::swapchain::NAME.to_owned());
+    options
+        .device_extensions
+        .push(ash::khr::swapchain::NAME.to_owned());
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -74,19 +134,43 @@ type XDisplay = c_void;
 
 struct Xlib {
     open_display: unsafe extern "C" fn(*const c_char) -> *mut XDisplay,
+    close_display: unsafe extern "C" fn(*mut XDisplay) -> c_int,
     create_window: unsafe extern "C" fn(
-        *mut XDisplay, c_ulong, c_int, c_int, c_uint, c_uint, c_uint, c_int, c_uint, *mut c_void,
-        c_ulong, *mut XSetWindowAttributes,
+        *mut XDisplay,
+        c_ulong,
+        c_int,
+        c_int,
+        c_uint,
+        c_uint,
+        c_uint,
+        c_int,
+        c_uint,
+        *mut c_void,
+        c_ulong,
+        *mut XSetWindowAttributes,
     ) -> c_ulong,
     map_raised: unsafe extern "C" fn(*mut XDisplay, c_ulong) -> c_int,
     unmap_window: unsafe extern "C" fn(*mut XDisplay, c_ulong) -> c_int,
-    move_resize: unsafe extern "C" fn(*mut XDisplay, c_ulong, c_int, c_int, c_uint, c_uint) -> c_int,
+    move_resize:
+        unsafe extern "C" fn(*mut XDisplay, c_ulong, c_int, c_int, c_uint, c_uint) -> c_int,
     destroy_window: unsafe extern "C" fn(*mut XDisplay, c_ulong) -> c_int,
     flush: unsafe extern "C" fn(*mut XDisplay) -> c_int,
     sync: unsafe extern "C" fn(*mut XDisplay, c_int) -> c_int,
-    set_error_handler: unsafe extern "C" fn(Option<unsafe extern "C" fn(*mut XDisplay, *mut c_void) -> c_int>) -> *mut c_void,
+    set_error_handler: unsafe extern "C" fn(
+        Option<unsafe extern "C" fn(*mut XDisplay, *mut c_void) -> c_int>,
+    ) -> *mut c_void,
     shape_combine_rectangles: Option<
-        unsafe extern "C" fn(*mut XDisplay, c_ulong, c_int, c_int, c_int, *mut c_void, c_int, c_int, c_int),
+        unsafe extern "C" fn(
+            *mut XDisplay,
+            c_ulong,
+            c_int,
+            c_int,
+            c_int,
+            *mut c_void,
+            c_int,
+            c_int,
+            c_int,
+        ),
     >,
 }
 
@@ -137,15 +221,23 @@ fn xlib() -> Result<&'static Xlib, String> {
         let missing = |name: &str| format!("libX11 has no {name}");
         Ok(Xlib {
             open_display: symbol(x11, c"XOpenDisplay").ok_or_else(|| missing("XOpenDisplay"))?,
+            close_display: symbol(x11, c"XCloseDisplay").ok_or_else(|| missing("XCloseDisplay"))?,
             create_window: symbol(x11, c"XCreateWindow").ok_or_else(|| missing("XCreateWindow"))?,
             map_raised: symbol(x11, c"XMapRaised").ok_or_else(|| missing("XMapRaised"))?,
             unmap_window: symbol(x11, c"XUnmapWindow").ok_or_else(|| missing("XUnmapWindow"))?,
-            move_resize: symbol(x11, c"XMoveResizeWindow").ok_or_else(|| missing("XMoveResizeWindow"))?,
-            destroy_window: symbol(x11, c"XDestroyWindow").ok_or_else(|| missing("XDestroyWindow"))?,
+            move_resize: symbol(x11, c"XMoveResizeWindow")
+                .ok_or_else(|| missing("XMoveResizeWindow"))?,
+            destroy_window: symbol(x11, c"XDestroyWindow")
+                .ok_or_else(|| missing("XDestroyWindow"))?,
             flush: symbol(x11, c"XFlush").ok_or_else(|| missing("XFlush"))?,
             sync: symbol(x11, c"XSync").ok_or_else(|| missing("XSync"))?,
-            set_error_handler: symbol(x11, c"XSetErrorHandler").ok_or_else(|| missing("XSetErrorHandler"))?,
-            shape_combine_rectangles: if shape.is_null() { None } else { symbol(shape, c"XShapeCombineRectangles") },
+            set_error_handler: symbol(x11, c"XSetErrorHandler")
+                .ok_or_else(|| missing("XSetErrorHandler"))?,
+            shape_combine_rectangles: if shape.is_null() {
+                None
+            } else {
+                symbol(shape, c"XShapeCombineRectangles")
+            },
         })
     })
     .as_ref()
@@ -172,10 +264,21 @@ impl X11Child {
             const CW_BACK_PIXMAP: c_ulong = 1 << 0;
             const CW_EVENT_MASK: c_ulong = 1 << 11;
             let window = (x.create_window)(
-                display, parent, 0, 0, 16, 16, 0, 0 /* CopyFromParent */, 1 /* InputOutput */,
-                std::ptr::null_mut(), CW_BACK_PIXMAP | CW_EVENT_MASK, &mut attributes,
+                display,
+                parent,
+                0,
+                0,
+                16,
+                16,
+                0,
+                0, /* CopyFromParent */
+                1, /* InputOutput */
+                std::ptr::null_mut(),
+                CW_BACK_PIXMAP | CW_EVENT_MASK,
+                &mut attributes,
             );
             if window == 0 {
+                (x.close_display)(display);
                 return Err("XCreateWindow failed".into());
             }
             if let Some(combine) = x.shape_combine_rectangles {
@@ -183,16 +286,33 @@ impl X11Child {
                 combine(display, window, 2, 0, 0, std::ptr::null_mut(), 0, 0, 0);
             }
             (x.sync)(display, 0);
-            Ok(X11Child { display, window, mapped: false, geometry: (0, 0, 16, 16) })
+            Ok(X11Child {
+                display,
+                window,
+                mapped: false,
+                geometry: (0, 0, 16, 16),
+            })
         }
     }
 
     fn place(&mut self, config: &QmSurfaceConfig) {
         let Ok(x) = xlib() else { return };
-        let geometry = (config.x, config.y, config.width.max(1), config.height.max(1));
+        let geometry = (
+            config.x,
+            config.y,
+            config.width.max(1),
+            config.height.max(1),
+        );
         unsafe {
             if geometry != self.geometry {
-                (x.move_resize)(self.display, self.window, geometry.0, geometry.1, geometry.2, geometry.3);
+                (x.move_resize)(
+                    self.display,
+                    self.window,
+                    geometry.0,
+                    geometry.1,
+                    geometry.2,
+                    geometry.3,
+                );
                 self.geometry = geometry;
             }
             let visible = config.visible != 0;
@@ -213,6 +333,7 @@ impl Drop for X11Child {
             unsafe {
                 (x.destroy_window)(self.display, self.window);
                 (x.flush)(self.display);
+                (x.close_display)(self.display);
             }
         }
     }
@@ -233,22 +354,82 @@ fn vk_format(format: u64) -> Option<vk::Format> {
     })
 }
 
-pub struct Chain {
+/// Shared by every image owner, so the surface and X connection outlive all swapchains.
+struct SurfaceLife {
+    _device: Device,
+    functions: ash::khr::surface::Instance,
+    handle: vk::SurfaceKHR,
+    x11: Mutex<Option<X11Child>>,
+}
+unsafe impl Send for SurfaceLife {}
+unsafe impl Sync for SurfaceLife {}
+impl Drop for SurfaceLife {
+    fn drop(&mut self) {
+        unsafe { self.functions.destroy_surface(self.handle, None) };
+    }
+}
+
+/// Owns raw WSI objects. Wrapped textures retain this owner through views and GPU uses, while
+/// the owner holds none of those textures. Also cleans up a partially constructed chain.
+struct ChainOwner {
+    device: Device,
+    queue: CommandQueue,
+    functions: ash::khr::swapchain::Device,
+    _surface: Arc<SurfaceLife>,
     handle: vk::SwapchainKHR,
-    textures: Vec<Texture>,
     semaphores: Vec<vk::Semaphore>,
-    /// The last command buffer that presented each image: waited for before the chain goes.
     last_use: Mutex<Vec<Option<CommandBuffer>>>,
+}
+impl Drop for ChainOwner {
+    fn drop(&mut self) {
+        for buffer in self.last_use.get_mut().unwrap().iter().flatten() {
+            let _ = buffer.wait_until_completed();
+        }
+        let handles = unsafe { self.device.raw() };
+        unsafe {
+            self.queue
+                .with_vk_queue(|queue, _| handles.device.queue_wait_idle(queue).ok());
+            for &semaphore in &self.semaphores {
+                handles.device.destroy_semaphore(semaphore, None);
+            }
+            self.device
+                .with_loader_word(|| self.functions.destroy_swapchain(self.handle, None));
+        }
+    }
+}
+
+pub struct Chain {
+    textures: Vec<Texture>,
+    owner: Arc<ChainOwner>,
+    abandoned: AtomicBool,
+    statistics: Option<Arc<crate::diagnostics::PresentationStatistics>>,
+}
+
+struct Acquire {
+    device: Device,
+    fence: vk::Fence,
+    /// A successful acquire whose fence has not completed yet keeps its chain alive.
+    pending: Option<Arc<Chain>>,
+}
+impl Drop for Acquire {
+    fn drop(&mut self) {
+        let handles = unsafe { self.device.raw() };
+        unsafe {
+            if self.pending.is_some() {
+                let _ = handles
+                    .device
+                    .wait_for_fences(&[self.fence], true, u64::MAX);
+            }
+            handles.device.destroy_fence(self.fence, None);
+        }
+    }
 }
 
 struct Inner {
-    surface: vk::SurfaceKHR,
-    x11: Option<X11Child>,
     config: QmSurfaceConfig,
     chain: Option<Arc<Chain>>,
     retired: Vec<Arc<Chain>>,
     dirty: bool,
-    fence: vk::Fence,
     failures: u32,
 }
 
@@ -258,7 +439,10 @@ pub struct Surface {
     surface_fn: ash::khr::surface::Instance,
     swapchain_fn: ash::khr::swapchain::Device,
     inner: Mutex<Inner>,
-    presenter: Mutex<Option<Sender<Arc<Drawable>>>>,
+    life: Arc<SurfaceLife>,
+    acquire: Mutex<Acquire>,
+    presenter: Mutex<Option<SyncSender<QueuedDrawable>>>,
+    statistics: Option<Arc<crate::diagnostics::PresentationStatistics>>,
     presented: std::sync::atomic::AtomicU64,
 }
 
@@ -272,6 +456,11 @@ pub struct Drawable {
     index: u32,
     texture: Texture,
     queued: std::sync::atomic::AtomicBool,
+}
+
+struct QueuedDrawable {
+    drawable: Arc<Drawable>,
+    ready: Option<std::time::Instant>,
 }
 
 impl Surface {
@@ -305,6 +494,12 @@ impl Surface {
             }
             other => return Err(format!("unknown surface kind {other}")),
         };
+        let life = Arc::new(SurfaceLife {
+            _device: device.clone(),
+            functions: surface_fn.clone(),
+            handle: surface,
+            x11: Mutex::new(x11),
+        });
         let present_queue = device
             .new_command_queue_for_presenting()
             .map_err(|error| format!("presenting queue: {error}"))?;
@@ -314,52 +509,73 @@ impl Surface {
         }
         .unwrap_or(false);
         if !supported {
-            unsafe { surface_fn.destroy_surface(surface, None) };
-            return Err(format!("queue family {family} cannot present to this window"));
+            return Err(format!(
+                "queue family {family} cannot present to this window"
+            ));
         }
         let swapchain_fn = ash::khr::swapchain::Device::new(instance, handles.device);
-        let fence = unsafe { handles.device.create_fence(&vk::FenceCreateInfo::default(), None) }
-            .map_err(|error| format!("vkCreateFence: {error}"))?;
+        let fence = unsafe {
+            handles
+                .device
+                .create_fence(&vk::FenceCreateInfo::default(), None)
+        }
+        .map_err(|error| format!("vkCreateFence: {error}"))?;
         let surface = Arc::new(Surface {
             device: device.clone(),
             present_queue,
             surface_fn,
             swapchain_fn,
             inner: Mutex::new(Inner {
-                surface,
-                x11,
                 config: QmSurfaceConfig::default(),
                 chain: None,
                 retired: Vec::new(),
                 dirty: true,
-                fence,
                 failures: 0,
             }),
+            life,
+            acquire: Mutex::new(Acquire {
+                device: device.clone(),
+                fence,
+                pending: None,
+            }),
             presenter: Mutex::new(None),
+            statistics: crate::diagnostics::presentation(device),
             presented: std::sync::atomic::AtomicU64::new(0),
         });
-        let (sender, receiver) = channel::<Arc<Drawable>>();
+        // A blocked compositor must not accumulate an unbounded queue through resizes.
+        let (sender, receiver) = sync_channel::<QueuedDrawable>(16);
         let weak = Arc::downgrade(&surface);
         std::thread::Builder::new()
             .name("quadra-metal-present".into())
             .spawn(move || {
-                for drawable in receiver {
+                for queued in receiver {
                     let Some(surface) = weak.upgrade() else { break };
-                    surface.queue_present(&drawable, true);
+                    if let Some(ready) = queued.ready {
+                        crate::diagnostics::duration(
+                            &surface.device,
+                            crate::diagnostics::Phase::PresentQueue,
+                            ready.elapsed(),
+                        );
+                    }
+                    surface.queue_present(&queued.drawable, true);
                 }
             })
             .map_err(|error| format!("presenter thread: {error}"))?;
         *surface.presenter.lock().unwrap() = Some(sender);
         log_once(&format!(
             "[Quadra Metal] presenting through {}",
-            if target.kind == 1 { "an X11 child window" } else { "a Wayland subsurface" }
+            if target.kind == 1 {
+                "an X11 child window"
+            } else {
+                "a Wayland subsurface"
+            }
         ));
         Ok(surface)
     }
 
     pub fn configure(&self, config: &QmSurfaceConfig) -> Result<(), String> {
         let mut inner = self.inner.lock().unwrap();
-        if let Some(child) = inner.x11.as_mut() {
+        if let Some(child) = self.life.x11.lock().unwrap().as_mut() {
             child.place(config);
         }
         let chain_changed = inner.config.drawable_width != config.drawable_width
@@ -376,61 +592,95 @@ impl Surface {
     fn present_mode(&self, surface: vk::SurfaceKHR, display_sync: bool) -> vk::PresentModeKHR {
         let handles = unsafe { self.device.raw() };
         let modes = unsafe {
-            self.surface_fn.get_physical_device_surface_present_modes(handles.physical_device, surface)
+            self.surface_fn
+                .get_physical_device_surface_present_modes(handles.physical_device, surface)
         }
         .unwrap_or_default();
-        let wanted = match std::env::var("MACOBLOX_METAL_PRESENT_MODE").as_deref() {
-            Ok("fifo") => vec![vk::PresentModeKHR::FIFO],
-            Ok("mailbox") => vec![vk::PresentModeKHR::MAILBOX, vk::PresentModeKHR::IMMEDIATE],
-            Ok("immediate") => vec![vk::PresentModeKHR::IMMEDIATE, vk::PresentModeKHR::MAILBOX],
-            _ if display_sync => vec![vk::PresentModeKHR::FIFO],
-            _ => vec![vk::PresentModeKHR::MAILBOX, vk::PresentModeKHR::IMMEDIATE],
-        };
-        wanted.into_iter().find(|mode| modes.contains(mode)).unwrap_or(vk::PresentModeKHR::FIFO)
+        let requested = std::env::var("MACOBLOX_METAL_PRESENT_MODE").ok();
+        select_present_mode(&modes, display_sync, requested.as_deref())
     }
 
     /// Makes the swapchain for the current configuration, retiring the old one.
     fn rebuild(&self, inner: &mut Inner) -> Result<(), String> {
         let config = inner.config;
-        let format = vk_format(config.pixel_format)
-            .ok_or_else(|| format!("CAMetalLayer pixel format {} has no swapchain format", config.pixel_format))?;
+        let format = vk_format(config.pixel_format).ok_or_else(|| {
+            format!(
+                "CAMetalLayer pixel format {} has no swapchain format",
+                config.pixel_format
+            )
+        })?;
         let handles = unsafe { self.device.raw() };
         let caps = unsafe {
-            self.surface_fn.get_physical_device_surface_capabilities(handles.physical_device, inner.surface)
+            self.surface_fn
+                .get_physical_device_surface_capabilities(handles.physical_device, self.life.handle)
         }
         .map_err(|error| format!("surface capabilities: {error}"))?;
         let formats = unsafe {
-            self.surface_fn.get_physical_device_surface_formats(handles.physical_device, inner.surface)
+            self.surface_fn
+                .get_physical_device_surface_formats(handles.physical_device, self.life.handle)
         }
         .map_err(|error| format!("surface formats: {error}"))?;
-        let Some(surface_format) = formats.iter().find(|entry| entry.format == format) else {
-            return Err(format!("the window cannot show Vulkan format {} (it offers {:?})", format.as_raw(),
-                formats.iter().map(|entry| entry.format.as_raw()).collect::<Vec<_>>()));
+        let Some(surface_format) = formats
+            .iter()
+            .find(|entry| entry.format == format || entry.format == vk::Format::UNDEFINED)
+        else {
+            return Err(format!(
+                "the window cannot show Vulkan format {} (it offers {:?})",
+                format.as_raw(),
+                formats
+                    .iter()
+                    .map(|entry| entry.format.as_raw())
+                    .collect::<Vec<_>>()
+            ));
         };
-        let mut extent = vk::Extent2D { width: config.drawable_width.max(1), height: config.drawable_height.max(1) };
+        let mut extent = vk::Extent2D {
+            width: config.drawable_width.max(1),
+            height: config.drawable_height.max(1),
+        };
         if caps.current_extent.width != u32::MAX {
             // X11: the window decides. The child window follows the drawable size, so a
             // mismatch is a resize the window has not reached yet.
             extent = caps.current_extent;
         }
-        extent.width = extent.width.clamp(caps.min_image_extent.width.max(1), caps.max_image_extent.width.max(1));
-        extent.height = extent.height.clamp(caps.min_image_extent.height.max(1), caps.max_image_extent.height.max(1));
-        let wanted_images = config.maximum_drawable_count.clamp(2, 3);
-        let mut images = wanted_images.max(caps.min_image_count);
-        if caps.max_image_count != 0 {
-            images = images.min(caps.max_image_count);
-        }
-        let mut usage = vk::ImageUsageFlags::COLOR_ATTACHMENT | vk::ImageUsageFlags::TRANSFER_SRC | vk::ImageUsageFlags::TRANSFER_DST;
+        extent.width = extent.width.clamp(
+            caps.min_image_extent.width.max(1),
+            caps.max_image_extent.width.max(1),
+        );
+        extent.height = extent.height.clamp(
+            caps.min_image_extent.height.max(1),
+            caps.max_image_extent.height.max(1),
+        );
+        let mode = self.present_mode(self.life.handle, config.display_sync != 0);
+        let images = image_count(
+            config.maximum_drawable_count,
+            caps.min_image_count,
+            caps.max_image_count,
+            mode,
+        );
+        let alpha = composite_alpha(caps.supported_composite_alpha)
+            .ok_or("the surface offers no supported composite alpha mode")?;
+        let mut usage = vk::ImageUsageFlags::COLOR_ATTACHMENT
+            | vk::ImageUsageFlags::TRANSFER_SRC
+            | vk::ImageUsageFlags::TRANSFER_DST;
         let mut texture_usage = TextureUsage::RENDER_TARGET;
         if config.framebuffer_only == 0 {
             usage |= vk::ImageUsageFlags::SAMPLED;
             texture_usage |= TextureUsage::SHADER_READ;
         }
         usage &= caps.supported_usage_flags;
-        let mode = self.present_mode(inner.surface, config.display_sync != 0);
-        let old = inner.chain.take();
+        if !usage.contains(vk::ImageUsageFlags::COLOR_ATTACHMENT) {
+            return Err("the surface does not support rendering into its swapchain images".into());
+        }
+        let old_handle = inner
+            .chain
+            .as_ref()
+            .map_or(vk::SwapchainKHR::null(), |chain| chain.owner.handle);
+        // A create with oldSwapchain retires it even on failure. Keep its ownership in all cases.
+        if let Some(old) = inner.chain.take() {
+            inner.retired.push(old);
+        }
         let info = vk::SwapchainCreateInfoKHR::default()
-            .surface(inner.surface)
+            .surface(self.life.handle)
             .min_image_count(images)
             .image_format(format)
             .image_color_space(surface_format.color_space)
@@ -439,26 +689,53 @@ impl Surface {
             .image_usage(usage)
             .image_sharing_mode(vk::SharingMode::EXCLUSIVE)
             .pre_transform(caps.current_transform)
-            .composite_alpha(if caps.supported_composite_alpha.contains(vk::CompositeAlphaFlagsKHR::OPAQUE) {
-                vk::CompositeAlphaFlagsKHR::OPAQUE
-            } else {
-                vk::CompositeAlphaFlagsKHR::INHERIT
-            })
+            .composite_alpha(alpha)
             .present_mode(mode)
             .clipped(true)
-            .old_swapchain(old.as_ref().map_or(vk::SwapchainKHR::null(), |chain| chain.handle));
-        let handle = self.device.with_loader_word(|| unsafe { self.swapchain_fn.create_swapchain(&info, None) })
-            .map_err(|error| format!("vkCreateSwapchainKHR {}x{} format {}: {error}", extent.width, extent.height, format.as_raw()))?;
-        if let Some(old) = old {
-            inner.retired.push(old);
-        }
+            .old_swapchain(old_handle);
+        let handle = self
+            .device
+            .with_loader_word(|| unsafe { self.swapchain_fn.create_swapchain(&info, None) })
+            .map_err(|error| {
+                format!(
+                    "vkCreateSwapchainKHR {}x{} format {}: {error}",
+                    extent.width,
+                    extent.height,
+                    format.as_raw()
+                )
+            })?;
+        let mut owner = ChainOwner {
+            device: self.device.clone(),
+            queue: self.present_queue.clone(),
+            functions: self.swapchain_fn.clone(),
+            _surface: self.life.clone(),
+            handle,
+            semaphores: Vec::new(),
+            last_use: Mutex::new(Vec::new()),
+        };
         let vk_images = unsafe { self.swapchain_fn.get_swapchain_images(handle) }
             .map_err(|error| format!("vkGetSwapchainImagesKHR: {error}"))?;
-        let pixel_format = PixelFormat::try_from(config.pixel_format as u32).map_err(|_| "pixel format")?;
+        let pixel_format =
+            PixelFormat::try_from(config.pixel_format as u32).map_err(|_| "pixel format")?;
+        owner.last_use = Mutex::new(vec![None; vk_images.len()]);
+        for _ in &vk_images {
+            let semaphore = unsafe {
+                handles
+                    .device
+                    .create_semaphore(&vk::SemaphoreCreateInfo::default(), None)
+            }
+            .map_err(|error| format!("vkCreateSemaphore: {error}"))?;
+            owner.semaphores.push(semaphore);
+        }
+        let owner = Arc::new(owner);
         let mut textures = Vec::with_capacity(vk_images.len());
-        let mut semaphores = Vec::with_capacity(vk_images.len());
         for image in &vk_images {
-            let mut descriptor = TextureDescriptor::texture_2d(pixel_format, extent.width as u64, extent.height as u64, false);
+            let mut descriptor = TextureDescriptor::texture_2d(
+                pixel_format,
+                extent.width as u64,
+                extent.height as u64,
+                false,
+            );
             descriptor.texture_type = TextureType::Type2D;
             descriptor.usage = texture_usage;
             descriptor.resource_options = ResourceOptions::private();
@@ -467,7 +744,11 @@ impl Surface {
             let image_info = vk::ImageCreateInfo::default()
                 .image_type(vk::ImageType::TYPE_2D)
                 .format(format)
-                .extent(vk::Extent3D { width: extent.width, height: extent.height, depth: 1 })
+                .extent(vk::Extent3D {
+                    width: extent.width,
+                    height: extent.height,
+                    depth: 1,
+                })
                 .mip_levels(1)
                 .array_layers(1)
                 .samples(vk::SampleCountFlags::TYPE_1)
@@ -479,80 +760,124 @@ impl Surface {
                 metal2vulkan::vk::ImageLayout::UNDEFINED,
                 metal2vulkan::vk::ImageLayout::PRESENT_SRC_KHR,
             );
-            let texture = unsafe { self.device.new_texture_with_vk_image(&descriptor, *image, &image_info, layouts) }
-                .map_err(|error| format!("wrapping a swapchain image: {error}"))?;
+            let texture = unsafe {
+                self.device.new_texture_with_vk_image_keep_alive(
+                    &descriptor,
+                    *image,
+                    &image_info,
+                    layouts,
+                    Box::new(owner.clone()),
+                )
+            }
+            .map_err(|error| format!("wrapping a swapchain image: {error}"))?;
             textures.push(texture);
-            let semaphore = unsafe { handles.device.create_semaphore(&vk::SemaphoreCreateInfo::default(), None) }
-                .map_err(|error| format!("vkCreateSemaphore: {error}"))?;
-            semaphores.push(semaphore);
         }
         log_once(&format!(
             "[Quadra Metal] swapchain {}x{} format {}, {} images, present mode {}",
-            extent.width, extent.height, format.as_raw(), vk_images.len(), mode.as_raw()
+            extent.width,
+            extent.height,
+            format.as_raw(),
+            vk_images.len(),
+            mode.as_raw()
         ));
+        if let Some(statistics) = &self.statistics {
+            statistics.rebuilt(mode, vk_images.len() as u64);
+        }
         inner.chain = Some(Arc::new(Chain {
-            handle,
-            last_use: Mutex::new(vec![None; vk_images.len()]),
             textures,
-            semaphores,
+            owner,
+            abandoned: AtomicBool::new(false),
+            statistics: self.statistics.clone(),
         }));
         inner.dirty = false;
         Ok(())
     }
 
-    /// Destroys retired chains no drawable holds once their GPU work is done.
-    fn reap(&self, inner: &mut Inner) {
-        let handles = unsafe { self.device.raw() };
+    /// Remove unheld retired chains without holding the surface state during teardown waits.
+    fn reap(&self) {
+        let retired = {
+            let mut inner = self.inner.lock().unwrap();
+            std::mem::take(&mut inner.retired)
+        };
         let mut kept = Vec::new();
-        for chain in inner.retired.drain(..) {
+        for chain in retired {
             if Arc::strong_count(&chain) > 1 {
                 kept.push(chain);
-                continue;
             }
-            for buffer in chain.last_use.lock().unwrap().iter().flatten() {
-                let _ = buffer.wait_until_completed();
-            }
-            unsafe {
-                self.present_queue.with_vk_queue(|queue, _| handles.device.queue_wait_idle(queue).ok());
-            }
-            let Ok(chain) = Arc::try_unwrap(chain) else { continue };
-            let Chain { handle, textures, semaphores, .. } = chain;
-            drop(textures);
-            unsafe {
-                for semaphore in semaphores {
-                    handles.device.destroy_semaphore(semaphore, None);
-                }
-                self.device.with_loader_word(|| self.swapchain_fn.destroy_swapchain(handle, None));
-            }
+            // Otherwise the textures release their owner. Views and GPU work retain it too.
         }
-        inner.retired = kept;
+        self.inner.lock().unwrap().retired.extend(kept);
     }
 
     pub fn next_drawable(self: &Arc<Self>) -> Result<Arc<Drawable>, String> {
+        let _timing = crate::diagnostics::timer(&self.device, crate::diagnostics::Phase::Acquire);
         let handles = unsafe { self.device.raw() };
-        let mut inner = self.inner.lock().unwrap();
-        self.reap(&mut inner);
-        for _attempt in 0..3 {
-            if inner.dirty || inner.chain.is_none() {
-                if let Err(error) = self.rebuild(&mut inner) {
-                    inner.failures += 1;
-                    return Err(error);
-                }
+        if let Some(statistics) = &self.statistics {
+            statistics.acquire_calls.fetch_add(1, Ordering::Relaxed);
+        }
+        // Only acquisitions share this fence. Present/configure never need this lock.
+        let mut acquire = self.acquire.lock().unwrap();
+        if acquire.pending.is_some() {
+            unsafe {
+                handles
+                    .device
+                    .wait_for_fences(&[acquire.fence], true, 2_000_000_000)
+                    .map_err(|error| format!("waiting for a prior acquire fence: {error}"))?;
+                handles
+                    .device
+                    .reset_fences(&[acquire.fence])
+                    .map_err(|error| format!("vkResetFences: {error}"))?;
             }
-            let chain = inner.chain.clone().unwrap();
-            let fence = inner.fence;
+            acquire.pending = None;
+        }
+        self.reap();
+        for _attempt in 0..3 {
+            let chain = {
+                let mut inner = self.inner.lock().unwrap();
+                if inner
+                    .chain
+                    .as_ref()
+                    .is_some_and(|chain| chain.abandoned.load(Ordering::Acquire))
+                {
+                    inner.dirty = true;
+                }
+                if inner.dirty || inner.chain.is_none() {
+                    if let Err(error) = self.rebuild(&mut inner) {
+                        inner.failures += 1;
+                        return Err(error);
+                    }
+                }
+                inner.chain.clone().unwrap()
+            };
+            // No surface state lock while the driver waits for an image or its acquire fence.
             let result = unsafe {
-                self.swapchain_fn.acquire_next_image(chain.handle, 1_000_000_000, vk::Semaphore::null(), fence)
+                self.swapchain_fn.acquire_next_image(
+                    chain.owner.handle,
+                    1_000_000_000,
+                    vk::Semaphore::null(),
+                    acquire.fence,
+                )
             };
             match result {
                 Ok((index, suboptimal)) => {
-                    unsafe {
-                        handles.device.wait_for_fences(&[fence], true, 2_000_000_000)
-                            .map_err(|error| format!("waiting for the acquire fence: {error}"))?;
-                        handles.device.reset_fences(&[fence]).map_err(|error| format!("vkResetFences: {error}"))?;
+                    acquire.pending = Some(chain.clone());
+                    let waited = unsafe {
+                        handles
+                            .device
+                            .wait_for_fences(&[acquire.fence], true, 2_000_000_000)
+                    };
+                    if let Err(error) = waited {
+                        chain.abandoned.store(true, Ordering::Release);
+                        return Err(format!("waiting for the acquire fence: {error}"));
+                    }
+                    unsafe { handles.device.reset_fences(&[acquire.fence]) }
+                        .map_err(|error| format!("vkResetFences: {error}"))?;
+                    acquire.pending = None;
+                    if let Some(statistics) = &self.statistics {
+                        statistics.acquired.fetch_add(1, Ordering::Relaxed);
                     }
                     if suboptimal {
-                        inner.dirty = true;
+                        self.inner.lock().unwrap().dirty = true;
                     }
                     return Ok(Arc::new(Drawable {
                         surface: Arc::downgrade(self),
@@ -562,9 +887,12 @@ impl Surface {
                         queued: false.into(),
                     }));
                 }
-                Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => inner.dirty = true,
+                Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => self.inner.lock().unwrap().dirty = true,
                 Err(vk::Result::TIMEOUT) | Err(vk::Result::NOT_READY) => {
-                    return Err("no drawable became free within a second".into())
+                    if let Some(statistics) = &self.statistics {
+                        statistics.acquire_timeouts.fetch_add(1, Ordering::Relaxed);
+                    }
+                    return Err("no drawable became free within a second".into());
                 }
                 Err(error) => return Err(format!("vkAcquireNextImageKHR: {error}")),
             }
@@ -573,57 +901,69 @@ impl Surface {
     }
 
     fn queue_present(&self, drawable: &Drawable, wait: bool) {
-        let mut inner = self.inner.lock().unwrap();
+        let _timing = crate::diagnostics::timer(&self.device, crate::diagnostics::Phase::Present);
         let chain = &drawable.chain;
-        let semaphores = [chain.semaphores[drawable.index as usize]];
-        let swapchains = [chain.handle];
+        let semaphores = [chain.owner.semaphores[drawable.index as usize]];
+        let swapchains = [chain.owner.handle];
         let indices = [drawable.index];
-        let mut info = vk::PresentInfoKHR::default().swapchains(&swapchains).image_indices(&indices);
+        let mut info = vk::PresentInfoKHR::default()
+            .swapchains(&swapchains)
+            .image_indices(&indices);
         if wait {
             info = info.wait_semaphores(&semaphores);
         }
         let result = unsafe {
-            self.present_queue.with_vk_queue(|queue, _| self.swapchain_fn.queue_present(queue, &info))
+            self.present_queue
+                .with_vk_queue(|queue, _| self.swapchain_fn.queue_present(queue, &info))
         };
         match result {
             Ok(false) => {
-                let count = self.presented.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+                if let Some(statistics) = &self.statistics {
+                    statistics.presented.fetch_add(1, Ordering::Relaxed);
+                }
+                let count = self
+                    .presented
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+                    + 1;
                 if matches!(count, 1 | 60 | 600) {
                     log_once(&format!("[Quadra Metal] presented {count} Vulkan frames"));
                 }
             }
             Ok(true) | Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => {
-                if inner.chain.as_ref().is_some_and(|current| Arc::ptr_eq(current, chain)) {
+                if let Some(statistics) = &self.statistics {
+                    statistics.out_of_date.fetch_add(1, Ordering::Relaxed);
+                }
+                let mut inner = self.inner.lock().unwrap();
+                if inner
+                    .chain
+                    .as_ref()
+                    .is_some_and(|current| Arc::ptr_eq(current, chain))
+                {
                     inner.dirty = true;
                 }
             }
-            Err(error) => log_once(&format!("[Quadra Metal] vkQueuePresentKHR: {error}")),
+            Err(error) => {
+                // A failed present can leave the acquisition and its signalled semaphore
+                // unconsumed. Do not repeatedly acquire from that exhausted image pool.
+                chain.abandoned.store(true, Ordering::Release);
+                if let Some(statistics) = &self.statistics {
+                    statistics.present_errors.fetch_add(1, Ordering::Relaxed);
+                }
+                log_once(&format!("[Quadra Metal] vkQueuePresentKHR: {error}"));
+            }
         }
     }
 }
 
-impl Drop for Surface {
+impl Drop for Drawable {
     fn drop(&mut self) {
-        let handles = unsafe { self.device.raw() };
-        let inner = self.inner.get_mut().unwrap();
-        if let Some(chain) = inner.chain.take() {
-            inner.retired.push(chain);
-        }
-        for chain in inner.retired.drain(..) {
-            for buffer in chain.last_use.lock().unwrap().iter().flatten() {
-                let _ = buffer.wait_until_completed();
+        // Without maintenance1 an unused acquisition cannot be returned individually. Retire
+        // its chain at the next acquisition; existing drawables can still finish on it.
+        if !self.queued.load(Ordering::Acquire) {
+            self.chain.abandoned.store(true, Ordering::Release);
+            if let Some(statistics) = &self.chain.statistics {
+                statistics.cancelled.fetch_add(1, Ordering::Relaxed);
             }
-            unsafe {
-                self.present_queue.with_vk_queue(|queue, _| handles.device.queue_wait_idle(queue).ok());
-                for semaphore in &chain.semaphores {
-                    handles.device.destroy_semaphore(*semaphore, None);
-                }
-                self.device.with_loader_word(|| self.swapchain_fn.destroy_swapchain(chain.handle, None));
-            }
-        }
-        unsafe {
-            handles.device.destroy_fence(inner.fence, None);
-            self.surface_fn.destroy_surface(inner.surface, None);
         }
     }
 }
@@ -635,22 +975,48 @@ impl Drawable {
 
     /// `presentDrawable:` of a command buffer, at its commit.
     pub fn encode_present(self: &Arc<Self>, buffer: &CommandBuffer) -> Result<(), String> {
-        if self.queued.swap(true, std::sync::atomic::Ordering::AcqRel) {
-            return Ok(()); // Metal presents a drawable once.
+        if self.queued.swap(true, Ordering::AcqRel) {
+            return Ok(());
         }
-        let Some(surface) = self.surface.upgrade() else { return Ok(()) };
-        let semaphore = self.chain.semaphores[self.index as usize];
-        unsafe { buffer.encode_signal_vk_semaphore(semaphore) }.map_err(|error| format!("signal: {error}"))?;
-        self.chain.last_use.lock().unwrap()[self.index as usize] = Some(buffer.clone());
-        let sender = surface.presenter.lock().unwrap().clone();
-        let drawable = self.clone();
-        buffer
-            .add_scheduled_handler(Box::new(move |_| {
-                if let Some(sender) = sender {
-                    let _ = sender.send(drawable);
-                }
-            }))
-            .map_err(|error| format!("scheduled handler: {error}"))
+        let result = (|| {
+            let surface = self
+                .surface
+                .upgrade()
+                .ok_or("the drawable's surface was released")?;
+            let semaphore = self.chain.owner.semaphores[self.index as usize];
+            unsafe { buffer.encode_signal_vk_semaphore(semaphore) }
+                .map_err(|error| format!("signal: {error}"))?;
+            let sender = surface
+                .presenter
+                .lock()
+                .unwrap()
+                .clone()
+                .ok_or("the presenter is stopped")?;
+            let drawable = self.clone();
+            buffer
+                .add_scheduled_handler(Box::new(move |command| {
+                    drawable.chain.owner.last_use.lock().unwrap()[drawable.index as usize] =
+                        Some(command.clone());
+                    let queued = QueuedDrawable {
+                        drawable: drawable.clone(),
+                        ready: crate::diagnostics::enabled().then(std::time::Instant::now),
+                    };
+                    if command.status() == metal2vulkan_runtime::CommandBufferStatus::Error
+                        || sender.try_send(queued).is_err()
+                    {
+                        if let Some(statistics) = &drawable.chain.statistics {
+                            statistics.queue_rejections.fetch_add(1, Ordering::Relaxed);
+                        }
+                        drawable.queued.store(false, Ordering::Release);
+                        drawable.chain.abandoned.store(true, Ordering::Release);
+                    }
+                }))
+                .map_err(|error| format!("scheduled handler: {error}"))
+        })();
+        if result.is_err() {
+            self.queued.store(false, Ordering::Release);
+        }
+        result
     }
 
     /// `-[CAMetalDrawable present]` outside a command buffer: after the device's queued work.
@@ -658,10 +1024,70 @@ impl Drawable {
         if self.queued.swap(true, std::sync::atomic::Ordering::AcqRel) {
             return Ok(());
         }
-        let Some(surface) = self.surface.upgrade() else { return Ok(()) };
-        let buffer = surface.present_queue.command_buffer().map_err(|error| format!("{error}"))?;
-        self.queued.store(false, std::sync::atomic::Ordering::Release);
+        let Some(surface) = self.surface.upgrade() else {
+            return Ok(());
+        };
+        let buffer = surface
+            .present_queue
+            .command_buffer()
+            .map_err(|error| format!("{error}"))?;
+        self.queued
+            .store(false, std::sync::atomic::Ordering::Release);
         self.encode_present(&buffer)?;
         buffer.commit().map_err(|error| format!("commit: {error}"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display_sync_keeps_vblank_without_requiring_a_fifo_backlog() {
+        let modes = [
+            vk::PresentModeKHR::IMMEDIATE,
+            vk::PresentModeKHR::FIFO,
+            vk::PresentModeKHR::MAILBOX,
+        ];
+        assert!(select_present_mode(&modes, true, None) == vk::PresentModeKHR::MAILBOX);
+        assert!(select_present_mode(&modes, false, None) == vk::PresentModeKHR::IMMEDIATE);
+        assert!(select_present_mode(&modes, true, Some("fifo")) == vk::PresentModeKHR::FIFO);
+        assert!(
+            select_present_mode(&modes, true, Some("immediate")) == vk::PresentModeKHR::IMMEDIATE
+        );
+        // A driver without mailbox must retain a tear-free fallback when sync is enabled.
+        let limited = [vk::PresentModeKHR::IMMEDIATE, vk::PresentModeKHR::FIFO];
+        assert!(select_present_mode(&limited, true, None) == vk::PresentModeKHR::FIFO);
+        assert!(select_present_mode(&limited, false, Some("mailbox")) == vk::PresentModeKHR::FIFO);
+    }
+
+    #[test]
+    fn mailbox_provisions_the_drivers_minimum_plus_one_when_possible() {
+        for minimum in 1..8 {
+            for maximum in [0, minimum, minimum + 1, minimum + 4] {
+                for requested in [0, 2, 3, 10] {
+                    let actual =
+                        image_count(requested, minimum, maximum, vk::PresentModeKHR::MAILBOX);
+                    assert!(actual >= minimum);
+                    assert!(maximum == 0 || actual <= maximum);
+                    if maximum == 0 || maximum > minimum {
+                        assert!(actual > minimum);
+                    }
+                }
+            }
+        }
+        assert_eq!(image_count(2, 3, 0, vk::PresentModeKHR::MAILBOX), 4);
+        assert_eq!(image_count(2, 3, 0, vk::PresentModeKHR::FIFO), 3);
+    }
+
+    #[test]
+    fn composite_alpha_never_requests_an_unadvertised_mode() {
+        for bits in 1..16 {
+            let supported = vk::CompositeAlphaFlagsKHR::from_raw(bits);
+            let selected = composite_alpha(supported).unwrap();
+            assert!(supported.contains(selected));
+            assert_eq!(selected.as_raw().count_ones(), 1);
+        }
+        assert!(composite_alpha(vk::CompositeAlphaFlagsKHR::empty()).is_none());
     }
 }

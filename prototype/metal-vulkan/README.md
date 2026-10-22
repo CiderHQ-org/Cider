@@ -1,5 +1,14 @@
 # Metal on Vulkan (experimental)
 
+This checkout uses QuadraM2VK's `development` branch, based on upstream `a2c440b`,
+and requires guest/host ABI **2**. Build and deploy the framework and host library together.
+The original Quadra dependency was `720ef1c`; its recorded gameplay evidence below does
+not qualify this modified build. The preceding `0b73dd0` bridge passed an authored RTX 3060 Ti
+native Wayland lifecycle test, and the user reported that home and minimum-graphics stalls
+were gone. First-visit area hitches remain under investigation. The increased warm-state
+limit below has software Vulkan coverage; hardware testing and longer guest lifetime
+qualification remain open for this candidate.
+
 A third renderer next to OpenGL and Vulkan (Zink): Roblox's own **Metal** renderer, with every
 Metal call run on the host's Vulkan driver. Native 0.32 packages and source builds expose it in
 **Settings → Environment → Game → Renderer → Metal on Vulkan (experimental)**.
@@ -35,8 +44,8 @@ RobloxPlayer (guest, Mach-O)            host (ELF)
   time by a subclass, without linking QuartzCore, which links Metal. Roblox's
   `Resources/builtins.shaders` (Metal source, which cannot be compiled on Linux) are emulated:
   its three upload kernels run as buffer-to-texture blits.
-- `host/`: [steelbrain/metal2vulkan](https://github.com/steelbrain/metal2vulkan) 0.2's runtime
-  (GPL-2.0-or-later OR LGPL-3.0-or-later; pinned to `720ef1c`) behind the C table, plus
+- `host/`: the local QuadraM2VK fork of [steelbrain/metal2vulkan](https://github.com/steelbrain/metal2vulkan) 0.2's runtime
+  (GPL-2.0-or-later OR LGPL-3.0-or-later) behind the C table, plus
   presentation (`src/present.rs`) and the AIR upgrade (`src/air.rs`).
 - Shaders: Roblox's metallibs are format 2.2 with LLVM bitcode of module version 1 and Metal
   2.2-era AIR call forms, all of which metal2vulkan 0.2 refuses. `src/air.rs` upgrades each
@@ -53,10 +62,93 @@ RobloxPlayer (guest, Mach-O)            host (ELF)
   - the text is reassembled as current bitcode.
 
   `normalize_metallib` then inserts the empty extended header that format 2.7 has. Results are
-  cached by SHA-256 in `$MACOBLOX_METAL_SHADER_CACHE/air-upgrade-v2`. The new namespace
-  automatically regenerates corrected upgrades after updating from 0.32.
+  cached by SHA-256 in `$MACOBLOX_METAL_SHADER_CACHE/air-upgrade-v3`. Entries carry a
+  length, source identity and checksum; rejected entries are rebuilt. Upgrade and preload
+  namespaces each have a 512 MiB disk budget. Unavailable cache storage uses bounded
+  in-memory runtime caching so a cache directory failure need not stop the renderer.
 
-## Status
+## Shader preloading and diagnostics
+
+**Settings → Environment → Game → Shader preloading** is enabled by default for Metal.
+The launcher prepares the installed client's shader libraries, including on the first
+launch. This uses the existing library loader to normalize/cache legacy AIR and validate
+containers; it does not guess unseen render states or compile every shader into a pipeline.
+The first session learns successful render and compute pipeline descriptions locally;
+later launches preload those descriptions for the installed client version. New shaders
+and new render-state combinations can still compile during play. Client shaders and
+cache contents stay on this machine and are not included in diagnostic exports.
+
+**Prepare client shader libraries** and **Preload local textures and fonts** can be changed
+separately under Shader preloading. Progress identifies library preparation, learned pipelines
+and local resources. Resource warming reads bundled textures, fonts and models into the OS
+file cache; it does not allocate their GPU textures, decode them, or download world assets.
+
+The launcher shows **Skip and play**. Skipping, a 20-second interval without progress, or
+reaching the 120-second helper timeout ends the helper before launch and skips the game's
+additional warmup. Memory pressure does the same: the launcher samples host/cgroup headroom
+and helper RSS every 250 ms, with 768 MiB reserved and a helper RSS threshold of the smaller
+of 1.5 GiB and one quarter of initially available memory (512 MiB when unknown). These are
+sampled host-memory limits rather than exact VRAM or instantaneous allocation caps.
+Process-group cleanup includes descendants even after the helper leader exits.
+
+Library preparation validates RBXS v11 ranges before reading them, uses at most 4096 unique
+payload ranges and 128 MiB of input from a pack no larger than 256 MiB, deduplicates identical
+Metal containers, and releases each library immediately. A missing/unsupported library is
+nonfatal; the game can still use its normal loading path. The helper reuses one Vulkan device
+for library preparation and pipeline replay through an optional host export, keeping ABI 2.
+Resource warming scans at most 8192 entries/4096 files, skips symlinks and special files, and
+reads at most 128 MiB over three seconds with a smaller cap under memory pressure. Only
+bundled asset file types are selected; settings, cookies and downloaded caches are excluded.
+
+The helper handles at most 4096 recorded pipelines. The game's own Vulkan device can
+retain up to 256 warm pipeline states on a host with enough available memory, with a
+128 MiB source-weight limit. The count uses at most a quarter of available host/cgroup
+memory, an estimated 8 MiB per state, and 768 MiB of headroom. Unknown memory availability
+keeps the previous 64-state limit. Driver allocations are not directly measured, so this
+is a count limit rather than an exact memory cap. It checks a
+five-second deadline and host memory pressure between creations; an individual driver
+call can exceed that deadline. This preserves actual Vulkan objects for early pipeline
+reuse while keeping warmup work off the gameplay worker pool. CPU/cgroup memory limits
+also cap pipeline compilation concurrency.
+
+**Metal performance diagnostics** is off by default. When enabled, bounded JSONL logs
+record compilation, buffer creation/initial-data upload, texture creation/region upload,
+encoder lifetime, acquire/present, submit/wait, cache counts and live
+allocation snapshots, at most once per second on commit and on final device release.
+Recent timing percentiles cover up to 512 samples. `MACOBLOX_METAL_GPU_TIMESTAMPS=1`
+additionally requests GPU spans while diagnostics is enabled. Encoder lifetime includes
+time spent by the caller; these observations are not a frame-time or FPS measurement.
+`currentAllocatedSize` now uses per-device live allocator bytes; reserved/imported bytes
+are separate. Vulkan driver allocations and wrapped external images are excluded.
+Working-set recommendations use device-local heap budgets where available.
+
+Presentation defaults to mailbox when the surface supports it, keeping vblank synchronization
+while replacing obsolete queued frames. It falls back to FIFO when mailbox is unavailable.
+`MACOBLOX_METAL_PRESENT_MODE=fifo` retains FIFO explicitly; `mailbox` and `immediate` select
+the other policies. Mailbox requests at least the surface's minimum image count plus one,
+within its advertised maximum. AppKit's layer mutex is released before image acquisition,
+with the layer retained across that wait. The presenter queue holds at most 16 pending
+drawables; a rejected enqueue retires its chain instead of blocking a runtime callback.
+
+Diagnostics include `presentation` counters for acquired images, timeouts, cancellations,
+swapchain rebuilds/modes and failed presents, plus `present_queue_delay` timings. These are
+host WSI observations, not proof of when pixels reached the display. A failed present retires
+its chain so an unconsumed acquisition cannot silently exhaust the image pool. Surface alpha
+mode and image count selection follow the driver's advertised capabilities.
+
+The policy follows [CAMetalLayer display synchronization](https://developer.apple.com/documentation/quartzcore/cametallayer/displaysyncenabled)
+and [Vulkan present modes](https://docs.vulkan.org/refpages/latest/refpages/source/VkPresentModeKHR.html).
+The authored `tests/metal_present_test.c` exercises a native Wayland render surface while
+visible, covered by an opaque sibling, restored and resized. Its native driver/compositor
+results must be collected separately from the software offscreen tests.
+
+Native helpers can call `quadra_metal_host_preload` and
+`quadra_metal_host_diagnostics`; these optional exports do not change guest ABI 2.
+
+## Baseline evidence and qualification
+
+The gameplay and hardware results in this section were recorded by the original Quadra
+bridge. Recheck them with the modified framework and host before distributing this build.
 
 - Roblox accepts the device: `[FLog::Graphics] Metal renderer: NVIDIA GeForce RTX 3060 Ti`.
 - All 2,266 shader libraries of the pack decode through metal2vulkan's AIR front end, and all
@@ -111,6 +203,15 @@ RobloxPlayer (guest, Mach-O)            host (ELF)
 
 ## Running it again
 
+Place the reviewed fork at `vendor/metal2vulkan` before building. A source checkout or a
+symlink works; all three product crates must come from the same revision. For the offline
+source archive, from the Quadra repository root:
+
+```sh
+mkdir -p vendor/metal2vulkan
+tar -xzf /path/to/metal2vulkan-source.tar.gz --strip-components=1 -C vendor/metal2vulkan
+```
+
 ```sh
 prototype/metal-vulkan/build.sh            # needs clang, lld, Rust 1.98+
 # The repository is its own data folder when run from source: give it a client.
@@ -126,6 +227,39 @@ The test script sets `renderer=metal`, turns VR, MangoHud and Discord off, and n
 `settings.json`. Logs go to `logs/` in the repository. The host library reads
 `MACOBLOX_METAL_PRESENT_MODE` (`fifo`, `mailbox` or `immediate`) and `MACOBLOX_METAL_LIBLLVM`
 (an explicit libLLVM).
+
+## ABI 2 behavior
+
+- Host texture reads and writes validate their exact format/block/pitch footprint before
+  constructing a Rust slice. A zero-byte operation accepts a null pointer; a nonempty
+  source must be readable for the queried span. Readback also checks the supplied capacity.
+- The first runtime encoder failure and a refused commit remain on the command buffer.
+  Status and both waits return `QM_STATUS_ERROR` for a rejected commit.
+- `dispatchThreads` preserves the requested invocation count, including a partial final
+  group. Dynamic threadgroup memory, fences, buffer/texture residency and explicit barriers
+  are forwarded. Heap residency remains unsupported by this bridge.
+- Render bulk buffer, texture and sampler bindings use bounded arrays and one host call per
+  range. Compute inline byte storage is reused while preserving the immediate copy contract.
+- Encoder storage is boxed separately, so the largest encoder no longer determines the
+  allocation size of every buffer, texture and other host handle.
+- Guest completion workers retire after an idle interval and restart when needed. Scheduled
+  waits observe the host's scheduled transition; completion waits include guest handlers.
+- Swapchain images retain an owner through texture views and submitted GPU use. Acquisition
+  and presentation do not share a state mutex across their blocking driver calls. Unused
+  drawables retire their swapchain on the next acquisition when individual image release is
+  unavailable; this conservative fallback can stall during cancellation/resize.
+- Supported native BC1–BC5 textures use the device's compressed decoder by default, avoiding
+  extra decoded images and their update work. Native results can differ from Metal. Rust
+  consumers can select `DevicePolicy::exact_answers()` or `BlockDecodePolicy::Exact` to keep
+  the fitted decode; ABI 2's reserved device options do not expose this policy yet. Unsupported
+  formats retain their existing emulation.
+
+The authored regressions are `tests/metal_fork_test.c`, `metal_dispatch.ll`, `metal_draw.ll`
+and `assemble_metal_test.py`. They contain no client shaders. Compile the test with
+`-ldl -lpthread -lX11`, assemble `metal_dispatch.ll`, then run it with the host library and
+generated metallib paths. `--offscreen` explicitly skips WSI; without it a working X11
+display is required. Use Vulkan validation and an outer timeout. `tests/metal_perf.c`
+compares the original ABI 1 bridge and this ABI 2 build on the same authored workload.
 
 ## Licenses
 

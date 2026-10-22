@@ -52,10 +52,16 @@ fn llvm_candidates() -> Vec<PathBuf> {
         return vec![path.into()];
     }
     let mut found: Vec<(u32, PathBuf)> = Vec::new();
-    let mut directories: Vec<PathBuf> = ["/usr/lib", "/usr/lib64", "/usr/lib/x86_64-linux-gnu", "/usr/local/lib", "/app/lib"]
-        .iter()
-        .map(PathBuf::from)
-        .collect();
+    let mut directories: Vec<PathBuf> = [
+        "/usr/lib",
+        "/usr/lib64",
+        "/usr/lib/x86_64-linux-gnu",
+        "/usr/local/lib",
+        "/app/lib",
+    ]
+    .iter()
+    .map(PathBuf::from)
+    .collect();
     for root in ["/usr/lib", "/usr/lib64"] {
         if let Ok(entries) = std::fs::read_dir(root) {
             for entry in entries.flatten() {
@@ -68,11 +74,15 @@ fn llvm_candidates() -> Vec<PathBuf> {
         }
     }
     for directory in directories {
-        let Ok(entries) = std::fs::read_dir(&directory) else { continue };
+        let Ok(entries) = std::fs::read_dir(&directory) else {
+            continue;
+        };
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().into_owned();
             // libLLVM.so.23.1, libLLVM-19.so, libLLVM.so.18.1 (Debian: libLLVM.so.1 in llvm-N/lib).
-            let Some(rest) = name.strip_prefix("libLLVM") else { continue };
+            let Some(rest) = name.strip_prefix("libLLVM") else {
+                continue;
+            };
             if !rest.contains(".so") {
                 continue;
             }
@@ -83,14 +93,24 @@ fn llvm_candidates() -> Vec<PathBuf> {
                 .next()
                 .and_then(|digits| digits.parse().ok())
                 .or_else(|| {
-                    directory.parent()?.file_name()?.to_str()?.strip_prefix("llvm-")?.parse().ok()
+                    directory
+                        .parent()?
+                        .file_name()?
+                        .to_str()?
+                        .strip_prefix("llvm-")?
+                        .parse()
+                        .ok()
                 })
                 .unwrap_or(0);
             found.push((version, entry.path()));
         }
     }
-    found.sort_by(|a, b| b.0.cmp(&a.0));
-    found.into_iter().filter(|(version, _)| *version == 0 || *version >= 15).map(|(_, path)| path).collect()
+    found.sort_by_key(|entry| std::cmp::Reverse(entry.0));
+    found
+        .into_iter()
+        .filter(|(version, _)| *version == 0 || *version >= 15)
+        .map(|(_, path)| path)
+        .collect()
 }
 
 fn llvm() -> Result<&'static Llvm, String> {
@@ -117,24 +137,24 @@ fn llvm() -> Result<&'static Llvm, String> {
             }
         };
         macro_rules! load {
-            ($name:literal) => {
-                std::mem::transmute(symbol($name)?)
+            ($name:literal, $signature:ty) => {
+                std::mem::transmute::<*mut c_void, $signature>(symbol($name)?)
             };
         }
         crate::util::log_once(&format!("[Quadra Metal] AIR upgrades through {}", path.display()));
         Ok(Llvm {
-            context_create: load!(c"LLVMContextCreate"),
-            context_dispose: load!(c"LLVMContextDispose"),
-            buffer_copy: load!(c"LLVMCreateMemoryBufferWithMemoryRangeCopy"),
-            buffer_start: load!(c"LLVMGetBufferStart"),
-            buffer_size: load!(c"LLVMGetBufferSize"),
-            buffer_dispose: load!(c"LLVMDisposeMemoryBuffer"),
-            parse_bitcode: load!(c"LLVMParseBitcodeInContext2"),
-            parse_ir: load!(c"LLVMParseIRInContext"),
-            print_module: load!(c"LLVMPrintModuleToString"),
-            write_bitcode: load!(c"LLVMWriteBitcodeToMemoryBuffer"),
-            module_dispose: load!(c"LLVMDisposeModule"),
-            message_dispose: load!(c"LLVMDisposeMessage"),
+            context_create: load!(c"LLVMContextCreate", unsafe extern "C" fn() -> Ref),
+            context_dispose: load!(c"LLVMContextDispose", unsafe extern "C" fn(Ref)),
+            buffer_copy: load!(c"LLVMCreateMemoryBufferWithMemoryRangeCopy", unsafe extern "C" fn(*const c_char, usize, *const c_char) -> Ref),
+            buffer_start: load!(c"LLVMGetBufferStart", unsafe extern "C" fn(Ref) -> *const c_char),
+            buffer_size: load!(c"LLVMGetBufferSize", unsafe extern "C" fn(Ref) -> usize),
+            buffer_dispose: load!(c"LLVMDisposeMemoryBuffer", unsafe extern "C" fn(Ref)),
+            parse_bitcode: load!(c"LLVMParseBitcodeInContext2", unsafe extern "C" fn(Ref, Ref, *mut Ref) -> c_int),
+            parse_ir: load!(c"LLVMParseIRInContext", unsafe extern "C" fn(Ref, Ref, *mut Ref, *mut *mut c_char) -> c_int),
+            print_module: load!(c"LLVMPrintModuleToString", unsafe extern "C" fn(Ref) -> *mut c_char),
+            write_bitcode: load!(c"LLVMWriteBitcodeToMemoryBuffer", unsafe extern "C" fn(Ref) -> Ref),
+            module_dispose: load!(c"LLVMDisposeModule", unsafe extern "C" fn(Ref)),
+            message_dispose: load!(c"LLVMDisposeMessage", unsafe extern "C" fn(*mut c_char)),
         })
     })
     .as_ref()
@@ -151,7 +171,11 @@ fn upgrade_bitcode(bitcode: &[u8]) -> Result<Vec<u8>, String> {
     unsafe {
         let context = (llvm.context_create)();
         let result = (|| {
-            let input = (llvm.buffer_copy)(bitcode.as_ptr() as *const c_char, bitcode.len(), c"air".as_ptr());
+            let input = (llvm.buffer_copy)(
+                bitcode.as_ptr() as *const c_char,
+                bitcode.len(),
+                c"air".as_ptr(),
+            );
             let mut module: Ref = std::ptr::null_mut();
             let failed = (llvm.parse_bitcode)(context, input, &mut module);
             (llvm.buffer_dispose)(input);
@@ -163,11 +187,17 @@ fn upgrade_bitcode(bitcode: &[u8]) -> Result<Vec<u8>, String> {
             (llvm.message_dispose)(printed);
             (llvm.module_dispose)(module);
             let text = rewrite(&text)?;
-            let source = (llvm.buffer_copy)(text.as_ptr() as *const c_char, text.len(), c"air.ll".as_ptr());
+            let source = (llvm.buffer_copy)(
+                text.as_ptr() as *const c_char,
+                text.len(),
+                c"air.ll".as_ptr(),
+            );
             let mut rewritten: Ref = std::ptr::null_mut();
             let mut message: *mut c_char = std::ptr::null_mut();
             // Takes the buffer.
-            if (llvm.parse_ir)(context, source, &mut rewritten, &mut message) != 0 || rewritten.is_null() {
+            if (llvm.parse_ir)(context, source, &mut rewritten, &mut message) != 0
+                || rewritten.is_null()
+            {
                 let detail = if message.is_null() {
                     String::new()
                 } else {
@@ -175,10 +205,17 @@ fn upgrade_bitcode(bitcode: &[u8]) -> Result<Vec<u8>, String> {
                     (llvm.message_dispose)(message);
                     detail
                 };
-                return Err(format!("the upgraded shader does not parse: {}", detail.chars().take(400).collect::<String>()));
+                return Err(format!(
+                    "the upgraded shader does not parse: {}",
+                    detail.chars().take(400).collect::<String>()
+                ));
             }
             let output = (llvm.write_bitcode)(rewritten);
-            let bytes = std::slice::from_raw_parts((llvm.buffer_start)(output) as *const u8, (llvm.buffer_size)(output)).to_vec();
+            let bytes = std::slice::from_raw_parts(
+                (llvm.buffer_start)(output) as *const u8,
+                (llvm.buffer_size)(output),
+            )
+            .to_vec();
             (llvm.buffer_dispose)(output);
             (llvm.module_dispose)(rewritten);
             Ok(bytes)
@@ -206,7 +243,11 @@ impl Kind {
         let starts = |prefixes: &[&str]| prefixes.iter().any(|prefix| name.starts_with(prefix));
         if starts(&["air.sample_texture_", "air.sample_depth_"]) {
             let family = name.split('.').nth(1).unwrap_or_default();
-            return Some(if family.ends_with("_grad") { Kind::SampleGrad } else { Kind::Sample });
+            return Some(if family.ends_with("_grad") {
+                Kind::SampleGrad
+            } else {
+                Kind::Sample
+            });
         }
         if starts(&["air.gather_texture_", "air.gather_depth_"]) {
             return Some(Kind::Gather);
@@ -224,7 +265,10 @@ impl Kind {
     }
 
     fn returns_status(self) -> bool {
-        matches!(self, Kind::Sample | Kind::SampleGrad | Kind::Gather | Kind::Read)
+        matches!(
+            self,
+            Kind::Sample | Kind::SampleGrad | Kind::Gather | Kind::Read
+        )
     }
 }
 
@@ -284,20 +328,33 @@ fn entry_of(lines: &[&str]) -> Entry {
                 .rsplit("i32 ")
                 .next()
                 .and_then(|value| value.trim_end_matches([',', ' ']).parse::<usize>().ok());
-            let value = [("!\"air.read_write\"", 3), ("!\"air.sample\"", 0), ("!\"air.write\"", 2), ("!\"air.read\"", 1)]
-                .iter()
-                .find(|(token, _)| line.contains(token))
-                .map(|(_, value)| *value);
+            let value = [
+                ("!\"air.read_write\"", 3),
+                ("!\"air.sample\"", 0),
+                ("!\"air.write\"", 2),
+                ("!\"air.read\"", 1),
+            ]
+            .iter()
+            .find(|(token, _)| line.contains(token))
+            .map(|(_, value)| *value);
             if let (Some(index), Some(value)) = (index, value) {
                 access.insert(index, value);
             }
         }
         for stage in ["!air.vertex = !{", "!air.fragment = !{", "!air.kernel = !{"] {
-            if line.starts_with(stage) {
+            if let Some(rest) = line.strip_prefix(stage) {
                 // The stage's node: `!N = !{ptr @main0, ...}`.
-                let node = line[stage.len()..].split(['}', ',']).next().unwrap_or_default().trim().to_string();
+                let node = rest
+                    .split(['}', ','])
+                    .next()
+                    .unwrap_or_default()
+                    .trim()
+                    .to_string();
                 let prefix = format!("{node} = !{{");
-                if let Some(definition) = lines.iter().find(|candidate| candidate.starts_with(&prefix)) {
+                if let Some(definition) = lines
+                    .iter()
+                    .find(|candidate| candidate.starts_with(&prefix))
+                {
                     if let Some(at) = definition.find('@') {
                         name = definition[at + 1..]
                             .split([',', ' ', '}'])
@@ -311,27 +368,49 @@ fn entry_of(lines: &[&str]) -> Entry {
     }
     let mut parameters = 0;
     let marker = format!("@{name}(");
-    if let Some(definition) = lines.iter().find(|line| line.starts_with("define ") && line.contains(&marker)) {
+    if let Some(definition) = lines
+        .iter()
+        .find(|line| line.starts_with("define ") && line.contains(&marker))
+    {
         let open = definition.find(&marker).unwrap() + marker.len() - 1;
         if let Some(close) = closing(definition, open) {
             parameters = split_arguments(&definition[open + 1..close]).len();
         }
     }
-    Entry { name, parameters, access }
+    Entry {
+        name,
+        parameters,
+        access,
+    }
 }
 
-fn rewritten_arguments(kind: Kind, arguments: &[String], access: Option<u32>, declaration: bool) -> Vec<String> {
+fn rewritten_arguments(
+    kind: Kind,
+    arguments: &[String],
+    access: Option<u32>,
+    declaration: bool,
+) -> Vec<String> {
     let mut out = arguments.to_vec();
-    let zero = if declaration { "float".to_string() } else { "float 0.000000e+00".to_string() };
+    let zero = if declaration {
+        "float".to_string()
+    } else {
+        "float 0.000000e+00".to_string()
+    };
     match kind {
-        Kind::Atomic => out.push(if declaration { "i1".into() } else { "i1 false".into() }),
+        Kind::Atomic => out.push(if declaration {
+            "i1".into()
+        } else {
+            "i1 false".into()
+        }),
         _ => {
             if kind == Kind::Sample {
                 out.push(zero.clone());
             }
             if kind == Kind::SampleGrad {
                 // min_lod_clamp follows dpdy, before the offset flag (the last i1).
-                let flag = out.iter().rposition(|argument| argument.split_whitespace().next() == Some("i1"));
+                let flag = out
+                    .iter()
+                    .rposition(|argument| argument.split_whitespace().next() == Some("i1"));
                 match flag {
                     Some(at) => out.insert(at, zero),
                     None => out.push(zero),
@@ -343,7 +422,11 @@ fn rewritten_arguments(kind: Kind, arguments: &[String], access: Option<u32>, de
                 _ => 0,
             };
             let value = access.unwrap_or(fallback);
-            out.push(if declaration { "i32".into() } else { format!("i32 {value}") });
+            out.push(if declaration {
+                "i32".into()
+            } else {
+                format!("i32 {value}")
+            });
         }
     }
     out
@@ -354,7 +437,9 @@ fn value_of(argument: &str) -> &str {
     argument.rsplit(' ').next().unwrap_or_default()
 }
 
-const FAST_MATH: [&str; 8] = ["fast", "nnan", "ninf", "nsz", "arcp", "contract", "afn", "reassoc"];
+const FAST_MATH: [&str; 8] = [
+    "fast", "nnan", "ninf", "nsz", "arcp", "contract", "afn", "reassoc",
+];
 
 pub fn rewrite(text: &str) -> Result<String, String> {
     let lines: Vec<&str> = text.lines().collect();
@@ -378,12 +463,17 @@ pub fn rewrite(text: &str) -> Result<String, String> {
     let mut temporaries = 0usize;
     for raw in &lines {
         let mut line = raw.to_string();
-        if line.contains("!\"air.buffer\"") && runtime_arrays.iter().any(|name| {
-            line.contains(&format!("!\"air.arg_type_name\", !\"{name}\""))
-        }) {
+        if line.contains("!\"air.buffer\"")
+            && runtime_arrays
+                .iter()
+                .any(|name| line.contains(&format!("!\"air.arg_type_name\", !\"{name}\"")))
+        {
             if let Some(at) = line.find(", !\"air.buffer_size\", i32 ") {
                 let end = at + ", !\"air.buffer_size\", i32 ".len();
-                let digits = line[end..].chars().take_while(|c| c.is_ascii_digit()).count();
+                let digits = line[end..]
+                    .chars()
+                    .take_while(|c| c.is_ascii_digit())
+                    .count();
                 if digits > 0 {
                     line.replace_range(at..end + digits, "");
                 }
@@ -392,14 +482,23 @@ pub fn rewrite(text: &str) -> Result<String, String> {
         // A fragment output names its attachment and (AIR 2.3 and later) its dual-source index.
         if let Some(at) = line.find("!\"air.render_target\", i32 ") {
             let digits_at = at + "!\"air.render_target\", i32 ".len();
-            let digits = line[digits_at..].chars().take_while(|c| c.is_ascii_digit()).count();
+            let digits = line[digits_at..]
+                .chars()
+                .take_while(|c| c.is_ascii_digit())
+                .count();
             let after = digits_at + digits;
             if digits > 0 && !line[after..].starts_with(", i32 ") {
                 line.insert_str(after, ", i32 0");
             }
         }
         if line.starts_with("define ") {
-            current = line.find('@').map(|at| line[at + 1..].split('(').next().unwrap_or_default().to_string());
+            current = line.find('@').map(|at| {
+                line[at + 1..]
+                    .split('(')
+                    .next()
+                    .unwrap_or_default()
+                    .to_string()
+            });
         } else if line == "}" {
             current = None;
         }
@@ -407,13 +506,28 @@ pub fn rewrite(text: &str) -> Result<String, String> {
         if line.starts_with("declare ") {
             if let Some(at) = line.find(" @air.") {
                 let open = line[at..].find('(').map(|offset| at + offset);
-                let name = open.map(|open| line[at + 2..open].to_string()).unwrap_or_default();
+                let name = open
+                    .map(|open| line[at + 2..open].to_string())
+                    .unwrap_or_default();
                 if let (Some(kind), Some(open)) = (Kind::of(&name), open) {
                     let close = closing(&line, open).ok_or("an unbalanced declaration")?;
                     let ret = line["declare ".len()..at].to_string();
-                    let arguments = rewritten_arguments(kind, &split_arguments(&line[open + 1..close]), None, true);
-                    let ret = if kind.returns_status() { format!("{{ {ret}, i8 }}") } else { ret };
-                    out.push_str(&format!("declare {ret} @{name}({}){}\n", arguments.join(", "), &line[close + 1..]));
+                    let arguments = rewritten_arguments(
+                        kind,
+                        &split_arguments(&line[open + 1..close]),
+                        None,
+                        true,
+                    );
+                    let ret = if kind.returns_status() {
+                        format!("{{ {ret}, i8 }}")
+                    } else {
+                        ret
+                    };
+                    out.push_str(&format!(
+                        "declare {ret} @{name}({}){}\n",
+                        arguments.join(", "),
+                        &line[close + 1..]
+                    ));
                     continue;
                 }
             }
@@ -422,14 +536,19 @@ pub fn rewrite(text: &str) -> Result<String, String> {
         if let Some(call) = line.find("call ") {
             if let Some(at) = line[call..].find(" @air.").map(|offset| call + offset) {
                 let open = line[at..].find('(').map(|offset| at + offset);
-                let name = open.map(|open| line[at + 2..open].to_string()).unwrap_or_default();
+                let name = open
+                    .map(|open| line[at + 2..open].to_string())
+                    .unwrap_or_default();
                 if let (Some(kind), Some(open)) = (Kind::of(&name), open) {
                     let close = closing(&line, open).ok_or("an unbalanced call")?;
                     let arguments = split_arguments(&line[open + 1..close]);
                     let access = if current.as_deref() == Some(entry.name.as_str()) {
                         arguments.first().and_then(|texture| {
-                            let value = value_of(texture).strip_prefix('%')?.parse::<usize>().ok()?;
-                            (value < entry.parameters).then(|| entry.access.get(&value).copied()).flatten()
+                            let value =
+                                value_of(texture).strip_prefix('%')?.parse::<usize>().ok()?;
+                            (value < entry.parameters)
+                                .then(|| entry.access.get(&value).copied())
+                                .flatten()
                         })
                     } else {
                         None
@@ -443,12 +562,19 @@ pub fn rewrite(text: &str) -> Result<String, String> {
                     }
                     let ret = words.join(" ");
                     let head = &line[..call + "call ".len()];
-                    let flags = if flags.is_empty() { String::new() } else { format!("{} ", flags.join(" ")) };
+                    let flags = if flags.is_empty() {
+                        String::new()
+                    } else {
+                        format!("{} ", flags.join(" "))
+                    };
                     let rest = &line[close + 1..];
                     if kind.returns_status() && ret != "void" {
                         let Some(assign) = head.find(" = ") else {
                             // An unused result: the struct is dropped as the texel was.
-                            out.push_str(&format!("{head}{flags}{{ {ret}, i8 }} @{name}({}){rest}\n", arguments.join(", ")));
+                            out.push_str(&format!(
+                                "{head}{flags}{{ {ret}, i8 }} @{name}({}){rest}\n",
+                                arguments.join(", ")
+                            ));
                             continue;
                         };
                         let indent = &head[..head.len() - head.trim_start().len()];
@@ -461,9 +587,14 @@ pub fn rewrite(text: &str) -> Result<String, String> {
                             &head[assign + 3..],
                             arguments.join(", ")
                         ));
-                        out.push_str(&format!("{indent}{result} = extractvalue {structure} {temporary}, 0\n"));
+                        out.push_str(&format!(
+                            "{indent}{result} = extractvalue {structure} {temporary}, 0\n"
+                        ));
                     } else {
-                        out.push_str(&format!("{head}{flags}{ret} @{name}({}){rest}\n", arguments.join(", ")));
+                        out.push_str(&format!(
+                            "{head}{flags}{ret} @{name}({}){rest}\n",
+                            arguments.join(", ")
+                        ));
                     }
                     continue;
                 }
@@ -479,7 +610,9 @@ pub fn rewrite(text: &str) -> Result<String, String> {
 // The container.
 
 fn u64_at(bytes: &[u8], at: usize) -> Option<u64> {
-    bytes.get(at..at + 8).map(|b| u64::from_le_bytes(b.try_into().unwrap()))
+    bytes
+        .get(at..at + 8)
+        .map(|b| u64::from_le_bytes(b.try_into().unwrap()))
 }
 
 struct FunctionTags {
@@ -500,11 +633,18 @@ fn old_format(bytes: &[u8]) -> bool {
 fn function_tags(bytes: &[u8]) -> Result<Vec<FunctionTags>, String> {
     let bad = || "a malformed metallib function table".to_string();
     let list = u64_at(bytes, 24).ok_or_else(bad)? as usize;
-    let count = u32::from_le_bytes(bytes.get(list..list + 4).ok_or_else(bad)?.try_into().unwrap()) as usize;
+    let count = u32::from_le_bytes(
+        bytes
+            .get(list..list + 4)
+            .ok_or_else(bad)?
+            .try_into()
+            .unwrap(),
+    ) as usize;
     let mut at = list + 4;
     let mut out = Vec::with_capacity(count.min(1024));
     for _ in 0..count {
-        let size = u32::from_le_bytes(bytes.get(at..at + 4).ok_or_else(bad)?.try_into().unwrap()) as usize;
+        let size =
+            u32::from_le_bytes(bytes.get(at..at + 4).ok_or_else(bad)?.try_into().unwrap()) as usize;
         let end = at + size;
         let mut position = at + 4;
         let (mut mdsz, mut hash, mut offt) = (None, None, None);
@@ -514,7 +654,13 @@ fn function_tags(bytes: &[u8]) -> Result<Vec<FunctionTags>, String> {
             if tag == b"ENDT" {
                 break;
             }
-            let length = u16::from_le_bytes(bytes.get(position..position + 2).ok_or_else(bad)?.try_into().unwrap()) as usize;
+            let length = u16::from_le_bytes(
+                bytes
+                    .get(position..position + 2)
+                    .ok_or_else(bad)?
+                    .try_into()
+                    .unwrap(),
+            ) as usize;
             position += 2;
             match tag {
                 b"MDSZ" => mdsz = Some(position),
@@ -524,7 +670,11 @@ fn function_tags(bytes: &[u8]) -> Result<Vec<FunctionTags>, String> {
             }
             position += length;
         }
-        out.push(FunctionTags { mdsz: mdsz.ok_or_else(bad)?, hash, offt: offt.ok_or_else(bad)? });
+        out.push(FunctionTags {
+            mdsz: mdsz.ok_or_else(bad)?,
+            hash,
+            offt: offt.ok_or_else(bad)?,
+        });
         at = end;
     }
     Ok(out)
@@ -549,10 +699,15 @@ fn upgrade_library(bytes: &[u8]) -> Result<Vec<u8>, String> {
     let mut out = Vec::with_capacity(bitcode_offset + section.len());
     out.extend_from_slice(&bytes[..bitcode_offset]);
     out.extend_from_slice(&section);
-    out.extend_from_slice(bytes.get(bitcode_offset + bitcode_size..).unwrap_or_default());
+    out.extend_from_slice(
+        bytes
+            .get(bitcode_offset + bitcode_size..)
+            .unwrap_or_default(),
+    );
     for (function, (relative, size, hash)) in functions.iter().zip(&placed) {
         out[function.mdsz..function.mdsz + 8].copy_from_slice(&(*size as u64).to_le_bytes());
-        out[function.offt + 16..function.offt + 24].copy_from_slice(&(*relative as u64).to_le_bytes());
+        out[function.offt + 16..function.offt + 24]
+            .copy_from_slice(&(*relative as u64).to_le_bytes());
         if let Some(at) = function.hash {
             out[at..at + 32].copy_from_slice(hash);
         }
@@ -563,11 +718,32 @@ fn upgrade_library(bytes: &[u8]) -> Result<Vec<u8>, String> {
     Ok(out)
 }
 
-fn cache_directory() -> Option<PathBuf> {
-    let root = std::env::var_os("MACOBLOX_METAL_SHADER_CACHE")?;
-    let directory = PathBuf::from(root).join("air-upgrade-v2");
-    std::fs::create_dir_all(&directory).ok()?;
-    Some(directory)
+const CACHE_CAPACITY: u64 = 512 << 20;
+pub static UPGRADES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+struct UpgradeCache {
+    directory: PathBuf,
+    bytes: std::sync::atomic::AtomicU64,
+}
+impl UpgradeCache {
+    fn new(directory: PathBuf) -> Option<Self> {
+        std::fs::create_dir_all(&directory).ok()?;
+        let bytes = crate::cache::trim(&directory, CACHE_CAPACITY * 9 / 10, 8192).ok()?;
+        Some(Self {
+            directory,
+            bytes: std::sync::atomic::AtomicU64::new(bytes),
+        })
+    }
+}
+
+fn cache_directory() -> Option<&'static UpgradeCache> {
+    static CACHE: OnceLock<Option<UpgradeCache>> = OnceLock::new();
+    CACHE
+        .get_or_init(|| {
+            let root = std::env::var_os("MACOBLOX_METAL_SHADER_CACHE")?;
+            UpgradeCache::new(PathBuf::from(root).join("air-upgrade-v3"))
+        })
+        .as_ref()
 }
 
 /// The library as metal2vulkan reads it: old formats upgraded (cached), others unchanged.
@@ -575,24 +751,70 @@ pub fn prepare(bytes: &[u8]) -> Result<Cow<'_, [u8]>, String> {
     if !old_format(bytes) {
         return Ok(bytes.into());
     }
-    let key = format!("{:x}", Sha256::digest(bytes));
-    let cached = cache_directory().map(|directory| directory.join(format!("{key}.metallib")));
+    prepare_cached(bytes, cache_directory())
+}
+
+fn prepare_cached<'a>(
+    bytes: &'a [u8],
+    cache: Option<&UpgradeCache>,
+) -> Result<Cow<'a, [u8]>, String> {
+    use std::sync::atomic::Ordering;
+    if !old_format(bytes) {
+        return Ok(bytes.into());
+    }
+    let key = crate::cache::hash(bytes);
+    // Concurrent requests for one library recheck its completed cache entry. The fixed stripes
+    // also bound simultaneous upgrades without retaining an unbounded per-shader lock map.
+    static FLIGHTS: OnceLock<[std::sync::Mutex<()>; 8]> = OnceLock::new();
+    let _flight = FLIGHTS.get_or_init(|| std::array::from_fn(|_| std::sync::Mutex::new(())))
+        [key[0] as usize % 8]
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let cached = cache.map(|cache| {
+        cache
+            .directory
+            .join(format!("{}.qmc", crate::cache::hex(&key)))
+    });
     if let Some(path) = &cached {
-        if let Ok(data) = std::fs::read(path) {
+        let old_size = path.metadata().map_or(0, |data| data.len());
+        if let Ok(Some(data)) =
+            crate::cache::read(path, crate::cache::AIR, &key, crate::cache::MAX_LIBRARY)
+        {
             return Ok(data.into());
         }
-    }
-    let upgraded = upgrade_library(bytes)?;
-    if let Some(path) = cached {
-        // Roblox loads libraries on several threads; each writer needs its
-        // own inode so a rename cannot expose another writer's partial data.
-        static WRITER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-        let writer = WRITER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let temporary = path.with_extension(format!("tmp{}-{writer}", std::process::id()));
-        if std::fs::write(&temporary, &upgraded).is_ok() {
-            let _ = std::fs::rename(&temporary, &path);
+        if !path.exists() {
+            if let Some(cache) = cache {
+                let _ = cache
+                    .bytes
+                    .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |bytes| {
+                        Some(bytes.saturating_sub(old_size))
+                    });
+            }
         }
-        let _ = std::fs::remove_file(&temporary);
+    }
+    UPGRADES.fetch_add(1, Ordering::Relaxed);
+    let upgraded = upgrade_library(bytes)?;
+    if let (Some(path), Some(cache)) = (cached, cache) {
+        let size = upgraded.len() as u64 + 84;
+        if cache
+            .bytes
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |bytes| {
+                bytes
+                    .checked_add(size)
+                    .filter(|&total| total <= CACHE_CAPACITY)
+            })
+            .is_ok()
+            && crate::cache::write(
+                &path,
+                crate::cache::AIR,
+                &key,
+                &upgraded,
+                crate::cache::MAX_LIBRARY,
+            )
+            .is_err()
+        {
+            cache.bytes.fetch_sub(size, Ordering::Relaxed);
+        }
     }
     Ok(upgraded.into())
 }

@@ -96,10 +96,11 @@ checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 [[package]]
 name = "metal2vulkan"
 version = "0.2.0"
-source = "git+https://github.com/steelbrain/metal2vulkan?rev=720ef1ce9ae2a2068999a8675717418b9416283e#720ef1ce9ae2a2068999a8675717418b9416283e"
+source = "git+https://github.com/CiderHQ-org/QuadraM2VK?rev=8406bd26f51ff267775280024296c707deff1686#8406bd26f51ff267775280024296c707deff1686"
 dependencies = [
  "ash",
  "metal2vulkan-air",
+ "serde",
  "serde_json",
  "sha2",
 ]
@@ -107,15 +108,16 @@ dependencies = [
 [[package]]
 name = "metal2vulkan-air"
 version = "0.2.0"
-source = "git+https://github.com/steelbrain/metal2vulkan?rev=720ef1ce9ae2a2068999a8675717418b9416283e#720ef1ce9ae2a2068999a8675717418b9416283e"
+source = "git+https://github.com/CiderHQ-org/QuadraM2VK?rev=8406bd26f51ff267775280024296c707deff1686#8406bd26f51ff267775280024296c707deff1686"
 dependencies = [
+ "serde",
  "sha2",
 ]
 
 [[package]]
 name = "metal2vulkan-runtime"
 version = "0.2.0"
-source = "git+https://github.com/steelbrain/metal2vulkan?rev=720ef1ce9ae2a2068999a8675717418b9416283e#720ef1ce9ae2a2068999a8675717418b9416283e"
+source = "git+https://github.com/CiderHQ-org/QuadraM2VK?rev=8406bd26f51ff267775280024296c707deff1686#8406bd26f51ff267775280024296c707deff1686"
 dependencies = [
  "ash",
  "libc",
@@ -141,6 +143,8 @@ dependencies = [
  "metal2vulkan",
  "metal2vulkan-air",
  "metal2vulkan-runtime",
+ "serde",
+ "serde_json",
  "sha2",
 ]
 
@@ -160,6 +164,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4148590afebada386688f18773da617792bf2ef03ffc1e4cbd2b1d45b023e0ba"
 dependencies = [
  "serde_core",
+ "serde_derive",
 ]
 
 [[package]]

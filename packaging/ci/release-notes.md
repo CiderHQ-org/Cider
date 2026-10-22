@@ -1,16 +1,11 @@
-Quadra 0.32 adds **Metal on Vulkan (experimental)** and includes the prebuilt bridge in the Arch, Debian/Ubuntu and Fedora packages.
+Quadra 0.33 integrates **Quadra M2VK (experimental)** into **Settings → Environment → Game → Renderer** and the shared CiderDarling renderer menu. It includes the performance and stability fork from [CiderHQ-org/QuadraM2VK](https://github.com/CiderHQ-org/QuadraM2VK), pinned to runtime `8406bd26f51ff267775280024296c707deff1686`. Existing Metal selections use the updated renderer automatically. OpenGL remains the default.
 
-Select **Settings → Environment → Game → Renderer → Metal on Vulkan (experimental)** and use the native **Wayland** window backend. Restart Roblox after changing renderers. Packaged installs need no Rust compiler; the first Metal launch upgrades and caches Roblox's shaders.
+Shader preloading learns successful pipelines locally and prepares them before later launches. Two new switches also prepare installed shader libraries on the first launch and warm bounded bundled textures, fonts and models. Each stage shows progress and offers **Skip and play**. Memory pressure, stalled progress and timeouts stop the helper before play; preparation adds no background compilation workers during gameplay.
 
-- Fixes the startup crash caused by Darling treating a Metal layer as a bitmap. Vulkan now presents through the window's own Wayland subsurface.
-- Keeps switching back to OpenGL clean by clearing the previous renderer's framework environment.
-- Uses immutable host resource borrows and separate temporary files for concurrent shader-cache writers.
-- Checks the Vulkan device and LLVM shader upgrader before starting Roblox, with a launcher error if they are unavailable.
+The integrated bridge includes mailbox presentation where supported, acquisition without the guest layer lock, increased memory-aware warm pipeline retention, cache recovery, safer resource lifetimes and checked texture transfers. Optional **Quadra M2VK performance diagnostics** records bounded numeric timing and memory observations. Learned shaders and account data stay local.
 
-Validation: Write a Letter joined and rendered its 3D world, character and UI for 90 seconds, presenting over 600 Vulkan frames on an RTX 3060 Ti with native Wayland. All 2,266 shader libraries and 40 compute kernels passed the shader census. The native regression suite and 236 Python tests passed, as did real AppKit keyboard/captured-mouse checks and exact GPU readback at 1× and 4× MSAA.
+The preceding presentation fix resolved the user's persistent home-screen and minimum-graphics slowdowns, and the user reports smaller first-visit drops after the retention improvement. The new preparation stages have authored tests and installed-client preparation checks, not a controlled game FPS result. Unseen shaders and downloaded world assets may still require work during play.
 
-**Experimental limits:** longer gameplay, resize/minimize stress, other GPUs and X11 presentation need more testing. VR requires OpenGL or Vulkan/Zink. Flatpak does not include the Metal bridge yet. The intermittent FPS drop (#34) and brief freeze after leaving a game remain under investigation.
+Qualification of the integrated bridge includes RTX 3060 Ti render/compute/readback, pipeline reuse and native Wayland lifecycle checks with active Vulkan validation. Debian 13, Ubuntu 24.04/26.04, Fedora 44 and Arch rolling passed the fork's software Vulkan and launcher checks. Physical AMD, Intel and other NVIDIA qualification and long gameplay sessions remain open. VR requires OpenGL or Vulkan/Zink; Flatpak does not include this bridge yet.
 
-Fully close and reopen the launcher after updating. OpenGL remains the default.
-
-Install `.pkg.tar.zst` on Arch derivatives, `.deb` on Ubuntu 24.04+/Debian 13+, or the binary `.rpm` on current Fedora. Darling/CiderDarling runtime downloads remain separate. Source archives and build recipes are attached with `SHA256SUMS`.
+Fully close and reopen Quadra after updating. Native packages bundle the matching Linux host and Darwin Metal framework, so packaged installs need no Rust compiler. Source builds use the pinned public runtime dependency. Install `.pkg.tar.zst` on Arch derivatives, `.deb` on Ubuntu 24.04+/Debian 13+, or the binary `.rpm` on current Fedora. Darling/CiderDarling downloads remain separate. Source archives, build recipes and `SHA256SUMS` are attached.

@@ -14,7 +14,10 @@ fn main() {
     let mut at = 0;
     while let Some(found) = pack[at..].windows(4).position(|window| window == b"MTLB") {
         let start = at + found;
-        let size = pack.get(start + 16..start + 24).map(|b| u64::from_le_bytes(b.try_into().unwrap())).unwrap_or(0) as usize;
+        let size = pack
+            .get(start + 16..start + 24)
+            .map(|b| u64::from_le_bytes(b.try_into().unwrap()))
+            .unwrap_or(0) as usize;
         if size < 0x58 || start + size > pack.len() {
             at = start + 4;
             continue;
@@ -45,16 +48,31 @@ fn main() {
                 }
             };
             functions += 1;
-            if compute && matches!(function.function_type(), Ok(metal2vulkan::metal::FunctionType::Kernel)) {
-                match device.new_compute_pipeline_state_with_function(&function, &PipelineOptions::default()) {
+            if compute
+                && matches!(
+                    function.function_type(),
+                    Ok(metal2vulkan::metal::FunctionType::Kernel)
+                )
+            {
+                match device.new_compute_pipeline_state_with_function(
+                    &function,
+                    &PipelineOptions::default(),
+                ) {
                     Ok(_) => kernels += 1,
-                    Err(error) => *failures.entry(format!("kernel {name}: {error}")).or_default() += 1,
+                    Err(error) => {
+                        *failures
+                            .entry(format!("kernel {name}: {error}"))
+                            .or_default() += 1
+                    }
                 }
             }
         }
     }
     for (failure, count) in &failures {
-        println!("{count:5} x {}", failure.chars().take(400).collect::<String>());
+        println!(
+            "{count:5} x {}",
+            failure.chars().take(400).collect::<String>()
+        );
     }
     println!("libraries {libraries}, functions {functions}, kernels made {kernels}");
     if !failures.is_empty() {

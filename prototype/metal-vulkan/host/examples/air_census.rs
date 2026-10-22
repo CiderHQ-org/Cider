@@ -11,11 +11,17 @@ fn main() {
         let mut meter = metal2vulkan_air::budget::Meter::new(&budget);
         match metal2vulkan_air::decode(&bytes, &mut meter) {
             Ok(_) => good += 1,
-            Err(error) => failures.entry(format!("{error:?}").chars().take(300).collect()).or_default().push(path),
+            Err(error) => failures
+                .entry(format!("{error:?}").chars().take(300).collect())
+                .or_default()
+                .push(path),
         }
     }
     for (failure, paths) in &failures {
         println!("{:5} x {failure}  e.g. {}", paths.len(), paths[0]);
     }
-    println!("decoded {good}, failed {}", failures.values().map(Vec::len).sum::<usize>());
+    println!(
+        "decoded {good}, failed {}",
+        failures.values().map(Vec::len).sum::<usize>()
+    );
 }

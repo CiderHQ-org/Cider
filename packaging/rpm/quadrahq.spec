@@ -1,7 +1,7 @@
 %bcond_with prebuilt_metal
-%global upstream_version 0.32
+%global upstream_version 0.33
 Name:           quadrahq
-Version:        0.32
+Version:        0.33
 Release:        1%{?dist}
 Summary:        Run the macOS Roblox client on Linux through Darling
 License:        GPL-3.0-only AND MIT AND ISC AND OFL-1.1
@@ -99,6 +99,10 @@ python3 -m compileall -q -d "%{_datadir}/quadrahq/launcher" "%{buildroot}%{_data
 %{_datadir}/mime/packages/org.quadrahq.Quadra.xml
 
 %changelog
+* Wed Oct 21 2026 Quadra maintainers <noreply@aubree.wtf> - 0.33-1
+- Integrate Quadra M2VK with bounded shader and resource preloading.
+- Improve Metal presentation, pipeline reuse, resource safety and diagnostics.
+
 * Mon Oct 19 2026 Quadra maintainers <noreply@aubree.wtf> - 0.32-1
 - Ship the experimental Metal on Vulkan bridge in native packages.
 - Fix the Metal layer compositor crash and clear renderer state on switching.

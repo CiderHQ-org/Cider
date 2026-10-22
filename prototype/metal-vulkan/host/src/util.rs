@@ -1,10 +1,10 @@
 //! Errors, logging and counters shared by the table's functions.
-use metal2vulkan_runtime::{DebugMessage, MessageSeverity, MessageSink, Texture};
+use metal2vulkan_runtime::{DebugMessage, MessageSeverity, MessageSink};
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::ffi::{c_char, CString};
 use std::io::Write;
-use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -64,23 +64,21 @@ pub fn log_once(text: &str) {
 pub fn message_sink() -> MessageSink {
     MessageSink::new(|message: &DebugMessage| {
         if let Some(notice) = &message.degradation {
-            log_once(&format!("[Quadra Metal] notice {}: {}", notice.degradation.code(), notice.reason));
-        } else if matches!(message.severity, MessageSeverity::Error | MessageSeverity::Warning) {
-            log_once(&format!("[Quadra Metal] {}: {}", message.id_name, message.text));
+            log_once(&format!(
+                "[Quadra Metal] notice {}: {}",
+                notice.degradation.code(),
+                notice.reason
+            ));
+        } else if matches!(
+            message.severity,
+            MessageSeverity::Error | MessageSeverity::Warning
+        ) {
+            log_once(&format!(
+                "[Quadra Metal] {}: {}",
+                message.id_name, message.text
+            ));
         }
     })
-}
-
-static ALLOCATED: AtomicI64 = AtomicI64::new(0);
-
-/// MTLDevice.currentAllocatedSize: an estimate from what the guest made (never freed here:
-/// Roblox reads it only as a budget hint).
-pub fn count_allocation(bytes: i64) {
-    ALLOCATED.fetch_add(bytes, Ordering::Relaxed);
-}
-
-pub fn allocated_bytes() -> u64 {
-    ALLOCATED.load(Ordering::Relaxed).max(0) as u64
 }
 
 static PIPELINES: AtomicU64 = AtomicU64::new(0);
@@ -89,8 +87,9 @@ static PIPELINE_NANOS: AtomicU64 = AtomicU64::new(0);
 /// Logs the pipeline count and total making time every 100 pipelines.
 pub fn note_pipeline_time(elapsed: Duration) {
     let count = PIPELINES.fetch_add(1, Ordering::Relaxed) + 1;
-    let total = PIPELINE_NANOS.fetch_add(elapsed.as_nanos() as u64, Ordering::Relaxed) + elapsed.as_nanos() as u64;
-    if count % 100 == 0 || elapsed > Duration::from_secs(2) {
+    let total = PIPELINE_NANOS.fetch_add(elapsed.as_nanos() as u64, Ordering::Relaxed)
+        + elapsed.as_nanos() as u64;
+    if count.is_multiple_of(100) || elapsed > Duration::from_secs(2) {
         let mut stderr = std::io::stderr().lock();
         let _ = writeln!(
             stderr,
@@ -101,15 +100,20 @@ pub fn note_pipeline_time(elapsed: Duration) {
     }
 }
 
-/// The bytes of a tightly packed region when the guest passed no row pitch.
-pub fn packed_length(texture: &Texture, size: crate::QmSize) -> u64 {
-    let format = texture.pixel_format() as u32;
-    let texel = match format {
-        10..=13 => 1,
-        20..=60 => 2,
-        70..=99 => 4,
-        100..=139 => 8,
-        _ => 16,
-    };
-    size.width.max(1) * size.height.max(1) * size.depth.max(1) * texel
+/// A C caller's readable bytes. Validate representable spans before forming a Rust reference;
+/// the caller still owns the allocation and guarantees its readability for this call.
+pub unsafe fn input_bytes<'a>(
+    pointer: *const std::ffi::c_void,
+    length: u64,
+) -> Result<&'a [u8], String> {
+    if length > isize::MAX as u64 {
+        return Err("host byte span exceeds the maximum slice length".into());
+    }
+    if length == 0 {
+        return Ok(&[]);
+    }
+    if pointer.is_null() {
+        return Err("null source for a nonempty host byte span".into());
+    }
+    Ok(unsafe { std::slice::from_raw_parts(pointer.cast::<u8>(), length as usize) })
 }

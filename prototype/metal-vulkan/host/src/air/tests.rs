@@ -112,6 +112,46 @@ fn library(bitcode: &[u8]) -> Vec<u8> {
 }
 
 #[test]
+fn concurrent_cache_requests_upgrade_once_and_corrupt_entries_rebuild() {
+    use std::sync::atomic::Ordering;
+    let directory = std::env::temp_dir().join(format!("quadra-air-cache-{}", std::process::id()));
+    let cache = UpgradeCache::new(directory.clone()).unwrap();
+    let original = library(&bitcode(SCATTER));
+    let before = UPGRADES.load(Ordering::Relaxed);
+    let results = std::thread::scope(|scope| {
+        let workers: Vec<_> = (0..8)
+            .map(|_| {
+                scope.spawn(|| {
+                    prepare_cached(&original, Some(&cache))
+                        .unwrap()
+                        .into_owned()
+                })
+            })
+            .collect();
+        workers
+            .into_iter()
+            .map(|thread| thread.join().unwrap())
+            .collect::<Vec<_>>()
+    });
+    assert!(results.iter().all(|bytes| bytes == &results[0]));
+    assert_eq!(UPGRADES.load(Ordering::Relaxed) - before, 1);
+    let path = directory.join(format!(
+        "{}.qmc",
+        crate::cache::hex(&crate::cache::hash(&original))
+    ));
+    let mut damaged = std::fs::read(&path).unwrap();
+    let last = damaged.len() - 1;
+    damaged[last] ^= 1;
+    std::fs::write(&path, damaged).unwrap();
+    assert_eq!(
+        prepare_cached(&original, Some(&cache)).unwrap().as_ref(),
+        results[0]
+    );
+    assert_eq!(UPGRADES.load(Ordering::Relaxed) - before, 2);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
 #[ignore = "requires Vulkan and libLLVM; run in the Metal host CI job"]
 fn legacy_scatter_upload_reaches_every_record() {
     let original = library(&bitcode(SCATTER));
