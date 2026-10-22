@@ -16,7 +16,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 from pathlib import Path  # noqa: E402
 
-from . import __version__, author, core, discord, dns, i18n, mods, runtime, runtime_install, runtime_updates, studio, terminal, uri as uri_handoff  # noqa: E402
+from . import __version__, author, core, discord, dns, i18n, mods, runtime, runtime_install, runtime_updates, studio, terminal, theme, uri as uri_handoff  # noqa: E402
 from .i18n import _  # noqa: E402
 from .setup import SetupWizard  # noqa: E402
 
@@ -300,6 +300,19 @@ class GameLogsView(Gtk.Box):
             self.close_search()
             return True
         return False
+
+    def set_appearance(self, appearance):
+        monochrome = appearance == "monochrome"
+        colors = {
+            "ln": ("#6e6e73", "#9a9a9a"), "time": ("#77767b", "#9a9a9a"),
+            "err": ("#ed333b", "#ffffff"), "warn": ("#e5a50a", "#bdbdbd"),
+            "info": ("#3584e4", "#e8e8e8"), "success": ("#33d17a", "#f0f0f0"),
+            "debug": ("#7f848e", "#9a9a9a"), "macoblox": ("#c061cb", "#e8e8e8"),
+        }
+        for name, pair in colors.items():
+            getattr(self, "tag_" + name).set_property("foreground", pair[monochrome])
+        self.tag_match.set_property("background", "#2f2f2f" if monochrome else "#2a5c9a")
+        self.tag_current.set_property("background", "#e8e8e8" if monochrome else "#f6d32d")
 
     def toggle_search(self):
         if self.search_revealer.get_reveal_child():
@@ -675,7 +688,9 @@ class PlayPage(Adw.Bin):
         center_box.append(links)
 
         status.set_child(center_box)
-        self.stack.add_titled_with_icon(status, "play", _("Play"), "media-playback-start-symbolic")
+        self.appearance_stack = Gtk.Stack()
+        self.appearance_stack.add_named(status, "gnome")
+        self.stack.add_titled_with_icon(self.appearance_stack, "play", _("Play"), "media-playback-start-symbolic")
 
         self.logs_view = GameLogsView(window)
         self.stack.add_titled_with_icon(self.logs_view, "logs", _("Logs"), "utilities-terminal-symbolic")
@@ -693,6 +708,8 @@ class PlayPage(Adw.Bin):
         self.stack.connect("notify::visible-child-name", self._on_tab_changed)
 
         action_bar = Gtk.ActionBar()
+        self.action_bar = action_bar
+        self.toolbar_view = toolbar_view
 
         self.playtime_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         self.playtime_box.set_valign(Gtk.Align.CENTER)
@@ -724,8 +741,79 @@ class PlayPage(Adw.Bin):
         action_bar.pack_end(self.studio)
 
         toolbar_view.add_bottom_bar(action_bar)
+        # The original status page stays intact for GNOME. Both designs share
+        # the real launch controls, log buffer and running session.
+        self.dashboard_actions = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.appearance_stack.add_named(self._dashboard(), "custom")
+        self._custom_appearance = False
         self.set_child(toolbar_view)
         self.refresh()
+
+    def _dashboard(self):
+        body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18, css_classes=["play-dashboard"])
+        body.append(Gtk.Label(label=_("ROBLOX ON LINUX"), xalign=0, css_classes=["play-eyebrow"]))
+        hero = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, css_classes=["play-hero"])
+        head = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12, css_classes=["play-hero-head"])
+        identity = Gtk.Box(spacing=14)
+        logo = Gtk.Image.new_from_file(str(core.ICONS / "quadrahq-64.png"))
+        logo.set_pixel_size(48)
+        identity.append(logo)
+        titles = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3, hexpand=True)
+        titles.append(Gtk.Label(label="Quadra", xalign=0, css_classes=["play-title"]))
+        titles.append(Gtk.Label(label=_("Your next session starts here."), xalign=0, wrap=True,
+                                css_classes=["play-description"]))
+        identity.append(titles)
+        head.append(identity)
+        self.dashboard_state = Gtk.Label(xalign=0, halign=Gtk.Align.START, css_classes=["play-badge"])
+        head.append(self.dashboard_state)
+        hero.append(head)
+        hero.append(self.dashboard_actions)
+        body.append(hero)
+        body.append(Gtk.Label(label=_("YOUR ENVIRONMENT"), xalign=0, css_classes=["launcher-section-title"]))
+        facts = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, css_classes=["play-facts"])
+        self.dashboard_facts = {}
+        for key, title in (("client", _("Roblox version")), ("renderer", _("Renderer")), ("runtime", _("Darling runtime"))):
+            row = Gtk.Box(spacing=12, css_classes=["play-fact"])
+            row.append(Gtk.Label(label=title, xalign=0, hexpand=True, css_classes=["play-fact-title"]))
+            value = Gtk.Label(xalign=1, ellipsize=Pango.EllipsizeMode.MIDDLE, css_classes=["play-fact-value"])
+            value.set_max_width_chars(28)
+            row.append(value)
+            self.dashboard_facts[key] = value
+            facts.append(row)
+        body.append(facts)
+        shortcuts = Gtk.Box(spacing=8, homogeneous=True)
+        for title, icon, callback in (
+                (_("Settings"), "emblem-system-symbolic", lambda: self.window.stack.set_visible_child_name("settings")),
+                (_("Mods"), "application-x-addon-symbolic", lambda: self.window.stack.set_visible_child_name("mods")),
+                (_("Logs"), "utilities-terminal-symbolic", lambda: self.show_logs())):
+            content = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER)
+            content.append(Gtk.Image(icon_name=icon))
+            content.append(Gtk.Label(label=title))
+            button = Gtk.Button(child=content, css_classes=["play-quick-action"])
+            button.connect("clicked", lambda *_args, action=callback: action())
+            shortcuts.append(button)
+        body.append(shortcuts)
+        links = Gtk.Box(spacing=10, halign=Gtk.Align.CENTER)
+        for title, icon, address in _links():
+            button = Gtk.Button(icon_name=icon, tooltip_text=title, css_classes=["flat"])
+            button.connect("clicked", lambda *_args, u=address: _open_uri(self.window, u))
+            links.append(button)
+        body.append(links)
+        clamp = Adw.Clamp(child=body, maximum_size=760, tightening_threshold=600)
+        return Gtk.ScrolledWindow(child=clamp, hscrollbar_policy=Gtk.PolicyType.NEVER)
+
+    def set_appearance(self, appearance):
+        custom = appearance != "gnome"
+        if custom != self._custom_appearance:
+            if custom:
+                self.toolbar_view.remove(self.action_bar)
+                self.dashboard_actions.append(self.action_bar)
+            else:
+                self.dashboard_actions.remove(self.action_bar)
+                self.toolbar_view.add_bottom_bar(self.action_bar)
+            self._custom_appearance = custom
+        self.appearance_stack.set_visible_child_name("custom" if custom else "gnome")
+        self.logs_view.set_appearance(appearance)
 
     def _on_tab_changed(self, stack, _pspec):
         if getattr(self, "top_box", None) is None:
@@ -803,6 +891,13 @@ class PlayPage(Adw.Bin):
         if version and not running and not core.signed_in():
             parts.append(_("Sign in with Quick Login"))
         self.status.set_description(" · ".join(parts))
+        state = _("Running") if running else _("Starting…") if active else _("Working…") if busy else _("Ready to play") if version else _("Not installed")
+        self.dashboard_state.set_label(state)
+        self.dashboard_facts["client"].set_label(version or _("Not installed"))
+        renderer = {"opengl": "OpenGL", "vulkan": "Vulkan / Zink", "metal": "Quadra M2VK"}.get(
+            self.window.settings.get("renderer", "opengl"), "OpenGL")
+        self.dashboard_facts["renderer"].set_label(renderer)
+        self.dashboard_facts["runtime"].set_label("CiderDarling" if core.DARLING_RUNTIME["runtime"] == "ciderdarling" else "Darling")
 
         if running:
             self.play.set_label(_("Stop Roblox"))
@@ -1273,6 +1368,15 @@ class SettingsPage(Adw.Bin):
         language.connect("notify::selected", lambda row, _pspec: window.set_language(
             codes[row.get_selected()]))
         interface.add(language)
+        self.appearance_codes = ("grid", "gnome", "monochrome")
+        self.appearance_row = Adw.ComboRow(
+            title=_("Launcher appearance"),
+            subtitle=_("Applies immediately. GNOME follows your system appearance."),
+            model=Gtk.StringList.new([_("Grid"), _("GNOME (classic)"), _("Monochrome · aubree.lat")]))
+        self.appearance_row.set_selected(self.appearance_codes.index(settings.get("launcher_appearance", "grid")))
+        self.appearance_row.connect("notify::selected", lambda row, _pspec: window.set_launcher_appearance(
+            self.appearance_codes[row.get_selected()]))
+        interface.add(self.appearance_row)
         self.env_page.add(interface)
 
         game = Adw.PreferencesGroup(title=_("Game"))
@@ -1639,7 +1743,13 @@ class SettingsPage(Adw.Bin):
         switcher = Adw.ViewSwitcher(stack=self.stack, policy=Adw.ViewSwitcherPolicy.WIDE)
         switcher.set_halign(Gtk.Align.CENTER)
         top_box.append(switcher)
-        toolbar_view.add_top_bar(top_box)
+        self.appearance_tabs = Gtk.Stack(hhomogeneous=False, vhomogeneous=False)
+        self.appearance_tabs.add_named(top_box, "gnome")
+        custom_tabs = Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.AUTOMATIC,
+                                         vscrollbar_policy=Gtk.PolicyType.NEVER,
+                                         propagate_natural_height=True, child=theme.tabs(self.stack))
+        self.appearance_tabs.add_named(custom_tabs, "custom")
+        toolbar_view.add_top_bar(self.appearance_tabs)
         toolbar_view.set_content(self.stack)
 
         self.set_child(toolbar_view)
@@ -2756,6 +2866,10 @@ class LauncherWindow(Adw.ApplicationWindow):
         self.set_default_size(760, 580)
         self.set_resizable(True)
         self.settings = core.load_settings()
+        appearance = self.settings.get("launcher_appearance", "grid")
+        theme.install(appearance)
+        if appearance != "gnome":
+            self.set_default_size(960, 680)
         i18n.set_language(self.settings.get("language", "en"))
         self.session = None
         self.rpc = None
@@ -2919,8 +3033,10 @@ class LauncherWindow(Adw.ApplicationWindow):
 
         # Sidebar with the page list
         sidebar_toolbar = Adw.ToolbarView()
+        self.sidebar_toolbar = sidebar_toolbar
         sidebar_header = Adw.HeaderBar(show_end_title_buttons=False, show_start_title_buttons=False)
-        sidebar_header.set_title_widget(Gtk.Label(label="Quadra", css_classes=["heading"]))
+        self.brand_label = Gtk.Label(label="Quadra", css_classes=["heading"])
+        sidebar_header.set_title_widget(self.brand_label)
         sidebar_version = Gtk.Label(label=f"v{__version__}", css_classes=["dim-label", "caption"], margin_end=6)
         sidebar_header.pack_end(sidebar_version)
         sidebar_toolbar.add_top_bar(sidebar_header)
@@ -2931,6 +3047,7 @@ class LauncherWindow(Adw.ApplicationWindow):
         # Content area
         content_view = Adw.ToolbarView()
         header = Adw.HeaderBar()
+        self.launcher_header = header
         menu = Gio.Menu()
         menu.append(_("Setup guide"), "win.setup")
         menu.append(_("Collect diagnostics"), "win.collect-diagnostics")
@@ -2953,15 +3070,48 @@ class LauncherWindow(Adw.ApplicationWindow):
         self.setup = SetupWizard(self)
         self.content_stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE,
                                        transition_duration=150)
-        self.content_stack.add_named(self.split, "launcher")
+        responsive_split = Adw.BreakpointBin(child=self.split, width_request=360, height_request=320)
+        compact = Adw.Breakpoint.new(Adw.BreakpointCondition.parse("max-width: 760sp"))
+        compact.add_setter(self.split, "collapsed", True)
+        compact.add_setter(self.split, "show-sidebar", False)
+        responsive_split.add_breakpoint(compact)
+        self.content_stack.add_named(responsive_split, "launcher")
         self.content_stack.add_named(self.setup, "setup")
-        self.set_content(self.content_stack)
+        self.backdrops = Gtk.Stack()
+        self.backdrops.add_named(theme.GridBackdrop(), "grid")
+        self.backdrops.add_named(theme.Backdrop(), "monochrome")
+        self.backdrops.add_named(Gtk.Box(), "gnome")
+        self.wallpaper = Gtk.Overlay(child=self.backdrops)
+        self.wallpaper.add_overlay(self.content_stack)
+        self.wallpaper.set_measure_overlay(self.content_stack, True)
+        self.appearance_layer = theme.AppearanceLayer(self.wallpaper)
+        self.set_content(self.appearance_layer)
+        self.apply_launcher_appearance()
         if page == "setup" or (page not in ('settings', 'ciderdarling', 'env', 'roblox', 'flags')
                 and not core.installed_version() and not self.settings.get("setup_complete", False)):
             self.show_setup()
         else:
             self.setup_active = False
             self.content_stack.set_visible_child_name("launcher")
+
+    def apply_launcher_appearance(self):
+        appearance = self.settings.get("launcher_appearance", "grid")
+        custom = appearance != "gnome"
+        self.backdrops.set_visible_child_name(appearance)
+        self.appearance_layer.set_appearance(appearance)
+        self.settings_page.appearance_tabs.set_visible_child_name("custom" if custom else "gnome")
+        for widget, css in ((self, "launcher-custom"), (self.content_stack, "launcher-shell"),
+                            (self.sidebar_toolbar, "launcher-sidebar"), (self.brand_label, "launcher-brand"),
+                            (self.launcher_header, "launcher-header")):
+            (widget.add_css_class if custom else widget.remove_css_class)(css)
+        self.play_page.set_appearance(appearance)
+
+    def set_launcher_appearance(self, appearance):
+        if appearance not in ("grid", "gnome", "monochrome"):
+            return
+        self.set_setting("launcher_appearance", appearance)
+        theme.install(appearance)
+        self.apply_launcher_appearance()
 
     def show_setup(self, page="welcome"):
         if self.session or self.busy:
@@ -3074,6 +3224,8 @@ class LauncherWindow(Adw.ApplicationWindow):
     def set_setting(self, key, value):
         self.settings[key] = value
         core.save_settings(self.settings)
+        if key == "renderer":
+            self.play_page.refresh()
 
     def _periodic_ciderdarling_updates(self):
         if self.settings.get('auto_check_ciderdarling_updates', True):

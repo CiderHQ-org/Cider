@@ -1,4 +1,4 @@
-"""The launcher's look: the dark monochrome desktop of aubree.wtf.
+"""Switchable Grid, native GNOME and aubree.lat monochrome appearances.
 
 Pure black behind a slowly drawn field of grey lines, a thin top bar, and
 square "windows" with a small title bar in mono. No hue anywhere: state is
@@ -19,7 +19,8 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gdk, GLib, Gtk, Pango  # noqa: E402
+gi.require_version("Graphene", "1.0")
+from gi.repository import Adw, Gdk, GLib, Graphene, Gtk, Pango  # noqa: E402
 
 FONT_DIR = Path(__file__).resolve().parent / "assets" / "fonts"
 
@@ -514,18 +515,86 @@ banner > revealer > widget { background-color: %(raise_)s; border-bottom: 1px so
 """
 
 
-def _stylesheet():
-    names = "".join(f"@define-color {name} {value};\n" for name, value in _NAMED_COLORS.items())
-    css = names + _CSS % {
+_LAUNCHER_CSS = """
+.launcher-sidebar { background-color: %(chrome)s; border-right: 1px solid %(line_lo)s; }
+.launcher-sidebar .navigation-sidebar { padding: 12px 10px; background: none; }
+.launcher-sidebar .navigation-sidebar row { margin-bottom: 4px; min-height: 40px; border: 1px solid transparent; }
+.launcher-sidebar .navigation-sidebar row:selected { background-color: %(raise_)s; border-color: %(line)s; }
+.launcher-brand { font-family: %(mono)s; font-size: 15px; font-weight: 600; letter-spacing: 1px; }
+.launcher-section-title { font-family: %(mono)s; font-size: 11px; letter-spacing: 1px; color: %(dim)s; }
+.launcher-header { border-bottom: 1px solid %(line_lo)s; }
+.launcher-header windowtitle .subtitle { font-family: %(mono)s; font-size: 10px; color: %(dim)s; }
+.play-dashboard { padding: 28px; }
+.play-eyebrow { font-family: %(mono)s; font-size: 10.5px; letter-spacing: 1.5px; color: %(dim)s; }
+.play-title { font-size: 34px; font-weight: 600; letter-spacing: -1px; color: %(text)s; }
+.play-description { font-size: 13px; color: %(dim)s; }
+.play-hero { background-color: alpha(%(surface)s, 0.94); border: 1px solid %(line)s; }
+.play-hero-head { padding: 24px 22px 18px; }
+.play-badge { font-family: %(mono)s; font-size: 10.5px; color: %(accent)s; padding: 5px 8px; border: 1px solid %(line)s; }
+.play-facts { background-color: alpha(%(surface)s, 0.94); border: 1px solid %(line_lo)s; }
+.play-fact { padding: 13px 16px; }
+.play-fact + .play-fact { border-top: 1px solid %(line_lo)s; }
+.play-fact-title { font-family: %(mono)s; font-size: 10px; letter-spacing: 0.4px; color: %(dim)s; }
+.play-fact-value { font-family: %(mono)s; font-size: 11px; color: %(text)s; }
+.play-quick-action { padding: 13px 16px; background-color: alpha(%(surface)s, 0.94); border-color: %(line_lo)s; }
+.play-quick-action label { font-size: 12px; }
+.play-quick-action:hover { border-color: %(accent)s; }
+.play-hero actionbar { background: none; }
+.play-hero actionbar > revealer > box { padding: 14px 18px; border-top: 1px solid %(line_lo)s; background: none; box-shadow: none; }
+.play-hero actionbar button { min-height: 32px; min-width: 0; padding-left: 16px; padding-right: 16px; }
+.play-hero actionbar .dim-label { font-family: %(mono)s; font-size: 10px; }
+.play-footer { color: %(dim)s; font-size: 11px; }
+window.launcher-custom .setup-wizard { background-image: none; }
+window.launcher-custom .setup-wizard .setup-step,
+window.launcher-custom .setup-wizard .setup-note,
+window.launcher-custom .setup-wizard .setup-number { border-radius: 0; }
+window.launcher-custom .setup-wizard .setup-progress { min-height: 2px; }
+"""
+
+_GRID_CSS = """
+.play-hero { border-top: 2px solid #9cc3ff; }
+button.suggested-action { background-color: #9cc3ff; border-color: #9cc3ff; color: #0c1829; font-weight: 600; }
+button.suggested-action:hover { background-color: #b7d4ff; border-color: #b7d4ff; color: #0c1829; }
+.launcher-sidebar .navigation-sidebar row:selected { background-color: rgba(156, 195, 255, 0.10); border-color: #344458; }
+.launcher-sidebar .navigation-sidebar row:selected label,
+.launcher-sidebar .navigation-sidebar row:selected image { color: #b7d4ff; }
+.dot.on { background-color: #a6c8ff; border-color: #a6c8ff; box-shadow: none; }
+.play-hero-head image { color: #a6c8ff; }
+"""
+
+
+def _stylesheet(appearance="monochrome"):
+    palette = {
         "ui": UI_FONT, "mono": MONO_FONT, "night": NIGHT, "chrome": CHROME, "surface": SURFACE,
         "raise_": RAISE, "line": LINE, "line_lo": LINE_LO, "text": TEXT, "dim": DIM, "faint": FAINT,
         "accent": ACCENT, "accent2": ACCENT2, "warn": WARN, "focus": FOCUS_LINE,
     }
+    colors = dict(_NAMED_COLORS)
+    if appearance == "grid":
+        palette.update(night="#10141b", chrome="#121820", surface="#18212c",
+                       raise_="#202b38", line="#344458", line_lo="#263343",
+                       text="#edf2f8", dim="#acb9ca", faint="#8493a7",
+                       accent="#a6c8ff", accent2="#c1d8fa", warn="#b0c3de", focus="#7199ce")
+        for name in ("window_bg_color",):
+            colors[name] = palette["night"]
+        for name in ("view_bg_color", "headerbar_bg_color", "headerbar_backdrop_color",
+                     "sidebar_bg_color", "sidebar_backdrop_color", "secondary_sidebar_bg_color", "popover_bg_color"):
+            colors[name] = palette["chrome"]
+        for name in ("window_fg_color", "view_fg_color", "headerbar_fg_color", "sidebar_fg_color",
+                     "secondary_sidebar_fg_color", "popover_fg_color", "dialog_fg_color", "card_fg_color"):
+            colors[name] = palette["text"]
+        colors.update(accent_color=palette["accent"], accent_bg_color="#9cc3ff", accent_fg_color="#0c1829",
+                      dialog_bg_color=palette["surface"], card_bg_color="rgba(24, 33, 44, 0.94)",
+                      card_shade_color=palette["line_lo"], sidebar_border_color=palette["line_lo"])
+    names = "".join(f"@define-color {name} {value};\n" for name, value in colors.items())
+    css = names + _CSS % palette + _LAUNCHER_CSS % palette
+    if appearance == "grid":
+        css += _GRID_CSS
     # libadwaita 1.6+ styles with CSS variables (GTK 4.16 parses them); older
     # ones use the named colors above and would warn about this block.
     if (Gtk.get_major_version(), Gtk.get_minor_version()) >= (4, 16):
         css += ":root {\n" + "".join(
-            f"  --{name.replace('_', '-')}: {value};\n" for name, value in _NAMED_COLORS.items()) + "}\n"
+            f"  --{name.replace('_', '-')}: {value};\n" for name, value in colors.items()) + "}\n"
     return css
 
 
@@ -556,25 +625,82 @@ def register_fonts():
                 return  # the system's sans and monospace stand in
 
 
-_installed = False
+_provider = None
+_provider_display = None
+_native_scheme = None
+_fonts_registered = False
 
 
-def install():
-    """Dark, monochrome and square, for every window of this process."""
-    global _installed
-    if _installed:
+def install(appearance="monochrome"):
+    """Replace our provider, or remove it completely for native GNOME."""
+    global _provider, _provider_display, _native_scheme, _fonts_registered
+    manager = Adw.StyleManager.get_default()
+    if _native_scheme is None:
+        _native_scheme = manager.get_color_scheme()
+    if _provider is not None:
+        Gtk.StyleContext.remove_provider_for_display(_provider_display, _provider)
+        _provider = _provider_display = None
+    if appearance == "gnome":
+        manager.set_color_scheme(_native_scheme)
         return
-    _installed = True
-    register_fonts()
-    Adw.StyleManager.get_default().set_color_scheme(Adw.ColorScheme.FORCE_DARK)
+    if not _fonts_registered:
+        register_fonts()
+        _fonts_registered = True
+    manager.set_color_scheme(Adw.ColorScheme.FORCE_DARK)
     provider = Gtk.CssProvider()
-    css = _stylesheet()
+    css = _stylesheet(appearance)
     if hasattr(provider, "load_from_string"):  # GTK 4.12
         provider.load_from_string(css)
     else:
         provider.load_from_data(css.encode())
+    _provider_display = Gdk.Display.get_default()
     Gtk.StyleContext.add_provider_for_display(
-        Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1)
+        _provider_display, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1)
+    _provider = provider
+
+
+class GridBackdrop(Gtk.Widget):
+    """A static logical-pixel grid. Redraws only when GTK paints/resizes it."""
+
+    def __init__(self):
+        super().__init__(hexpand=True, vexpand=True, can_target=False)
+        self._background = Gdk.RGBA()
+        self._background.parse("#10141b")
+        self._line = Gdk.RGBA()
+        self._line.parse("rgba(128, 158, 197, 0.09)")
+
+    def do_snapshot(self, snapshot):
+        width, height = self.get_width(), self.get_height()
+        rect = Graphene.Rect()
+        snapshot.append_color(self._background, rect.init(0, 0, width, height))
+        for x in range(0, width, 32):
+            snapshot.append_color(self._line, rect.init(x, 0, 1, height))
+        for y in range(0, height, 32):
+            snapshot.append_color(self._line, rect.init(0, y, width, 1))
+
+
+class AppearanceLayer(Gtk.Box):
+    """Keep images and asynchronously loaded avatars monochrome too."""
+
+    def __init__(self, child):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL)
+        self.append(child)
+        self.monochrome = False
+        self._matrix = Graphene.Matrix().init_from_float([
+            .2126, .2126, .2126, 0, .7152, .7152, .7152, 0,
+            .0722, .0722, .0722, 0, 0, 0, 0, 1])
+        self._offset = Graphene.Vec4().init(0, 0, 0, 0)
+
+    def set_appearance(self, appearance):
+        self.monochrome = appearance == "monochrome"
+        self.queue_draw()
+
+    def do_snapshot(self, snapshot):
+        if self.monochrome:
+            snapshot.push_color_matrix(self._matrix, self._offset)
+        Gtk.Box.do_snapshot(self, snapshot)
+        if self.monochrome:
+            snapshot.pop()
 
 
 # ------------------------------------------------------------------ backdrop
@@ -856,6 +982,8 @@ def tabs(stack):
         page = pages.get_item(index)
         name = page.get_name()
         button = Gtk.ToggleButton(label=(page.get_title() or name).lower(), css_classes=["tab"])
+        button.set_visible(page.get_visible())
+        page.connect("notify::visible", lambda p, _pspec, b=button: b.set_visible(p.get_visible()))
         if first is None:
             first = button
         else:

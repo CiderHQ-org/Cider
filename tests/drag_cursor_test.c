@@ -7,6 +7,7 @@ int main(void) {
     assert(!macoblox_drag_cursor_visible(&state));
     macoblox_drag_cursor_capture(&state,1);
     assert(macoblox_drag_cursor_visible(&state));
+    assert(state.button_capture);
     macoblox_drag_cursor_capture(&state,1); // repeated per-frame request
     macoblox_drag_cursor_buttons(&state,MACOBLOX_RIGHT_BUTTON|(1u<<1));
     assert(macoblox_drag_cursor_visible(&state));
@@ -14,6 +15,7 @@ int main(void) {
     assert(macoblox_drag_cursor_visible(&state));
     macoblox_drag_cursor_buttons(&state,1u<<1); // right released first
     assert(!macoblox_drag_cursor_visible(&state));
+    assert(state.button_capture); // a lost-focus drag must not be restored
     macoblox_drag_cursor_buttons(&state,MACOBLOX_RIGHT_BUTTON); // existing capture stays classified
     assert(!macoblox_drag_cursor_visible(&state));
     macoblox_drag_cursor_capture(&state,0);
@@ -24,6 +26,7 @@ int main(void) {
     macoblox_drag_cursor_capture(&state,0);
     macoblox_drag_cursor_capture(&state,1); // resumed capture without held RMB
     assert(!macoblox_drag_cursor_visible(&state));
+    assert(!state.button_capture);
     macoblox_drag_cursor_buttons(&state,MACOBLOX_RIGHT_BUTTON);
     assert(!macoblox_drag_cursor_visible(&state)); // Shift Lock / first-person already active
     macoblox_drag_cursor_capture(&state,0);

@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- Redesign the launcher with square controls, a grid backdrop and a compact
+  dashboard. Add immediate, saved appearance choices for Grid, the original
+  GNOME interface, and aubree.lat's dark monochrome style. Keep running
+  sessions, logs and open settings intact when switching.
+- Retry Roblox deployment 403s on alternate official metadata and archive
+  origins before the Quadra mirror. Cold mirror downloads use those archive
+  alternatives too, retaining channel/version validation and atomic installs
+  (#36).
+- Keep Shift Lock's requested cursor position in event order on native
+  Wayland. Cancel interrupted camera-drag capture when switching windows on
+  Wayland and X11, while allowing button-free Shift Lock to resume (#37).
+- Bound Metal on Vulkan's graphics budget by the selected device's heap,
+  Vulkan's available memory budget where supported, and system RAM headroom
+  on integrated GPUs. Use a conservative 512 MiB fallback (#38).
 - Add verified RakNet compatibility for Roblox **0.744.0.7441080**
   (`version-546c6da637854de3`). Inspect the relocated transport selection,
   fallback and shared/legacy dummy-connection paths, and recognize the new

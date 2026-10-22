@@ -1,4 +1,4 @@
-"""Public Roblox deployment requests, with Quadra's mirror as a 403 fallback.
+"""Public Roblox deployments: official alternate origins, then Quadra's mirror.
 
 Account, game and login requests must never pass through the mirror.
 """
@@ -25,8 +25,22 @@ def mirror_url(url):
     return None
 
 
+def official_alternates(url):
+    """Identical deployment paths on Roblox's own alternate origins."""
+    if mirror_url(url) is None:
+        return ()
+    parsed = urllib.parse.urlsplit(url)
+    hosts = ("clientsettings.roblox.com",) if VERSION_PATH.fullmatch(parsed.path) else (
+        "setup-aws.rbxcdn.com", "setup-ak.rbxcdn.com")
+    return tuple("https://" + host + parsed.path for host in hosts)
+
+
 def open_public(url, *, timeout=30, on_fallback=None):
-    """Try Roblox first. Retry only an HTTP 403 for an allowed public path."""
+    """A public 403 tries official alternates before the independent mirror.
+
+    Initial non-403 failures retain their normal behavior. After a 403, an
+    unavailable alternate does not prevent trying the next download source.
+    """
     headers = {'User-Agent': f'Quadra/{__version__}'}
     try:
         return urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=timeout)
@@ -35,9 +49,19 @@ def open_public(url, *, timeout=30, on_fallback=None):
         if error.code != 403 or fallback is None:
             raise
         error.close()
-    logging.getLogger(__name__).warning('Roblox returned HTTP 403; trying the Quadra download mirror')
+    logging.getLogger(__name__).warning('Roblox returned HTTP 403; trying alternate official download servers')
     if on_fallback:
         on_fallback()
+    for alternate in official_alternates(url):
+        try:
+            return urllib.request.urlopen(urllib.request.Request(alternate, headers=headers), timeout=timeout)
+        except urllib.error.HTTPError as error:
+            if error.code != 403:
+                raise
+            error.close()
+        except (urllib.error.URLError, TimeoutError):
+            continue
+    logging.getLogger(__name__).warning('Official download alternates unavailable; trying the Quadra download mirror')
     # A cold archive cache must finish fetching and validating the upstream
     # download before it can return a complete, length-checked response.
     mirror_timeout = 120 if ARCHIVE_PATH.fullmatch(urllib.parse.urlsplit(url).path) else 40

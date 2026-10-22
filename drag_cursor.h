@@ -5,7 +5,7 @@
 #define MACOBLOX_DRAG_CURSOR_H
 typedef struct {
     unsigned buttons;
-    int captured, right_drag;
+    int captured, right_drag, button_capture;
 } MacOBloxDragCursor;
 #define MACOBLOX_RIGHT_BUTTON (1u << 3)
 static inline int macoblox_drag_cursor_visible(const MacOBloxDragCursor *state) {
@@ -18,6 +18,7 @@ static inline void macoblox_drag_cursor_buttons(MacOBloxDragCursor *state,unsign
 static inline void macoblox_drag_cursor_capture(MacOBloxDragCursor *state,int captured) {
     if(state->captured==captured)return;
     state->captured=captured;
+    state->button_capture=captured && state->buttons;
     state->right_drag=captured && (state->buttons & MACOBLOX_RIGHT_BUTTON);
 }
 /* Last resort when no selected bitmap or desktop cursor theme is available. */

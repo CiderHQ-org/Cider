@@ -193,7 +193,6 @@ static __typeof__(pointer_state) pointer_snapshot(void){lock_pointer();__typeof_
 static void pointer_frame(unsigned window,NSRect frame){lock_pointer();if(!pointer_state.window)pointer_state.window=window;if(pointer_state.window==window)pointer_state.frame=frame;unlock_pointer();}
 static void pointer_event(unsigned window,NSRect frame,NSPoint point){lock_pointer();pointer_state.window=window;pointer_state.frame=frame;pointer_state.point=point;unlock_pointer();}
 static volatile unsigned captured;
-static BOOL capture_requested;
 
 int macoblox_wayland_enabled(void) {
     const char *value=getenv("MACOBLOX_WAYLAND");return value && !strcmp(value,"1");
@@ -433,8 +432,6 @@ int macoblox_wayland_dispatch_event(id event) {
             [responder insertText:queued->text];
     } else if(queued->kind==MW_FOCUS) {
         [owner platformWindowActivated:window displayIfNeeded:YES];
-        if(__atomic_load_n(&capture_requested,__ATOMIC_ACQUIRE))
-            [(MacOBloxWaylandDisplay *)[NSDisplay currentDisplay] grabMouse:YES];
     } else if(queued->kind==MW_BLUR) {
         NSPoint point=pointer_snapshot().point;
         NSPoint location={point.x,window->frame.size.height-point.y};
@@ -538,7 +535,6 @@ int macoblox_wayland_dispatch_event(id event) {
     api->cursor(CGBitmapContextGetData(context),size.width,size.height,CGBitmapContextGetBytesPerRow(context),cursor->hot.x,cursor->hot.y,0);CGContextRelease(context);
 }
 - (void)grabMouse:(BOOL)value {
-    __atomic_store_n(&capture_requested,value,__ATOMIC_RELEASE);
     unsigned handle=pointer_snapshot().window;
     /* Host acknowledgement determines actual capture; preserve intent on blur. */
     if(!value) {
@@ -553,9 +549,6 @@ int macoblox_wayland_dispatch_event(id event) {
     NSPoint local;
     if(!macoblox_wayland_local_warp(position,value.frame,h,&local))return;
     api->action(value.window,MW_WARP,local.x,local.y,0);
-    if(macoblox_wayland_captured()){
-        lock_pointer();if(pointer_state.window==value.window)pointer_state.point=local;unlock_pointer();
-    }
 }
 - (void)pump:(id)timer {
     static BOOL pumping;if(pumping)return;pumping=YES;

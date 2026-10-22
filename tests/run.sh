@@ -55,5 +55,9 @@ if pkg-config --exists sdl2 wayland-client wayland-egl wayland-cursor; then
     $(pkg-config --cflags --libs sdl2 wayland-client wayland-egl wayland-cursor) \
     -o "$test_build/wayland-keyboard"
   "$test_build/wayland-keyboard"
+  clang++ -std=c++17 -O2 -Wall -Wextra -pthread tests/wayland_pointer_test.cpp \
+    $(pkg-config --cflags --libs sdl2 wayland-client wayland-egl wayland-cursor) \
+    -o "$test_build/wayland-pointer"
+  "$test_build/wayland-pointer"
 fi
 PYTHONPATH=launcher python3 -m unittest discover -s tests -p '*_test.py'

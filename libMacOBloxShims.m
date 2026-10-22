@@ -3770,10 +3770,16 @@ static void macoblox_process_mouse_capture_requests(void) {
 static int macoblox_CGAssociateMouseAndMouseCursorPosition(unsigned int connected) {
     if (macoblox_wayland_enabled())
         return macoblox_wayland_associate(connected);
-    /* Capture intent survives focus loss. An explicit unlock while suspended
-     * still cancels it, even though capture is already inactive. */
+    /* Persistent capture intent survives focus loss; camera drags end on
+     * blur. Unlocks while suspended still cancel persistent intent. */
     int wanted = !connected;
+    if (wanted && !__atomic_load_n(&macoblox_input_focused, __ATOMIC_ACQUIRE))
+        return 0;
     macoblox_lock(&macoblox_capture_request_lock);
+    if (wanted && !__atomic_load_n(&macoblox_input_focused, __ATOMIC_ACQUIRE)) {
+        macoblox_unlock(&macoblox_capture_request_lock);
+        return 0;
+    }
     if (wanted == __atomic_load_n(&macoblox_mouse_lock_requested, __ATOMIC_ACQUIRE)) {
         macoblox_unlock(&macoblox_capture_request_lock);
         return 0;
@@ -5399,7 +5405,14 @@ static void hooked_post_x_event_inner(id self, SEL cmd, void* event) {
                 macoblox_key_down[key] = 0;
             for (int key = 0; key < 256; key++)
                 macoblox_x_modifier_keys_down[key] = 0;
+            macoblox_lock(&macoblox_window_cursor_lock);
+            int button_capture = macoblox_drag_cursor.button_capture;
+            macoblox_unlock(&macoblox_window_cursor_lock);
+            macoblox_lock(&macoblox_capture_request_lock);
             __atomic_store_n(&macoblox_input_focused, 0, __ATOMIC_RELEASE);
+            if (button_capture)
+                __atomic_store_n(&macoblox_mouse_lock_requested, 0, __ATOMIC_RELEASE);
+            macoblox_unlock(&macoblox_capture_request_lock);
             macoblox_release_mouse_capture(0);
             macoblox_raw_buttons = 0;
             macoblox_x_modifier_flags = 0;

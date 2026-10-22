@@ -159,7 +159,13 @@ int main(void) {
     int event_base, error_base;
     CHECK(extension(connection, "XInputExtension", &raw_opcode, &event_base, &error_base));
     [display processPendingEvents]; [app _setKeyWindow:window];
+    /* Xvfb has no window manager to deliver the activation. Apply the
+     * asynchronous lock request before asserting captured-event behavior. */
+    union Event focus = {0};
+    focus.focus = (struct Focus){.type=9, .display=connection, .window=xid, .mode=0, .detail=3};
+    [display postXEvent:&focus];
     CHECK(!CGAssociateMouseAndMouseCursorPosition(0));
+    [display processPendingEvents];
     NSArray *queue = queue_for(display);
     [queue removeAllObjects];
 
@@ -178,8 +184,7 @@ int main(void) {
     [queue removeAllObjects];
 
     /* Focus loss suspends capture; activation restores it without menu calls. */
-    union Event focus = {0};
-    focus.focus = (struct Focus){.type=10, .display=connection, .window=xid, .mode=0, .detail=3};
+    focus.focus.type=10;
     [display postXEvent:&focus];
     warp(connection, 0, xid, 0, 0, 0, 0, 100, 100); sync(connection, 0);
     focus.focus.type = 9; [display postXEvent:&focus];
@@ -196,6 +201,28 @@ int main(void) {
     CHECK(unlocked.x != moved.x || unlocked.y != moved.y);
     CHECK(!CGAssociateMouseAndMouseCursorPosition(0));
     [display processPendingEvents]; [queue removeAllObjects];
+
+    const char *focus_only=getenv("MACOBLOX_TEST_FOCUS_ONLY");
+    if(focus_only && focus_only[0]=='1') {
+        /* A drag interrupted by switching windows cannot be resurrected by
+         * FocusIn or a late background request from the render thread. */
+        CHECK(!CGAssociateMouseAndMouseCursorPosition(1));
+        [display processPendingEvents];[queue removeAllObjects];
+        union Event button={0};
+        button.motion=(struct Motion){.type=4,.display=connection,.window=xid,.x=160,.y=150,.same_screen=1};
+        *(unsigned int *)((char *)&button+84)=3;[display postXEvent:&button];
+        CHECK(!CGAssociateMouseAndMouseCursorPosition(0));
+        [display processPendingEvents];[queue removeAllObjects];
+        focus.focus.type=10;[display postXEvent:&focus];
+        CHECK(!CGAssociateMouseAndMouseCursorPosition(0)); // stale background request
+        focus.focus.type=9;[display postXEvent:&focus];
+        Point after_focus=[NSEvent mouseLocation];
+        warp(connection,0,xid,0,0,0,0,230,210);sync(connection,0);
+        Point after_warp=[NSEvent mouseLocation];
+        CHECK(after_focus.x!=after_warp.x || after_focus.y!=after_warp.y);
+        printf("PASS: X11 persistent capture resumes, explicit unlock cancels, interrupted drag and background lock stay released\n");
+        fflush(0);return 0;
+    }
 
     char *setting = getenv("MACOBLOX_RAW_MOUSE");
     raw_mode = !(setting && setting[0] == '0');

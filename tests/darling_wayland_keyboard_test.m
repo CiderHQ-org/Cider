@@ -6,11 +6,13 @@ extern unsigned alarm(unsigned);
 extern void *dlsym(void *,const char *);
 extern char *getenv(const char *);
 extern unsigned char CGEventSourceKeyState(int,unsigned short);
+extern int CGAssociateMouseAndMouseCursorPosition(unsigned);
 typedef unsigned long NSUInteger;
 typedef signed char BOOL;
 typedef struct {double x,y;} Point;
 typedef struct {double width,height;} Size;
 typedef struct {Point origin;Size size;} Rect;
+extern int CGWarpMouseCursorPosition(Point);
 typedef struct {NSUInteger location,length;} Range;
 @interface NSObject
 + (id)alloc; + (id)new; - (id)init;
@@ -32,6 +34,7 @@ typedef struct {NSUInteger location,length;} Range;
 + (id)currentRunLoop; - (void)runUntilDate:(id)date;
 @end
 @interface NSEvent:NSObject
++ (Point)mouseLocation;
 + (NSUInteger)modifierFlags; - (NSUInteger)type; - (unsigned short)keyCode;
 - (double)deltaX; - (double)deltaY; - (long)buttonNumber;
 + (id)keyEventWithType:(NSUInteger)type location:(Point)point modifierFlags:(NSUInteger)flags timestamp:(double)time windowNumber:(long)number context:(id)context characters:(id)text charactersIgnoringModifiers:(id)plain isARepeat:(BOOL)repeat keyCode:(unsigned short)key;
@@ -46,6 +49,7 @@ typedef struct {NSUInteger location,length;} Range;
 - (void)makeKeyAndOrderFront:(id)sender; - (BOOL)makeFirstResponder:(id)responder;
 - (void)setContentView:(id)view; - (id)platformWindow; - (void)close;
 - (long)windowNumber;
+- (Point)mouseLocationOutsideOfEventStream;
 @end
 static unsigned motion_kind;
 static long motion_button;
@@ -162,6 +166,27 @@ int main(void) {
     inject(handle,22);pump(app);CHECK(motion_kind==6 && motion_button==0);
     inject(handle,23);pump(app);CHECK(motion_kind==5);
     puts("PASS: real AppKit captured RMB+LMB keeps right-drag deltas and both release orders restore ordinary motion");
+    int (*captured)(void)=dlsym((void *)-2,"macoblox_wayland_captured");CHECK(captured);
+    int width,height;double hz;
+    const struct macoblox_wayland_api *(*host_api)(void)=(*elf)->symbol(host,"macoblox_wayland_host_api");
+    CHECK(host_api);const struct macoblox_wayland_api *api=host_api();api->screen(&width,&height,&hz);
+    // Lock and warp before polling the capture acknowledgement, then let the
+    // event queue settle. Old motion must not replace the requested center.
+    CHECK(!CGAssociateMouseAndMouseCursorPosition(0));
+    Point center={200,height-140};CHECK(!CGWarpMouseCursorPosition(center));
+    inject(handle,26);pump(app);CHECK(captured());
+    Point location=[window mouseLocationOutsideOfEventStream];
+    CHECK(location.x==200 && location.y==140);
+    Point global=[NSEvent mouseLocation];CHECK(global.x==center.x && global.y==140);
+    inject(handle,24);pump(app);CHECK(captured());
+    location=[window mouseLocationOutsideOfEventStream];CHECK(location.x==200 && location.y==140);
+    CHECK(!CGAssociateMouseAndMouseCursorPosition(1));inject(handle,26);pump(app);CHECK(!captured());
+    // A drag interrupted by Alt+Tab must not be re-enabled by AppKit's
+    // queued focus notification, even when blur and focus share one pump.
+    inject(handle,18);pump(app);CHECK(captured());
+    CHECK(!CGAssociateMouseAndMouseCursorPosition(0));
+    inject(handle,24);pump(app);inject(handle,26);pump(app);CHECK(!captured());
+    puts("PASS: real AppKit Shift Lock centers before capture acknowledgement and Alt+Tab cancels stale drag capture");
     puts("PASS: real AppKit single text delivery, repeats, Unicode, Ctrl+A/C/X/V, word editing, deletion, navigation, dual Ctrl, focus loss and responder ordering");fflush(0);
     [window close];[pool drain];return 0;
 }

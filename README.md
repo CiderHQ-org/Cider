@@ -59,8 +59,9 @@ and [CiderDarling](https://github.com/CiderHQ-org/CiderDarling).
 Every **Latest** version is a source release. Use the installer below to install or update.
 
 If Roblox's public version or client download endpoint returns HTTP 403,
-Quadra retries the same request through its public download cache on
-`vps.korona.lat`. Login and game traffic continue to go directly to Roblox.
+Quadra retries the same channel/upload through alternate official Roblox
+servers, then its public download cache on `vps.korona.lat`. Login and game
+traffic continue to go directly to Roblox.
 
 ```bash
 curl -fsSL https://quadrahq.org/install.sh | bash
@@ -71,6 +72,12 @@ steps before you begin. It prepares Darling and adds **Quadra** to the
 app menu. Open it for a first-time guide that downloads Roblox, prepares its
 app environment, and explains how to sign in. Existing Roblox installations
 open the launcher directly; **Setup guide** in its menu reopens the guide.
+
+**Settings → Environment → Interface → Launcher appearance** switches
+immediately between **Grid** (square controls and a subtle grid background),
+**GNOME (classic)** (the original system appearance), and **Monochrome ·
+aubree.lat** (pure black, grey outlines, Archivo/JetBrains Mono and a topology
+backdrop). The choice is saved and can be changed while Roblox is running.
 
 Setup offers **Regular Darling** (the default on first install) or
 **QuadraHQ's CiderDarling**, our Darling variant with threading, CPU detection

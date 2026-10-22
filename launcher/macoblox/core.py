@@ -100,6 +100,7 @@ DOWNLOAD_URL = "https://setup.rbxcdn.com/mac/{upload}-RobloxPlayer.zip"
 DEFAULT_SETTINGS = {
     "setup_complete": False,
     "language": "en",
+    "launcher_appearance": "grid",
     "mouse_sensitivity": 1.0,
     "scroll_sensitivity": 1.5,
     "auto_patch_throttle": True,
@@ -187,6 +188,9 @@ def load_settings():
     if not isinstance(stored, dict):
         return settings
     for key, value in stored.items():
+        if key == "launcher_appearance":
+            settings[key] = value if isinstance(value, str) and value in ("grid", "gnome", "monochrome") else "grid"
+            continue
         if key == "dpi_scale":
             from .display import validated_dpi_scale
             settings[key] = validated_dpi_scale(value)
@@ -484,7 +488,7 @@ def update_roblox(upload, progress=None, expected_version=None):
     try:
         def fallback_progress():
             if progress:
-                progress(0.0, _("Roblox returned 403; trying Quadra's download server"))
+                progress(0.0, _("Roblox returned 403; trying another download server"))
         with open_public(DOWNLOAD_URL.format(upload=upload), timeout=30,
                          on_fallback=fallback_progress) as response, open(archive, "wb") as out:
             total = int(response.headers.get("Content-Length") or 0)

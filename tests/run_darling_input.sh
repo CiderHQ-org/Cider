@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Optional graphical regression in an isolated prefix and disposable X server.
+# MACOBLOX_TEST_FOCUS_ONLY=1 runs the focus/drag regression for both input modes.
 set -euo pipefail
 project_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
 test_dir=$(mktemp -d /tmp/macoblox-input.XXXXXX)
@@ -39,10 +40,11 @@ for raw in 0 1; do
     unset WAYLAND_DISPLAY MACOBLOX_WAYLAND_SOCKET
     export MACOBLOX_WAYLAND=0 MACOBLOX_RAW_MOUSE="$1"
     export MACOBLOX_MOUSE_SENSITIVITY=1 MACOBLOX_SCROLL_SENSITIVITY=1
+    export MACOBLOX_TEST_FOCUS_ONLY="$4"
     export DYLD_FORCE_FLAT_NAMESPACE=1
     export DYLD_INSERT_LIBRARIES="/Volumes/SystemRoot$2/libMacOBloxShims.dylib"
     exec "/Volumes/SystemRoot$3/input-test"
-  ' input-test "$raw" "$test_build" "$test_dir" >"$test_dir/input-$raw.log" 2>&1 || {
+  ' input-test "$raw" "$test_build" "$test_dir" "${MACOBLOX_TEST_FOCUS_ONLY:-0}" >"$test_dir/input-$raw.log" 2>&1 || {
     cat "$test_dir/input-$raw.log"
     exit 1
   }

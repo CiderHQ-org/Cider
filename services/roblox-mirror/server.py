@@ -27,10 +27,25 @@ MAX_CACHE = 2 << 30
 
 
 def upstream(url, timeout):
-    response = urllib.request.urlopen(urllib.request.Request(url, headers={'User-Agent': 'Quadra-download-mirror/1'}), timeout=timeout)
+    urls = [url]
+    parsed = urllib.parse.urlsplit(url)
+    if parsed.netloc == 'setup.rbxcdn.com' and ARCHIVE_PATH.fullmatch(parsed.path):
+        urls.extend('https://' + host + parsed.path for host in ('setup-aws.rbxcdn.com', 'setup-ak.rbxcdn.com'))
+    for index, candidate in enumerate(urls):
+        try:
+            response = urllib.request.urlopen(urllib.request.Request(candidate, headers={'User-Agent': 'Quadra-download-mirror/1'}), timeout=timeout)
+            break
+        except urllib.error.HTTPError as error:
+            if error.code != 403 or index == len(urls) - 1:
+                raise
+            error.close()
+        except (urllib.error.URLError, TimeoutError):
+            if index == 0 or index == len(urls) - 1:
+                raise
     redirected = urllib.parse.urlsplit(response.url)
     if (redirected.scheme != 'https' or redirected.hostname not in
-            ('clientsettingscdn.roblox.com', 'clientsettings.roblox.com', 'setup.rbxcdn.com')):
+            ('clientsettingscdn.roblox.com', 'clientsettings.roblox.com', 'setup.rbxcdn.com',
+             'setup-aws.rbxcdn.com', 'setup-ak.rbxcdn.com')):
         response.close()
         raise ValueError('Unexpected upstream redirect')
     return response

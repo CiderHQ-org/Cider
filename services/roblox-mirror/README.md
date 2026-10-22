@@ -1,7 +1,10 @@
 # Quadra Roblox deployment mirror
 
 The launcher tries Roblox first. An HTTP **403** on the public MacPlayer
-version endpoint or macOS client ZIP retries the same channel/upload at:
+version endpoint retries the identical channel on `clientsettings.roblox.com`.
+A denied macOS client ZIP retries the identical upload on
+`setup-aws.rbxcdn.com`, then `setup-ak.rbxcdn.com`. If those official origins
+are also blocked or unreachable, the launcher uses:
 
 `https://vps.korona.lat/quadra/roblox`
 
@@ -15,7 +18,9 @@ The Python service accepts only these paths (no query parameters):
 - `/v2/client-version/MacPlayer`, optionally `/channel/CHANNEL`
 - `/mac/version-UPLOAD-RobloxPlayer.zip`
 
-Upstream hosts are fixed Roblox HTTPS origins. Metadata is validated and
+Upstream hosts are fixed Roblox HTTPS origins. Cold archive fetches also try
+the official AWS/Akamai origins after a primary CDN 403, so the mirror does
+not inherit the primary origin's regional denial. Metadata is validated and
 cached for 60 seconds. ZIPs are downloaded completely into a temporary file,
 checked for length and ZIP structure, then renamed into an immutable cache.
 The launcher checks the ZIP, embedded version when supplied, and extraction
@@ -51,7 +56,8 @@ required because all supplied data is public Roblox deployment data.
 ## Validation
 
 `tests/roblox_downloads_test.py` checks primary-first behavior, 403-only retry,
-path restrictions, deployment validation and interrupted download cleanup.
+official-origin and mirror recovery, path restrictions, deployment validation
+and interrupted download cleanup.
 `tests/roblox_mirror_test.py` checks upstream validation, immutable cache reuse,
 truncated/invalid ZIP rejection and the HTTP path contract with fake upstreams.
 Run both with disposable XDG directories, as in `tests/run.sh`.

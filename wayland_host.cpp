@@ -23,6 +23,7 @@
 #include <vector>
 #include <cstdio>
 #include <cstring>
+#include <cmath>
 
 namespace {
 struct Window {
@@ -295,6 +296,23 @@ void capture(Window &window,unsigned id,bool enabled) {
     macoblox_wayland_event event{};event.type=MW_CAPTURE;event.window=id;event.button=next;
     push(event);
 }
+void warp(Window &window,unsigned id,double x,double y) {
+    int width,height;SDL_GetWindowSize(window.window,&width,&height);
+    if(!window.focused || !std::isfinite(x) || !std::isfinite(y) ||
+       x<0 || y<0 || x>=width || y>=height)return;
+    bool changed=window.capture?(window.anchor_x!=x || window.anchor_y!=y):(window.x!=x || window.y!=y);
+    if(!changed)return;
+    window.x=x;window.y=y;
+    if(window.capture){window.anchor_x=x;window.anchor_y=y;update_cursor(window);}
+    /* Relative-mode warps update SDL's logical position without camera
+     * motion. Outside capture Wayland may not support a physical warp, but
+     * the next capture must still use the requested logical position. */
+    SDL_WarpMouseInWindow(window.window,(int)x,(int)y);
+    /* Acknowledge after earlier motion/capture events. Updating AppKit's
+     * position optimistically let those older events undo Shift Lock's warp. */
+    macoblox_wayland_event event{};event.type=MW_MOTION;event.window=id;
+    event.x=x;event.y=y;event.modifiers=window.key_modifiers;push(event);
+}
 void translate(const SDL_Event &input) {
     auto found=windows.find(input.window.windowID);
     if(found==windows.end())return;
@@ -356,6 +374,10 @@ void translate(const SDL_Event &input) {
                 macoblox_wayland_event up{};up.type=MW_KEY_UP;up.window=found->first;up.key=key;
                 window.keys[key]=false;push(up);
             }
+            /* A release in another window never reaches this SDL window.
+             * Do not resurrect a drag's capture when focus comes back.
+             * Button-free Shift Lock/first-person intent may resume. */
+            if(window.drag_cursor.button_capture)window.requested_capture=false;
             macoblox_drag_cursor_buttons(&window.drag_cursor,0);
             window.focused=false;capture(window,found->first,false);event.type=MW_BLUR;
             window.key_modifiers=event.modifiers=0;break;
@@ -513,12 +535,12 @@ void action(unsigned id,int operation,double x,double y,const char *text) {
         case MW_RESIZE_WINDOW:if(x>0 && y>0 && x<=16384 && y<=16384)SDL_SetWindowSize(window.window,(int)x,(int)y);break;
         case MW_FULLSCREEN:SDL_SetWindowFullscreen(window.window,x?SDL_WINDOW_FULLSCREEN_DESKTOP:0);break;
         case MW_LOCK:
+            if(x && !window.focused)break;
             window.requested_capture=x!=0;
             capture(window,id,window.requested_capture);
             break;
         case MW_WARP:
-            if(window.capture){window.anchor_x=x;window.anchor_y=y;update_cursor(window);}
-            else SDL_WarpMouseInWindow(window.window,(int)x,(int)y);
+            warp(window,id,x,y);
             break;
         case MW_MINIMIZE:SDL_MinimizeWindow(window.window);break;
         case MW_DESTROY:
@@ -602,6 +624,7 @@ extern "C" const macoblox_wayland_api *macoblox_wayland_host_api() {
             SDL_SetHint("SDL_VIDEO_WAYLAND_WMCLASS","quadrahq-roblox-window");
             SDL_SetHint(SDL_HINT_VIDEO_WAYLAND_PREFER_LIBDECOR,"1");
             SDL_SetHint(SDL_HINT_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR,"0");
+            SDL_SetHint(SDL_HINT_MOUSE_RELATIVE_WARP_MOTION,"0");
             /* Selecting Wayland explicitly forbids SDL's X11 fallback. */
             if(SDL_VideoInit("wayland")<0){failure=SDL_GetError();initialized.set_value(false);return;}
             SDL_GL_SetAttribute(SDL_GL_RED_SIZE,8);SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE,8);SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE,8);

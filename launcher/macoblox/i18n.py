@@ -30,6 +30,22 @@ RU = {
         "Подготовка шейдеров из предыдущих сеансов. Можно пропустить и начать игру.",
     "Skip and play": "Пропустить и играть",
     "{done} of {total} shaders": "{done} из {total} шейдеров",
+    "Launcher appearance": "Оформление лаунчера",
+    "Applies immediately. GNOME follows your system appearance.":
+        "Применяется сразу. GNOME использует оформление системы.",
+    "Grid": "Сетка",
+    "GNOME (classic)": "GNOME (классический)",
+    "Monochrome · aubree.lat": "Монохром · aubree.lat",
+    "ROBLOX ON LINUX": "ROBLOX НА LINUX",
+    "Your next session starts here.": "Ваша следующая игра начинается здесь.",
+    "YOUR ENVIRONMENT": "ВАШЕ ОКРУЖЕНИЕ",
+    "Roblox version": "Версия Roblox",
+    "Ready to play": "Готово к игре",
+    "Not installed": "Не установлено",
+    "Running": "Запущено",
+    "Working…": "Выполняется…",
+    "Roblox returned 403; trying another download server":
+        "Roblox вернул 403; пробуем другой сервер загрузки",
     "VR headset": "VR-шлем",
     "Experimental. Plays in Roblox's own VR mode on a headset connected through an OpenXR runtime such as WiVRn (Meta Quest) or Monado. Applies on next launch.":
         "Экспериментально. Запускает собственный VR-режим Roblox на шлеме, подключённом через среду OpenXR, например WiVRn (Meta Quest) или Monado. Применяется при следующем запуске.",

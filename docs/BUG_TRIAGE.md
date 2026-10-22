@@ -74,9 +74,22 @@ text delivery. This checks the compatibility layer; physical in-game testing
 on affected machines remains necessary. Rich-text/RTF import is outside this
 plain-text fixture's scope. No typed user text or account data is captured.
 
-Additional local probes have existing limits: the X11 mouse fixture fails its
-motion-coalescing assertion with both the release and repaired shims, and the
-private QPainter KWin compositor rejects NVIDIA EGL window allocation with
+For #37, the AppKit fixture also checks Shift Lock centering before the host's
+capture acknowledgement, preserving that target across focus changes, and
+cancelling a camera drag interrupted by switching windows. The X11 runner's
+`MACOBLOX_TEST_FOCUS_ONLY=1` mode checks persistent capture, explicit unlock,
+interrupted drag and a late background lock request with both raw and fallback
+input. These checks pass in disposable b0fcb070 prefixes and private servers.
+
+For #38, Metal's budget tests model the reported Renoir/shared-RAM configuration
+and memory pressure, and the C ABI checks conservative fallback and explicit
+limits on both lavapipe and an RTX 3060 Ti, with exact 1x/4x render readback.
+The affected AMD laptop still needs gameplay validation.
+
+Additional local probes have existing limits: after making the X11 fixture's
+initial focus and asynchronous capture explicit, its full flood mode still
+fails a fallback extra-button motion assertion. The focused regression above
+passes. The private QPainter KWin compositor rejects NVIDIA EGL allocation with
 `EGL_BAD_ALLOC` on both builds. Those failures do not validate hardware
 rendering. The fullscreen/restore fixture passes at 150% scaling with the
 repaired production helper.

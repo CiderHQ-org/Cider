@@ -7,6 +7,7 @@ pub mod air;
 mod cache;
 mod diagnostics;
 mod limits;
+mod memory;
 mod preload;
 mod present;
 mod util;
@@ -390,7 +391,7 @@ extern "C" fn device_info(device: *mut c_void, out: *mut QmDeviceInfo) {
     out.name[count] = 0;
     out.registry_id = device.registry_id();
     out.max_buffer_length = properties.max_buffer_length;
-    out.recommended_max_working_set_size = limits::recommended_working_set(device);
+    out.recommended_max_working_set_size = memory::recommended_working_set(device);
     out.max_threadgroup_memory_length = properties.max_threadgroup_memory_length;
     out.max_threads_per_threadgroup = QmSize {
         width: properties.max_threads_per_threadgroup.width,

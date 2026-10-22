@@ -1,5 +1,4 @@
-//! Operational compile limits and device-local memory budgets.
-use metal2vulkan_runtime::Device;
+//! Operational compilation limits based on CPU and host/cgroup memory.
 use std::num::NonZeroUsize;
 use std::path::Path;
 use std::sync::Once;
@@ -80,49 +79,6 @@ pub fn configure() {
             crate::util::log_once(&format!("[Quadra Metal] pipeline compilation cap: {count}, available host/cgroup memory: {} MiB", available.unwrap_or(0) >> 20));
         }
     });
-}
-
-pub fn recommended_working_set(device: &Device) -> u64 {
-    let raw = unsafe { device.raw() };
-    let supported = unsafe {
-        raw.instance
-            .enumerate_device_extension_properties(raw.physical_device)
-    }
-    .unwrap_or_default();
-    let has_budget = supported.iter().any(|extension| unsafe { std::ffi::CStr::from_ptr(extension.extension_name.as_ptr()) } == ash::ext::memory_budget::NAME);
-    let mut budget = ash::vk::PhysicalDeviceMemoryBudgetPropertiesEXT::default();
-    let mut properties = ash::vk::PhysicalDeviceMemoryProperties2::default();
-    if has_budget {
-        properties = properties.push_next(&mut budget);
-    }
-    unsafe {
-        raw.instance
-            .get_physical_device_memory_properties2(raw.physical_device, &mut properties);
-    }
-    let memory = properties.memory_properties;
-    let mut total = 0u64;
-    for (index, heap) in memory.memory_heaps[..memory.memory_heap_count as usize]
-        .iter()
-        .enumerate()
-    {
-        if !heap.flags.contains(ash::vk::MemoryHeapFlags::DEVICE_LOCAL) {
-            continue;
-        }
-        let usable = if has_budget && budget.heap_budget[index] > 0 {
-            // A working-set recommendation includes memory the process already uses; this is
-            // the driver's budget, rather than its remaining free bytes.
-            budget.heap_budget[index].min(heap.size)
-        } else {
-            heap.size.saturating_mul(3) / 4
-        };
-        total = total.saturating_add(usable);
-    }
-    let measured = if total > 0 { total } else { 512 << 20 };
-    std::env::var("MACOBLOX_VRAM_BYTES")
-        .ok()
-        .and_then(|value| value.parse::<u64>().ok())
-        .filter(|&bytes| bytes > 0)
-        .map_or(measured, |value| value.min(measured))
 }
 
 #[cfg(test)]

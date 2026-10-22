@@ -60,14 +60,17 @@ extern "C" void macoblox_wayland_keyboard_fixture(unsigned id,int scenario) {
         case 16:ctrl(SDL_SCANCODE_RIGHT,SDLK_RIGHT);break;
         case 17:ctrl(SDL_SCANCODE_BACKSPACE,SDLK_BACKSPACE);break;
         case 18:
-            focus(true);button(3,true);capture(windows.at(id),id,true);
+            focus(true);button(3,true);windows.at(id).requested_capture=true;capture(windows.at(id),id,true);
             button(1,true);motion(7,-9);break;
         case 19:button(1,false);motion(3,4);break;
         case 20:button(3,false);capture(windows.at(id),id,false);motion(1,2);break;
         case 21:
-            button(1,true);button(3,true);capture(windows.at(id),id,true);motion(7,-9);break;
+            button(1,true);button(3,true);windows.at(id).requested_capture=true;capture(windows.at(id),id,true);motion(7,-9);break;
         case 22:button(3,false);capture(windows.at(id),id,false);motion(3,4);break;
         case 23:button(1,false);motion(1,2);break;
+        case 24:focus(false);focus(true);break;
+        case 25:focus(false);break;
+        case 26:focus(true);break;
         }
     });
 }

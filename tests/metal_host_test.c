@@ -84,6 +84,18 @@ int main(int argc, char **argv) {
     qm_device_info info = {0};
     api->device_info(device, &info);
     printf("Device: %s\n", info.name);
+    const char *original_budget = getenv("MACOBLOX_VRAM_BYTES");
+    char *saved_budget = original_budget ? strdup(original_budget) : NULL;
+    setenv("MACOBLOX_VRAM_BYTES", "invalid", 1);
+    api->device_info(device, &info);
+    CHECK(info.recommended_max_working_set_size >= (64u << 20));
+    CHECK(info.recommended_max_working_set_size <= (512u << 20));
+    setenv("MACOBLOX_VRAM_BYTES", "134217728", 1);
+    api->device_info(device, &info);
+    CHECK(info.recommended_max_working_set_size <= (128u << 20));
+    if (saved_budget) { setenv("MACOBLOX_VRAM_BYTES", saved_budget, 1); free(saved_budget); }
+    else unsetenv("MACOBLOX_VRAM_BYTES");
+    puts("PASS: Metal C ABI bounds malformed and explicit graphics budgets on the selected Vulkan device");
     void *queue = api->queue_new(device);
     CHECK(queue);
     render_and_read(device, queue, 1);

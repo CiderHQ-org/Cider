@@ -53,6 +53,31 @@ class MirrorTests(unittest.TestCase):
                     self.cache.archive(UPLOAD)
             self.assertEqual(list(Path(self.directory.name).iterdir()), [])
 
+    def test_cold_archive_cache_recovers_from_primary_cdn_403(self):
+        primary = f'https://setup.rbxcdn.com/mac/{UPLOAD}-RobloxPlayer.zip'
+        alternate = f'https://setup-aws.rbxcdn.com/mac/{UPLOAD}-RobloxPlayer.zip'
+        denied = urllib.error.HTTPError(primary, 403, 'Forbidden', {}, io.BytesIO(b'denied'))
+        response = Response(archive(), url=alternate)
+        with patch.object(mirror.urllib.request, 'urlopen', side_effect=[denied, response]) as opener:
+            with self.cache.archive(UPLOAD) as file:
+                self.assertEqual(file.read(), archive())
+            self.assertEqual([call.args[0].full_url for call in opener.call_args_list], [primary, alternate])
+            self.assertTrue(denied.fp.closed)
+            with self.cache.archive(UPLOAD) as file:
+                self.assertEqual(file.read(), archive())
+            self.assertEqual(opener.call_count, 2)
+
+    def test_blocked_official_cdn_alternates_never_publish_a_cache_file(self):
+        errors = [urllib.error.HTTPError('https://setup.rbxcdn.com', 403, 'Forbidden', {}, io.BytesIO())
+                  for _ in range(3)]
+        with patch.object(mirror.urllib.request, 'urlopen', side_effect=errors) as opener:
+            with self.assertRaises(urllib.error.HTTPError):
+                self.cache.archive(UPLOAD)
+            self.assertEqual(opener.call_count, 3)
+            self.assertEqual(list(Path(self.directory.name).iterdir()), [])
+        for error in errors:
+            error.close()
+
     def test_version_is_cached_without_changing_channel(self):
         body = json.dumps({'version': '0.743.0.7431134', 'clientVersionUpload': UPLOAD}).encode()
         path = '/v2/client-version/MacPlayer/channel/znext'
