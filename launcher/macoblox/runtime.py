@@ -17,6 +17,12 @@ CIDER_DIRECTORY = Path("/opt/ciderdarling")
 INSTALLER = Path(__file__).resolve().parents[2] / "install.sh"
 
 
+def is_bundled(environment=None):
+    """Whether the package owns the client, sysroot and runtime updates."""
+    env = os.environ if environment is None else environment
+    return bool(env.get("FLATPAK_ID") or env.get("MACOBLOX_BUNDLED_DARLING"))
+
+
 def _validate_selection(data):
     if (not isinstance(data, dict) or data.get("schema_version") != 1
             or data.get("runtime") not in VARIANTS):
@@ -187,6 +193,9 @@ def installed_runtimes(current=None, environment=None, selection_file=None,
     `pinned` is a revision; the default reads it from install.sh.
     """
     env = os.environ if environment is None else environment
+    if env.get("MACOBLOX_BUNDLED_DARLING") and not env.get("FLATPAK_ID"):
+        bundled = resolve_runtime(env, selection_file)
+        return {bundled["runtime"]: bundled}
     if env.get("FLATPAK_ID"):
         return {}
     saved = read_selection(selection_file if selection_file is not None else selection_path())
@@ -261,6 +270,20 @@ def installed_runtimes(current=None, environment=None, selection_file=None,
 
 def resolve_runtime(environment=None, selection_file=None):
     env = os.environ if environment is None else environment
+    # Nix pins the whole runtime alongside the shim. Ignore saved host paths,
+    # including store paths from an older generation, without changing them.
+    bundled = env.get("MACOBLOX_BUNDLED_DARLING") if not env.get("FLATPAK_ID") else None
+    if bundled:
+        root = Path(bundled)
+        if not root.is_absolute():
+            raise RuntimeError("MACOBLOX_BUNDLED_DARLING must be an absolute runtime directory")
+        sysroot = root / "libexec/darling"
+        data = metadata(sysroot)
+        variant = "ciderdarling" if data else "regular"
+        prefix = env.get("DPREFIX") or str(Path.home() / (
+            ".ciderdarling" if variant == "ciderdarling" else ".darling"))
+        return {"runtime": variant, "executable": str(root / "bin/darling"),
+                "sysroot": str(sysroot), "prefix": str(Path(prefix).absolute()), "metadata": data}
     # A Flatpak carries its own client, sysroot and rootless helper. Host
     # installer preferences cannot select files outside its sandbox.
     flatpak = bool(env.get("FLATPAK_ID"))

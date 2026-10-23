@@ -34,3 +34,7 @@ __pycache__/
 
 # Local QuadraM2VK checkout used by the Metal bridge.
 /vendor/metal2vulkan
+
+# Nix build outputs
+/result
+/result-*

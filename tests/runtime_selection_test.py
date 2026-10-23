@@ -70,6 +70,32 @@ class RuntimeSelectionTests(unittest.TestCase):
         self.assertEqual(resolved["executable"], selected["executable"])
         self.assertEqual(resolved["prefix"], str(self.base / "custom-prefix"))
 
+    def test_nix_bundle_ignores_saved_host_and_old_store_paths(self):
+        self.install_cider_metadata()
+        self.selection.write_text('invalid host configuration')
+        resolved = self.resolve(MACOBLOX_BUNDLED_DARLING=str(self.cider))
+        self.assertEqual(resolved['runtime'], 'ciderdarling')
+        self.assertEqual(resolved['executable'], str(self.cider / 'bin/darling'))
+        self.assertEqual(resolved['sysroot'], str(self.cider / 'libexec/darling'))
+        self.assertEqual(resolved['prefix'], str(Path.home() / '.ciderdarling'))
+        self.assertEqual(self.selection.read_text(), 'invalid host configuration')
+        resolved = self.resolve(MACOBLOX_BUNDLED_DARLING=str(self.stock), DPREFIX=str(self.base / 'custom'))
+        self.assertEqual(resolved['runtime'], 'regular')
+        self.assertEqual(resolved['prefix'], str(self.base / 'custom'))
+
+    def test_nix_discovery_exposes_only_bundled_runtime_and_its_settings(self):
+        self.install_cider_metadata()
+        self.select('regular')
+        choices = self.discover(MACOBLOX_BUNDLED_DARLING=str(self.cider))
+        self.assertEqual(set(choices), {'ciderdarling'})
+        self.assertEqual(choices['ciderdarling']['executable'], str(self.cider / 'bin/darling'))
+        self.assertTrue(runtime.is_bundled({'MACOBLOX_BUNDLED_DARLING': str(self.cider)}))
+        self.assertFalse(runtime.is_bundled({}))
+
+    def test_flatpak_keeps_its_runtime_if_nix_bundle_environment_is_inherited(self):
+        resolved = self.resolve(FLATPAK_ID='org.quadrahq.Quadra', MACOBLOX_BUNDLED_DARLING=str(self.cider))
+        self.assertEqual(resolved['sysroot'], '/app/libexec/darling')
+
     def test_malformed_unknown_and_relative_configuration_rejected(self):
         for data in ("invalid", "[]", '{"schema_version": 99}'):
             self.selection.write_text(data)

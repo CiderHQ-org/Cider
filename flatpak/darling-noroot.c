@@ -80,6 +80,40 @@ DECLARE_REAL(mount);
 DECLARE_REAL(syscall);
 DECLARE_REAL(setenv);
 DECLARE_REAL(exit);
+#ifdef MACOBLOX_NIX_STORE
+DECLARE_REAL(mkdir);
+DECLARE_REAL(chmod);
+DECLARE_REAL(fchmod);
+DECLARE_REAL(fchmodat);
+
+/* Nix normalizes store directories to 0555 and files to 0444/0555.
+ * Darling's no-overlay copy preserves these modes. Its private copy needs
+ * owner write permission so it can populate directories and update the guest.
+ * Keep this limited to the runtime processes and the Nix build of the helper. */
+int mkdir(const char *path, mode_t mode) {
+    if (current_role() != OTHER)
+        mode |= S_IWUSR;
+    return REAL(mkdir)(path, mode);
+}
+
+int chmod(const char *path, mode_t mode) {
+    if (current_role() != OTHER)
+        mode |= S_IWUSR;
+    return REAL(chmod)(path, mode);
+}
+
+int fchmod(int fd, mode_t mode) {
+    if (current_role() != OTHER)
+        mode |= S_IWUSR;
+    return REAL(fchmod)(fd, mode);
+}
+
+int fchmodat(int fd, const char *path, mode_t mode, int flags) {
+    if (current_role() != OTHER)
+        mode |= S_IWUSR;
+    return REAL(fchmodat)(fd, path, mode, flags);
+}
+#endif
 
 uid_t getuid(void) {
     if (current_role() == SERVER && server_is_root)
@@ -218,6 +252,12 @@ __attribute__((constructor(101))) static void resolve_real_functions(void) {
     RESOLVE(syscall);
     RESOLVE(setenv);
     RESOLVE(exit);
+#ifdef MACOBLOX_NIX_STORE
+    RESOLVE(mkdir);
+    RESOLVE(chmod);
+    RESOLVE(fchmod);
+    RESOLVE(fchmodat);
+#endif
 }
 
 /* The prefix, from darlingserver's command line (argv[1]). */

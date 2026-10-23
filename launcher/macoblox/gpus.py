@@ -116,7 +116,9 @@ def selected_gpu(selection, adapters=None):
 
 
 def _nvidia_egl_manifest():
-    roots = [Path(root) for root in ("/usr/share", "/usr/local/share", "/etc", "/app/share")]
+    roots = [Path(root) for root in ("/usr/share", "/usr/local/share", "/etc", "/app/share",
+                                   "/run/opengl-driver/share")]
+    roots.extend(Path(root) for root in os.environ.get("XDG_DATA_DIRS", "").split(":") if root)
     roots.extend(path / "share" for path in sorted(Path("/usr/lib/x86_64-linux-gnu/GL").glob("*")))
     for root in roots:
         for manifest in sorted((root / "glvnd/egl_vendor.d").glob("*.json")):

@@ -1,0 +1,37 @@
+name: Nix packages
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'flake.*'
+      - 'packaging/nix/**'
+      - 'packaging/install-payload.sh'
+      - 'packaging/release.json'
+      - 'launcher/**'
+      - 'prototype/metal-vulkan/**'
+      - 'frameworks/**'
+      - 'flatpak/darling-noroot.c'
+      - 'flatpak/launchd_pid1.c'
+      - '*.[cmh]'
+      - '*.cpp'
+      - '*.S'
+      - '*.sh'
+      - '.github/workflows/nix.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+      - name: Build CiderDarling and regular Darling packages
+        run: nix flake check --print-build-logs
+      - name: Run guest shells in disposable prefixes
+        run: |
+          nix run .#check-runtime
+          nix run .#check-runtime-regular

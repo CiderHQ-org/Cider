@@ -12,6 +12,7 @@ excluded. Package updates use the distro's package manager.
 | Debian 13+, Ubuntu 24.04+ | [Debian overlay](debian/control) | Linux Mint 22 and compatible Debian/Ubuntu derivatives |
 | Fedora | [RPM spec](rpm/quadrahq.spec) | Nobara and compatible Fedora derivatives |
 | openSUSE | [RPM spec](rpm/quadrahq.spec) | Tumbleweed; Leap releases supplying the required UI versions |
+| NixOS (x86_64) | [Flake and NixOS module](nix/README.md) | NixOS with flakes enabled |
 
 The release workflow builds Arch, Ubuntu 24.04 and Fedora packages in their
 own distro containers, then publishes the packages together after every build
@@ -28,6 +29,10 @@ Cider 0.30 AUR recipe remains in `aur/ciderhq/`. Use `--local` to package
 unreleased source changes.
 
 ## Requirements
+
+The Nix package supplies its own Darling runtime and build dependencies;
+see its [separate instructions](nix/README.md). The requirements below apply
+to the Arch, Debian and RPM recipes.
 
 - x86_64 Linux with glibc. This macOS client and shim do not provide ARM or
   Alpine/musl packages.

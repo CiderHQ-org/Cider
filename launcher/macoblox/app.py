@@ -1329,7 +1329,7 @@ class SettingsPage(Adw.Bin):
         self._runtime_codes = runtime.VARIANTS
         self._runtime_labels = {"regular": _("DarlingHQ's Darling"),
                                 "ciderdarling": _("QuadraHQ's CiderDarling")}
-        bundled = bool(os.environ.get("FLATPAK_ID"))
+        bundled = runtime.is_bundled()
         release = window.cider_release
         self._cider_pin = None if bundled else (runtime_updates.pin(release) if release else runtime.pinned_ciderdarling())
         self._runtime_choices = self._installed_runtime_choices()
@@ -1799,14 +1799,14 @@ class SettingsPage(Adw.Bin):
         """An available, published descendant of the installed runtime."""
         choice = self._runtime_choices.get('ciderdarling')
         release = self.window.cider_release
-        return bool(choice and release and not os.environ.get('FLATPAK_ID')
+        return bool(choice and release and not runtime.is_bundled()
                     and runtime_updates.newer(release, runtime.metadata(choice['sysroot'])))
 
     def _runtime_selection_changed(self):
         index = self.runtime_row.get_selected()
         selected = self._runtime_codes[index] if index < len(self._runtime_codes) else None
         choice = self._runtime_choices.get(selected)
-        bundled = bool(os.environ.get("FLATPAK_ID"))
+        bundled = runtime.is_bundled()
         installing = self.window.runtime_install_job is not None
         update = self.ciderdarling_update_needed()
         changed = choice is not None and any(choice[key] != core.DARLING_RUNTIME[key]
@@ -1826,7 +1826,9 @@ class SettingsPage(Adw.Bin):
                   installed=installed[:12], pinned=pinned[:12]))
         else:
             self.runtime_install_row.set_subtitle(_("Opens a separate terminal for the build and sudo prompts."))
-        if bundled:
+        if os.environ.get("MACOBLOX_BUNDLED_DARLING"):
+            subtitle = _("Nix manages this Darling runtime. Update or switch it through your Nix configuration.")
+        elif bundled:
             subtitle = _("Flatpak uses its bundled Darling runtime.")
         elif installing:
             subtitle = _("Installing in a separate terminal. Your current runtime remains selected.")
@@ -1845,7 +1847,7 @@ class SettingsPage(Adw.Bin):
             _error_dialog(self.window, _("Could not inspect installed runtimes"), str(error))
             return
         selected = self.runtime_row.get_selected()
-        labels = [self._runtime_labels[variant] if variant in choices or os.environ.get("FLATPAK_ID")
+        labels = [self._runtime_labels[variant] if variant in choices or runtime.is_bundled()
                   else _("{runtime} (not installed)", runtime=self._runtime_labels[variant])
                   for variant in self._runtime_codes]
         self._runtime_choices = choices
@@ -1859,7 +1861,7 @@ class SettingsPage(Adw.Bin):
         self.refresh_ciderdarling()
 
     def apply_runtime(self):
-        if os.environ.get("FLATPAK_ID") or not self.runtime_apply_button.get_sensitive():
+        if runtime.is_bundled() or not self.runtime_apply_button.get_sensitive():
             return
         if not self.window.begin("switching runtime"):
             return
@@ -1891,7 +1893,7 @@ class SettingsPage(Adw.Bin):
             _error_dialog(self.window, _("Could not switch Darling runtime"), details)
 
     def rollback_runtime(self):
-        if os.environ.get('FLATPAK_ID') or not self.window.begin('switching runtime'):
+        if runtime.is_bundled() or not self.window.begin('switching runtime'):
             return
         saved = False
         try:
@@ -2066,7 +2068,7 @@ class SettingsPage(Adw.Bin):
         self.cider_update_button.connect("clicked", lambda *_args: window.install_ciderdarling())
         self.cider_revision_row.add_suffix(self.cider_update_button)
         self.cider_check_button = Gtk.Button(icon_name='view-refresh-symbolic', valign=Gtk.Align.CENTER,
-            tooltip_text=_("Check for CiderDarling updates"), visible=not bool(os.environ.get('FLATPAK_ID')))
+            tooltip_text=_("Check for CiderDarling updates"), visible=not runtime.is_bundled())
         self.cider_check_button.connect('clicked', lambda *_args: window.check_ciderdarling_updates(force=True))
         self.cider_revision_row.add_suffix(self.cider_check_button)
         about.add(self.cider_revision_row)
@@ -2075,7 +2077,7 @@ class SettingsPage(Adw.Bin):
         automatic = Adw.SwitchRow(title=_("Check for CiderDarling updates automatically"),
             subtitle=_("Checks in the background. Install an available update in a separate terminal."),
             active=settings.get('auto_check_ciderdarling_updates', True),
-            sensitive=not bool(os.environ.get('FLATPAK_ID')))
+            sensitive=not runtime.is_bundled())
         automatic.connect('notify::active', lambda row, *_args: window.set_setting(
             'auto_check_ciderdarling_updates', row.get_active()))
         about.add(automatic)
@@ -2155,7 +2157,7 @@ class SettingsPage(Adw.Bin):
         self.cider_update_button.set_sensitive(self.window.runtime_install_job is None)
         self.cider_check_button.set_sensitive(not self.window.cider_update_checking)
         try:
-            previous = runtime.rollback_candidate(core.DARLING_RUNTIME)
+            previous = None if runtime.is_bundled() else runtime.rollback_candidate(core.DARLING_RUNTIME)
         except (OSError, RuntimeError, ValueError):
             previous = None
         self.cider_rollback_row.set_visible(previous is not None)
@@ -2895,7 +2897,7 @@ class LauncherWindow(Adw.ApplicationWindow):
         # restarting Darling or signing out. They share the client and Darling.
         self.busy = None
         self.runtime_install_job = None
-        self.cider_release = None if os.environ.get('FLATPAK_ID') else runtime_updates.cached(core.CACHE_DIR)
+        self.cider_release = None if runtime.is_bundled() else runtime_updates.cached(core.CACHE_DIR)
         self.cider_update_checking = False
         self._notified_cider_revision = None
         self.quit_when_idle = False  # the window was closed during an operation
@@ -3247,7 +3249,7 @@ class LauncherWindow(Adw.ApplicationWindow):
         return True
 
     def check_ciderdarling_updates(self, force=False):
-        if os.environ.get('FLATPAK_ID') or self.cider_update_checking:
+        if runtime.is_bundled() or self.cider_update_checking:
             return
         self.cider_update_checking = True
         self.settings_page.refresh_ciderdarling()
@@ -3283,7 +3285,7 @@ class LauncherWindow(Adw.ApplicationWindow):
     def install_ciderdarling(self):
         """Install CiderDarling, or update it to the build Quadra's installer
         pins, in a separate terminal (runtime_install.TERMINAL_SCRIPT)."""
-        if os.environ.get("FLATPAK_ID"):
+        if runtime.is_bundled():
             return
         page = self.settings_page
         update = page.ciderdarling_update_needed()

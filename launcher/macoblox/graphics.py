@@ -25,7 +25,8 @@ _dependency_lock = threading.Lock()
 
 def mesa_egl_manifest():
     # Inside Flatpak, Mesa comes from the GL extension (GL/default), not /usr/share.
-    roots = ["/usr/share", "/usr/local/share", "/etc", "/app/share"]
+    roots = ["/usr/share", "/usr/local/share", "/etc", "/app/share", "/run/opengl-driver/share"]
+    roots += [root for root in os.environ.get("XDG_DATA_DIRS", "").split(":") if root]
     roots += [str(path) for path in sorted(Path("/usr/lib/x86_64-linux-gnu/GL").glob("*/share"))]
     return next((Path(root) / "glvnd/egl_vendor.d/50_mesa.json" for root in roots
                  if (Path(root) / "glvnd/egl_vendor.d/50_mesa.json").is_file()), None)
@@ -37,7 +38,7 @@ def missing_vulkan_dependencies():
         missing.append("Mesa EGL")
     roots = ("/usr/lib", "/usr/lib64", "/usr/lib/x86_64-linux-gnu", "/usr/local/lib",
              "/usr/local/lib64", "/app/lib", "/app/lib/x86_64-linux-gnu",
-             "/usr/lib/x86_64-linux-gnu/GL/default/lib", "/usr/lib/GL/default/lib")
+             "/usr/lib/x86_64-linux-gnu/GL/default/lib", "/usr/lib/GL/default/lib", "/run/opengl-driver/lib")
     extra = os.environ.get("LIBGL_DRIVERS_PATH", "").split(":")
     paths = [Path(root) / "dri/zink_dri.so" for root in roots]
     paths.extend(Path(root) / "zink_dri.so" for root in extra if root)

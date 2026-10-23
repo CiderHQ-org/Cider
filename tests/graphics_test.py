@@ -35,6 +35,13 @@ class GraphicsTests(unittest.TestCase):
                 patch.object(graphics.Path, "is_file", return_value=False):
             self.assertEqual(graphics.missing_vulkan_dependencies(), ["Zink"])
 
+    def test_nixos_driver_manifests_and_zink_are_detected(self):
+        mesa = Path('/run/opengl-driver/share/glvnd/egl_vendor.d/50_mesa.json')
+        zink = Path('/run/opengl-driver/lib/dri/zink_dri.so')
+        with patch.object(graphics.Path, 'is_file', lambda path: path in (mesa, zink)):
+            self.assertEqual(graphics.mesa_egl_manifest(), mesa)
+            self.assertEqual(graphics.missing_vulkan_dependencies(), [])
+
     def test_dependency_install_skips_authentication_when_already_installed(self):
         with patch.object(graphics, "missing_vulkan_dependencies", return_value=[]), \
                 patch.object(graphics.subprocess, "run") as run:

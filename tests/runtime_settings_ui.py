@@ -15,7 +15,7 @@ temporary = tempfile.TemporaryDirectory()
 base = Path(temporary.name)
 os.environ.update(HOME=str(base), XDG_CONFIG_HOME=str(base / "config"),
                   XDG_CACHE_HOME=str(base / "cache"), XDG_DATA_HOME=str(base / "data"))
-for key in ("DPREFIX", "FLATPAK_ID", "MACOBLOX_PAGE"):
+for key in ("DPREFIX", "FLATPAK_ID", "MACOBLOX_PAGE", "MACOBLOX_BUNDLED_DARLING"):
     os.environ.pop(key, None)
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "launcher"))
 # Do not run startup update checks, author avatars or other unrelated workers.
@@ -157,6 +157,22 @@ with patch.dict(os.environ, FLATPAK_ID="org.quadrahq.Quadra"):
         assert "bundled" in page.runtime_group.get_description()
         page.apply_runtime()
         assert len(restarts) == 2
+
+with patch.dict(os.environ, MACOBLOX_BUNDLED_DARLING=str(base / 'ciderdarling')):
+    context, window = fixture()
+    with context, patch.object(runtime_install.Installation, 'create') as install:
+        page = window.settings_page
+        assert not page.runtime_row.get_sensitive()
+        assert 'Nix manages' in page.runtime_group.get_description()
+        assert page.cider_stack_page.get_visible()
+        assert not page.cider_check_button.get_visible()
+        assert not page.cider_rollback_row.get_visible()
+        before = selection_file.read_bytes()
+        page.apply_runtime()
+        window.install_ciderdarling()
+        window.check_ciderdarling_updates(force=True)
+        install.assert_not_called()
+        assert selection_file.read_bytes() == before and len(restarts) == 2
 
 # A missing CiderDarling can be installed without selecting it or replacing
 # launcher files. The real terminal launch is mocked; job status is simulated.

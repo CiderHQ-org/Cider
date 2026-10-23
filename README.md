@@ -56,6 +56,11 @@ and [CiderDarling](https://github.com/CiderHQ-org/CiderDarling).
 
 ## Install
 
+**NixOS (x86_64):** use the [Nix package and NixOS module](packaging/nix/README.md).
+It bundles CiderDarling by default, with regular Darling available as an
+alternative. From a checkout, run `nix run .`; use Nix to install and update
+this version instead of the source installer below.
+
 Every **Latest** version is a source release. Use the installer below to install or update.
 
 If Roblox's public version or client download endpoint returns HTTP 403,
