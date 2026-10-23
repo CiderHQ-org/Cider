@@ -352,11 +352,17 @@ pub fn run(
     run_inner(device, progress, context, maximum, false).map(|(count, _)| count)
 }
 
-pub fn warm_live(device: &Device) -> WarmStates {
+pub fn warm_live(device: &Device, graphics_budget: u64) -> WarmStates {
     if std::env::var("MACOBLOX_METAL_PRELOAD_IN_PROCESS").as_deref() != Ok("1") {
         return WarmStates::default();
     }
-    let maximum = resident_limit(crate::limits::available_memory());
+    let maximum = resident_limit(
+        crate::limits::available_memory(),
+        device
+            .properties()
+            .has_unified_memory
+            .then_some(graphics_budget),
+    );
     match run_inner(device, None, std::ptr::null_mut(), maximum as u32, true) {
         Ok((count, states)) => {
             crate::util::log_once(&format!(
@@ -373,10 +379,15 @@ pub fn warm_live(device: &Device) -> WarmStates {
     }
 }
 
-fn resident_limit(available: Option<u64>) -> usize {
-    available.map_or(UNKNOWN_MEMORY_RESIDENT, |bytes| {
+fn resident_limit(available: Option<u64>, shared_graphics_budget: Option<u64>) -> usize {
+    let host_limit = available.map_or(UNKNOWN_MEMORY_RESIDENT, |bytes| {
         let budget = (bytes / 4).min(bytes.saturating_sub(MEMORY_RESERVE));
         (budget / ESTIMATED_STATE_BYTES).min(MAX_RESIDENT as u64) as usize
+    });
+    // Preloaded pipelines are optional and share the APU's graphics budget.
+    // Reserve three quarters of it for actual game resources and staging.
+    shared_graphics_budget.map_or(host_limit, |bytes| {
+        host_limit.min((bytes / 4 / ESTIMATED_STATE_BYTES) as usize)
     })
 }
 
@@ -507,13 +518,16 @@ mod tests {
 
     #[test]
     fn residency_preserves_headroom_on_small_and_memory_limited_hosts() {
-        assert_eq!(resident_limit(Some(0)), 0);
-        assert_eq!(resident_limit(Some(768 << 20)), 0);
-        assert_eq!(resident_limit(Some(1 << 30)), 32);
-        assert_eq!(resident_limit(Some(2 << 30)), 64);
-        assert_eq!(resident_limit(Some(3 << 30)), 96);
-        assert_eq!(resident_limit(Some(8 << 30)), 256);
-        assert_eq!(resident_limit(Some(u64::MAX)), 256);
-        assert_eq!(resident_limit(None), 64);
+        assert_eq!(resident_limit(Some(0), None), 0);
+        assert_eq!(resident_limit(Some(768 << 20), None), 0);
+        assert_eq!(resident_limit(Some(1 << 30), None), 32);
+        assert_eq!(resident_limit(Some(2 << 30), None), 64);
+        assert_eq!(resident_limit(Some(3 << 30), None), 96);
+        assert_eq!(resident_limit(Some(8 << 30), None), 256);
+        assert_eq!(resident_limit(Some(u64::MAX), None), 256);
+        assert_eq!(resident_limit(None, None), 64);
+        assert_eq!(resident_limit(Some(3 << 30), Some(512 << 20)), 16);
+        assert_eq!(resident_limit(Some(3 << 30), Some(128 << 20)), 4);
+        assert_eq!(resident_limit(Some(0), Some(512 << 20)), 0);
     }
 }

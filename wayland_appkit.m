@@ -141,7 +141,10 @@ extern unsigned long CGBitmapContextGetBytesPerRow(void *);
 + (void)setCurrentContext:(id)context;
 + (id)graphicsContextWithGraphicsPort:(void *)port flipped:(BOOL)flipped;
 @end
-@interface NSPasteboard:NSObject @end
+@interface NSPasteboard:NSObject
+- (NSString *)stringForType:(NSString *)type;
+- (BOOL)setString:(NSString *)text forType:(NSString *)type;
+@end
 
 static const struct macoblox_wayland_api *api;
 static BOOL initialized;
@@ -375,14 +378,32 @@ static BOOL subwindow_frame(MacOBloxWaylandWindow *parent,NSRect value,int *x,in
 - (NSInteger)addTypes:(id)types owner:(id)owner{return ++changes;}
 - (NSArray *)types{return [self isGeneral]?@[@"NSStringPboardType",@"public.utf8-plain-text"]:[values allKeys];}
 - (id)dataForType:(NSString *)type {
-    if(![self isGeneral] || ![self isText:type])return [values objectForKey:type];
+    if(![self isGeneral])return [values objectForKey:type];
+    // SDL transfers plain text only. Keeping a local RTF copy made AppKit
+    // prefer its unsupported RTF importer on paste, and could also paste old
+    // formatted data after another application replaced the host clipboard.
+    if(![self isText:type])return nil;
     return [[NSString stringWithUTF8String:api->clipboard(0)] dataUsingEncoding:[type isEqual:@"NSStringPboardType"]?10:4];
+}
+- (NSString *)stringForType:(NSString *)type {
+    if(![self isText:type])return [super stringForType:type];
+    if([self isGeneral])return [NSString stringWithUTF8String:api->clipboard(0)];
+    return [[[NSString alloc] initWithData:[self dataForType:type]
+        encoding:[type isEqual:@"NSStringPboardType"]?10:4] autorelease];
+}
+- (BOOL)setString:(NSString *)text forType:(NSString *)type {
+    if(![self isText:type])return [super setString:text forType:type];
+    if(!text)return NO;
+    if([self isGeneral]){api->clipboard([text UTF8String]);changes++;return YES;}
+    return [self setData:[text dataUsingEncoding:[type isEqual:@"NSStringPboardType"]?10:4] forType:type];
 }
 - (BOOL)setData:(id)data forType:(NSString *)type {
     if(!data || !type)return NO;
-    if([self isGeneral] && [self isText:type]){
+    if([self isGeneral]){
+        if(![self isText:type])return NO;
         NSString *text=[[[NSString alloc] initWithData:data encoding:[type isEqual:@"NSStringPboardType"]?10:4] autorelease];
         if(!text)return NO;api->clipboard([text UTF8String]);
+        changes++;return YES;
     }
     [values setObject:data forKey:type];changes++;return YES;
 }

@@ -22,6 +22,13 @@ typedef struct {NSUInteger location,length;} Range;
 @end
 @interface NSString:NSObject
 - (NSUInteger)length; - (BOOL)isEqual:(id)other;
+- (id)dataUsingEncoding:(NSUInteger)encoding;
+@end
+@interface NSPasteboard:NSObject
++ (id)generalPasteboard; + (id)pasteboardWithName:(id)name;
+- (BOOL)setString:(id)text forType:(id)type; - (id)stringForType:(id)type;
+- (BOOL)setData:(id)data forType:(id)type; - (id)dataForType:(id)type;
+- (long)clearContents;
 @end
 @interface NSApplication:NSObject
 + (id)sharedApplication; - (void)finishLaunching; - (void)sendEvent:(id)event;
@@ -129,6 +136,35 @@ int main(void) {
     inject(handle,13);pump(app);CHECK([[view string] length]==0);
     puts("CHECK: Ctrl+X returned");fflush(0);
     inject(handle,14);pump(app);CHECK([[view string] isEqual:@"x"]);
+    // The real Roblox input view can retain AppKit's default rich-text flag.
+    // Exercise its copy path too, rather than hiding RTF handling in the fixture.
+    [view setRichText:1];
+    [view setString:@"clipboard é🙂\nsecond line"];
+    [view setSelectedRange:(Range){0,[[view string] length]}];
+    puts("CHECK: copying from a rich text view");fflush(0);
+    inject(handle,12);pump(app);
+    inject(handle,13);pump(app);CHECK([[view string] length]==0);
+    puts("CHECK: pasting back into a rich text view");fflush(0);
+    inject(handle,14);pump(app);
+    CHECK([[view string] isEqual:@"clipboard é🙂\nsecond line"]);
+    NSPasteboard *board=[NSPasteboard generalPasteboard];
+    CHECK(![board dataForType:@"NSRTFPboardType"]);
+    CHECK([board setString:@"external é🙂" forType:@"public.utf8-plain-text"]);
+    CHECK([[board stringForType:@"public.utf8-plain-text"] isEqual:@"external é🙂"]);
+    CHECK([[board stringForType:@"NSStringPboardType"] isEqual:@"external é🙂"]);
+    [view setSelectedRange:(Range){0,[[view string] length]}];
+    inject(handle,14);pump(app);CHECK([[view string] isEqual:@"external é🙂"]);
+    // Unsupported formats cannot shadow a later host clipboard replacement.
+    CHECK(![board setData:[@"{\\rtf1 stale}" dataUsingEncoding:4] forType:@"NSRTFPboardType"]);
+    CHECK(![board dataForType:@"NSRTFPboardType"]);
+    [board clearContents];[view setSelectedRange:(Range){[[view string] length],0}];
+    inject(handle,14);pump(app);CHECK([[view string] isEqual:@"external é🙂"]);
+    NSPasteboard *private=[NSPasteboard pasteboardWithName:@"quadra-fixture-private"];
+    id privateData=[@"private format" dataUsingEncoding:4];
+    CHECK([private setData:privateData forType:@"quadra.fixture"]);
+    CHECK([[private dataForType:@"quadra.fixture"] isEqual:privateData]);
+    puts("PASS: plain/rich Ctrl+C/X/V, Unicode, both string encodings, replaced/empty clipboard and private formats");fflush(0);
+    [view setRichText:0];[view setString:@"x"];[view setSelectedRange:(Range){1,0}];
     unsigned before_delete=insertions;
     inject(handle,5);pump(app);
     CHECK([[view string] length]==0 && insertions==before_delete);

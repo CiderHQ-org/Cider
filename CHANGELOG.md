@@ -1,7 +1,22 @@
 # Changelog
 
-## Unreleased
+## 0.35.p1 — 2026-10-23
 
+- Stop launch immediately when Darling reports unavailable OverlayFS support.
+  Show module-loading, kernel-reboot and custom-kernel recovery instructions
+  in the startup error dialog, retaining the original error in the launch log.
+- Keep Roblox setup and routine update checks on the public release channel,
+  even with a saved restricted rollout channel or an old required-update log.
+  Preserve explicit recovery of the deployment requested by a running client.
+- Fix native Wayland clipboard crashes when a rich-text view pastes its local
+  RTF copy. Transfer supported plain text, preserve Unicode across legacy and
+  UTF-8 string APIs, and keep private pasteboard formats local.
+- Cap low-memory integrated-GPU Metal budgets at 512 MiB, scale larger APUs
+  with RAM, and refresh with host/cgroup memory pressure during play. Limit
+  the estimated footprint of optional resident shader preloads to a quarter
+  of that graphics budget. The reported Renoir device-loss case still needs
+  validation on the affected hardware.
+- Add NixOS packaging with a bundled CiderDarling runtime and NixOS module.
 - Remove the launcher's top tagline and welcome subtitle. Replace the ready
   badge with the selected Darling runtime's running/stopped status, refreshed
   while the Play page is visible.

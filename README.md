@@ -429,14 +429,23 @@ states. Thread stacks need **Allow freeze diagnostics**
 set; launch logs are capped at 200 MB in total, and `dserver.log` is rotated
 to `dserver.log.old` past 32 MB while Darling is stopped.
 
+If no window opens and the log says `Cannot mount overlay: No such device`,
+Darling could not start its app environment. Run `sudo modprobe overlay` on
+that machine, then try again. If the module is missing after a kernel update,
+reboot into the installed kernel. A custom kernel needs `CONFIG_OVERLAY_FS`
+enabled, built in or as an installed module matching the running kernel.
+The following `Cannot open mnt namespace file` is a consequence of the failed
+startup. Quadra now stops at this known warmup failure and shows these steps.
+
 If the log says `app_closed_for_update`, Roblox intentionally closed for a
 required client update. Use **Update Roblox** in the launcher's recovery dialog.
-The launcher follows the client's reported update channel and installs the
-exact deployment it requests. **Settings → Roblox → Update channel** shows the
-last reported channel. A restricted channel such as `zbeta` can reject anonymous
-update checks; the client's own required-update response supplies the download
-instead. Changing a launcher configuration value does not change Roblox's
-account enrollment.
+Setup and routine update checks use the public release channel, regardless of
+saved rollout channels or old logs. The recovery dialog can install the exact
+deployment requested by the running client. **Settings → Roblox → Last client
+channel** shows the last reported or installed channel. A restricted channel
+such as `zbeta` can reject anonymous checks; the client's validated
+required-update response supplies that download instead. Changing a launcher
+configuration value does not change Roblox's account enrollment.
 </details>
 
 <details>

@@ -240,6 +240,7 @@ pub enum Obj {
 pub struct DeviceObject {
     value: Device,
     warm: Mutex<preload::WarmStates>,
+    budget: memory::Budget,
 }
 impl std::ops::Deref for DeviceObject {
     type Target = Device;
@@ -368,10 +369,12 @@ extern "C" fn device_create(_options: *const c_void) -> *mut c_void {
                 log_once(&format!("[Quadra Metal] Vulkan device: {}", device.name()));
                 preload::initialize();
                 diagnostics::register(&device);
-                let warm = Mutex::new(preload::warm_live(&device));
+                let budget = memory::Budget::default();
+                let warm = Mutex::new(preload::warm_live(&device, budget.value(&device)));
                 handle(Obj::Device(DeviceObject {
                     value: device,
                     warm,
+                    budget,
                 }))
             }
             Err(error) => fail(format!("no Vulkan device for Metal: {error}")),
@@ -391,7 +394,7 @@ extern "C" fn device_info(device: *mut c_void, out: *mut QmDeviceInfo) {
     out.name[count] = 0;
     out.registry_id = device.registry_id();
     out.max_buffer_length = properties.max_buffer_length;
-    out.recommended_max_working_set_size = memory::recommended_working_set(device);
+    out.recommended_max_working_set_size = device.budget.value(device);
     out.max_threadgroup_memory_length = properties.max_threadgroup_memory_length;
     out.max_threads_per_threadgroup = QmSize {
         width: properties.max_threads_per_threadgroup.width,

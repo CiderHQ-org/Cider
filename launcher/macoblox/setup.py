@@ -222,7 +222,7 @@ class SetupWizard(Adw.Bin):
                                          programs=", ".join(missing))))
             return
         accepted = self.window.settings_page.check_updates(
-            install=True, on_progress=self._progress, on_complete=self._finished)
+            install=True, channel="", on_progress=self._progress, on_complete=self._finished)
         if accepted is False:
             self._finished(RuntimeError(_("Another operation is in progress. Wait for it to finish, then try again.")))
 

@@ -272,7 +272,13 @@ static int builtin_kind(const char *name) {
 }
 - (uint64_t)registryID { return [self info]->registry_id; }
 - (NSUInteger)maxBufferLength { return [self info]->max_buffer_length; }
-- (uint64_t)recommendedMaxWorkingSetSize { return [self info]->recommended_max_working_set_size; }
+- (uint64_t)recommendedMaxWorkingSetSize {
+    /* The host refreshes pressure at a bounded rate. The other device facts
+     * remain stable, but this budget must not stay at the startup value. */
+    qm_device_info current = {0};
+    qm->device_info(handle, &current);
+    return current.recommended_max_working_set_size;
+}
 - (NSUInteger)currentAllocatedSize { return qm->device_current_allocated_size(handle); }
 - (NSUInteger)maxThreadgroupMemoryLength { return [self info]->max_threadgroup_memory_length; }
 - (MTLSize)maxThreadsPerThreadgroup {

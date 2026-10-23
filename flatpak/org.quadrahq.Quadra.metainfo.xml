@@ -68,6 +68,11 @@
     <control>keyboard</control>
   </supports>
   <releases>
+    <release version="0.35.p1" date="2026-10-23">
+      <description>
+        <p>Keeps setup and routine Roblox update checks on the public release channel. Fixes native Wayland copy and paste with rich text views and Unicode, and explains unavailable OverlayFS support before startup. Adds NixOS packaging and live Darling status in the launcher. Native Metal packages also refresh shared-memory GPU budgets and limit resident shader preloads.</p>
+      </description>
+    </release>
     <release version="0.35" date="2026-10-22">
       <description>
         <p>Redesigns the launcher with square controls and a grid backdrop, plus saved choices for classic GNOME and aubree.lat monochrome. Retries blocked Roblox deployment downloads on alternate official servers. Fixes Shift Lock centering and camera capture interrupted by switching windows, and bounds native Quadra M2VK graphics budgets on shared-memory GPUs.</p>

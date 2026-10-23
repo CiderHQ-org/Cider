@@ -301,9 +301,12 @@ def version_is_newer(candidate, installed):
         return candidate != installed
 
 
-def latest_version(channel=None, required_log=None):
-    """Returns (version, clientVersionUpload) from Roblox's version service."""
-    channel = load_settings().get("roblox_channel", "") if channel is None else channel
+def latest_version(channel="", required_log=None):
+    """Check the public release unless a required update names a channel.
+
+    A previously reported rollout channel may be restricted to signed-in
+    clients. It must never become the default for setup or routine checks.
+    """
     if not isinstance(channel, str) or (channel and not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", channel)):
         raise RuntimeError("Invalid Roblox update channel")
     url = VERSION_URL + ("/channel/" + channel if channel else "")
@@ -2393,6 +2396,30 @@ def _warmup_output():
     return text if not text or text.endswith("\n") else text + "\n"
 
 
+def _prepare_darling_server(env, log):
+    """Warm up the server, preserving transient retries and known failures."""
+    for _attempt in range(2):
+        # A first process can fail to check in while the server starts. Keep
+        # the server's output separate so it cannot hold the launch log open.
+        if darlingserver_running():
+            return
+        log.write(b"[Quadra Startup] Darling warmup starting\n")
+        log.flush()
+        status = _darling_warmup(env)
+        output = _warmup_output()
+        log.write(output.encode(errors="replace"))
+        log.write(f"[Quadra Startup] Darling warmup status={status}\n".encode())
+        if status and "Cannot mount overlay: No such device" in output:
+            log.write(b"[Quadra Startup] OverlayFS unavailable; stopping before Roblox starts\n")
+            log.flush()
+            raise RuntimeError(_(
+                "Darling could not start because the kernel's OverlayFS filesystem is unavailable. "
+                "Roblox has not started.\n\n"
+                "Run sudo modprobe overlay in a terminal, then try launching again. "
+                "If the module is missing after a kernel update, reboot into the installed kernel. "
+                "A custom kernel needs CONFIG_OVERLAY_FS enabled."))
+
+
 class RobloxSession:
     """One run of the client. poll() returns None while it is running."""
 
@@ -2714,7 +2741,7 @@ class RobloxSession:
             log.write(f"GLSL compatibility: {shader_status}\n".encode())
             channel = self.settings.get("roblox_channel", "")
             channel = re.sub(r"[^A-Za-z0-9_-]", "?", channel[:64]) if isinstance(channel, str) else "invalid"
-            log.write(f"Launcher update channel: {channel or 'Production (default)'}\n".encode())
+            log.write(f"Last client channel: {channel or 'Release (default)'}\n".encode())
             if self.audio:
                 command = self.audio._player_command(self.audio.fifo)
                 log.write(f"Audio playback helper: {command[0] if command else 'unavailable'}\n".encode())
@@ -2730,19 +2757,7 @@ class RobloxSession:
                 log.write(f"Metal performance trace: {self.metal_diagnostics_path}\n".encode())
             for note in self.notes:
                 log.write(f"[Quadra Startup] {note}\n".encode(errors="replace"))
-            for _attempt in range(2):
-                # The first process can fail to check in while the server
-                # starts. The game's own `darling shell` must not start the
-                # server either (it would keep this log open), hence a second
-                # try. The warmup's output is copied here so a server failure
-                # stays visible.
-                if darlingserver_running():
-                    break
-                log.write(b"[Quadra Startup] Darling warmup starting\n")
-                log.flush()
-                status = _darling_warmup(env)
-                log.write(_warmup_output().encode(errors="replace"))
-                log.write(f"[Quadra Startup] Darling warmup status={status}\n".encode())
+            _prepare_darling_server(env, log)
             changed = raise_darling_priority()
             if changed:
                 log.write(f"Priority: {changed} Darling processes raised to nice {_nice_target(SERVER_NICE)}\n".encode())

@@ -1,3 +1,13 @@
+quadrahq (0.35.p1-1) unstable; urgency=medium
+
+  * Keep setup and routine updates on the public Roblox release channel.
+  * Repair Wayland clipboard handling for rich text views and Unicode.
+  * Refresh integrated GPU memory budgets and limit resident shader preloads.
+  * Explain unavailable OverlayFS support before attempting to start Roblox.
+  * Include NixOS packaging and the live Darling status in the launcher.
+
+ -- Quadra maintainers <noreply@aubree.wtf>  Fri, 23 Oct 2026 18:49:52 -0500
+
 quadrahq (0.35-1) unstable; urgency=medium
 
   * Redesign the launcher with Grid, classic GNOME and monochrome appearances.

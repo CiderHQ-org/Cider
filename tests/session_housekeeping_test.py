@@ -1,5 +1,6 @@
 """Launcher housekeeping around a game session; nothing is started."""
 import os
+import io
 from pathlib import Path
 import stat
 import subprocess
@@ -100,6 +101,40 @@ class SessionHousekeepingTests(unittest.TestCase):
         expected = self.base / f"darlingserver-{core.DARLING_RUNTIME['runtime']}.out"
         self.assertEqual(seen["stdout"], str(expected))
         self.assertEqual(core._warmup_output(), "darlingserver says hello\n")
+
+    def test_overlayfs_failure_stops_after_one_warmup_with_recovery_steps(self):
+        output = ("Cannot mount overlay: No such device\n"
+                  "Cannot open mnt namespace file: No such file or directory\n")
+        log = io.BytesIO()
+        with patch.object(core, "darlingserver_running", return_value=False), \
+                patch.object(core, "_darling_warmup", return_value=1) as warmup, \
+                patch.object(core, "_warmup_output", return_value=output):
+            with self.assertRaisesRegex(RuntimeError, "OverlayFS") as raised:
+                core._prepare_darling_server({}, log)
+        warmup.assert_called_once_with({})
+        self.assertIn("sudo modprobe overlay", str(raised.exception))
+        self.assertIn("reboot", str(raised.exception))
+        self.assertIn("CONFIG_OVERLAY_FS", str(raised.exception))
+        self.assertIn(output.encode(), log.getvalue())
+        self.assertIn(b"stopping before Roblox starts", log.getvalue())
+
+    def test_transient_server_checkin_failure_keeps_the_second_attempt(self):
+        log = io.BytesIO()
+        with patch.object(core, "darlingserver_running", side_effect=[False, False]), \
+                patch.object(core, "_darling_warmup", side_effect=[1, 0]) as warmup, \
+                patch.object(core, "_warmup_output", side_effect=["checkin failed\n", "ready\n"]):
+            core._prepare_darling_server({}, log)
+        self.assertEqual(warmup.call_count, 2)
+        self.assertIn(b"warmup status=1", log.getvalue())
+        self.assertTrue(log.getvalue().endswith(b"warmup status=0\n"))
+
+    def test_running_server_does_not_warm_up_or_read_stale_failures(self):
+        with patch.object(core, "darlingserver_running", return_value=True), \
+                patch.object(core, "_darling_warmup") as warmup, \
+                patch.object(core, "_warmup_output") as output:
+            core._prepare_darling_server({}, io.BytesIO())
+        warmup.assert_not_called()
+        output.assert_not_called()
 
     def ciderdarling(self, runtime="ciderdarling", **settings):
         session = bare_session(dict(core.DEFAULT_SETTINGS, **settings))

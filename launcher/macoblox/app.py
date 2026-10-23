@@ -1685,8 +1685,8 @@ class SettingsPage(Adw.Bin):
         self.version_row.add_suffix(self.update_button)
         roblox.add(self.version_row)
         self.channel_row = Adw.ActionRow(
-            title=_("Update channel"),
-            subtitle=settings.get("roblox_channel") or _("Production (default)"))
+            title=_("Last client channel"),
+            subtitle=settings.get("roblox_channel") or _("Release (default)"))
         roblox.add(self.channel_row)
 
         self.auto_update_switch = Adw.SwitchRow(
@@ -2247,7 +2247,8 @@ class SettingsPage(Adw.Bin):
 
         self._in_thread(lambda: core.update_launcher(progress), done)
 
-    def check_updates(self, install=False, on_progress=None, on_complete=None, force_download=False):
+    def check_updates(self, install=False, on_progress=None, on_complete=None, force_download=False,
+                      channel=""):
         """Looks for a newer client; with install=True also installs it
         using the same asynchronous workflow as first-launch setup."""
         if self._checking_updates:
@@ -2257,10 +2258,8 @@ class SettingsPage(Adw.Bin):
         self._checking_updates = True
         self.update_button.set_sensitive(False)
         self.update_button.set_label(_("Checking…"))
-        channel = self.window.settings.get("roblox_channel", "")
-        target = core.required_client_update(self.window.last_log)
-        if target and "channel" in target:
-            channel = target["channel"]
+        # Setup and ordinary checks always use the public release. Only the
+        # required-update dialog can explicitly request a rollout channel.
 
         def done(result, error):
             self._checking_updates = False
@@ -2319,7 +2318,7 @@ class SettingsPage(Adw.Bin):
         def done(backup, error):
             if error is None and not _prepare_only and channel is not None:
                 self.window.set_setting("roblox_channel", channel)
-                self.channel_row.set_subtitle(channel or _("Production (default)"))
+                self.channel_row.set_subtitle(channel or _("Release (default)"))
             self.window.end(resume_pending=error is None)
             self.update_button.set_sensitive(True)
             self._set_update_action(_("Check for updates"), self.check_updates)
@@ -3170,11 +3169,8 @@ class LauncherWindow(Adw.ApplicationWindow):
             try:
                 installed = core.installed_version()
                 if installed:
-                    channel = self.settings.get("roblox_channel", "")
-                    target = core.required_client_update(self.last_log)
-                    if target and "channel" in target:
-                        channel = target["channel"]
-                    latest, upload = core.latest_version(channel, required_log=self.last_log)
+                    channel = ""
+                    latest, upload = core.latest_version(channel)
                     if core.version_is_newer(latest, installed):
                         GLib.idle_add(self._show_roblox_update_dialog, latest, upload, channel)
             except Exception:
@@ -3836,7 +3832,7 @@ class LauncherWindow(Adw.ApplicationWindow):
             target = core.required_client_update(self.last_log)
             if target and "channel" in target:
                 self.set_setting("roblox_channel", target["channel"])
-                self.settings_page.channel_row.set_subtitle(target["channel"] or _("Production (default)"))
+                self.settings_page.channel_row.set_subtitle(target["channel"] or _("Release (default)"))
             self.pending_uri = self.pending_uri or uri_handoff.peek_pending() or session.launch_uri
             self.set_visible(True)
             self.present()
@@ -3917,7 +3913,8 @@ class LauncherWindow(Adw.ApplicationWindow):
                     self.settings_page.install_update(target["upload"], expected_version=target["version"],
                                                       channel=target.get("channel"))
                 else:
-                    self.settings_page.check_updates(install=True, force_download=True)
+                    self.settings_page.check_updates(install=True, force_download=True,
+                                                     channel=target.get("channel", "") if target else "")
 
         dialog.connect("response", response)
         dialog.present(self)
