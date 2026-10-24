@@ -863,11 +863,18 @@ impl Surface {
                 }
                 inner.chain.clone().unwrap()
             };
+            // With none of this chain's images held by the game or queued for the presenter,
+            // nothing of ours can free one: the wait is on the compositor alone, so it is short
+            // and the game gets control back (to pump its window events, among other things).
+            let timeout = acquire_timeout(
+                chain.held.load(Ordering::Acquire),
+                chain.unpresented.load(Ordering::Acquire),
+            );
             // No surface state lock while the driver waits for an image or its acquire fence.
             let result = unsafe {
                 self.swapchain_fn.acquire_next_image(
                     chain.owner.handle,
-                    1_000_000_000,
+                    timeout,
                     vk::Semaphore::null(),
                     acquire.fence,
                 )
@@ -907,8 +914,11 @@ impl Surface {
                     if let Some(statistics) = &self.statistics {
                         statistics.acquire_timeouts.fetch_add(1, Ordering::Relaxed);
                     }
-                    self.explain_timeout(&chain);
-                    return Err("no drawable became free within a second".into());
+                    self.explain_timeout(&chain, timeout);
+                    return Err(format!(
+                        "no drawable became free within {} ms",
+                        timeout / 1_000_000
+                    ));
                 }
                 Err(error) => return Err(format!("vkAcquireNextImageKHR: {error}")),
             }
@@ -920,7 +930,7 @@ impl Surface {
     /// game holds, how many are queued for the presenter, and how long since the swapchain was
     /// made and since a present call last returned. A wedged presentation engine and a game that
     /// holds every image look alike from `vkAcquireNextImageKHR`, and differ here.
-    fn explain_timeout(&self, chain: &Chain) {
+    fn explain_timeout(&self, chain: &Chain, timeout: u64) {
         let last = self.last_present.load(Ordering::Relaxed);
         let ago = if last == 0 {
             None
@@ -939,6 +949,7 @@ impl Surface {
             chain.made.elapsed().as_millis() as u64 / 250 * 250,
             ago.map(|ms| ms / 250 * 250),
             self.presented.load(Ordering::Relaxed),
+            timeout / 1_000_000,
         ));
     }
 
@@ -1089,6 +1100,21 @@ impl Drawable {
     }
 }
 
+/// The longest `nextDrawable` waits for an image while the game holds none and none is queued for
+/// the presenter (nanoseconds), and while it may be waiting on its own earlier frames: Metal's
+/// second.
+const IDLE_ACQUIRE_NANOS: u64 = 100_000_000;
+const BUSY_ACQUIRE_NANOS: u64 = 1_000_000_000;
+
+/// How long to wait for an image: briefly when nothing of ours can free one.
+fn acquire_timeout(held: u32, unpresented: u32) -> u64 {
+    if held == 0 && unpresented == 0 {
+        IDLE_ACQUIRE_NANOS
+    } else {
+        BUSY_ACQUIRE_NANOS
+    }
+}
+
 /// The line `Surface::explain_timeout` logs: times rounded to a quarter second, so that a state
 /// that repeats logs once.
 fn timeout_line(
@@ -1098,10 +1124,11 @@ fn timeout_line(
     chain_age_ms: u64,
     since_present_ms: Option<u64>,
     presented: u64,
+    waited_ms: u64,
 ) -> String {
     let since = since_present_ms.map_or("never".to_owned(), |ms| format!("{ms} ms ago"));
     format!(
-        "[Quadra Metal] nextDrawable timed out: {images} images, {held} held by the game, {unpresented} queued for the presenter, swapchain {chain_age_ms} ms old, last present returned {since}, {presented} presented so far"
+        "[Quadra Metal] nextDrawable timed out after {waited_ms} ms: {images} images, {held} held by the game, {unpresented} queued for the presenter, swapchain {chain_age_ms} ms old, last present returned {since}, {presented} presented so far"
     )
 }
 
@@ -1111,11 +1138,22 @@ mod tests {
 
     #[test]
     fn the_timeout_line_states_who_holds_the_images() {
-        let line = timeout_line(3, 2, 1, 1250, Some(1000), 703);
-        assert!(line.contains("3 images, 2 held by the game, 1 queued for the presenter"));
+        let line = timeout_line(3, 2, 1, 1250, Some(1000), 703, 1000);
+        assert!(line.contains(
+            "timed out after 1000 ms: 3 images, 2 held by the game, 1 queued for the presenter"
+        ));
         assert!(line.contains("swapchain 1250 ms old"));
         assert!(line.contains("last present returned 1000 ms ago"));
-        assert!(timeout_line(3, 0, 0, 0, None, 0).contains("returned never"));
+        assert!(timeout_line(3, 0, 0, 0, None, 0, 100).contains("returned never"));
+    }
+
+    #[test]
+    fn only_a_wait_on_the_compositor_alone_is_short() {
+        assert_eq!(acquire_timeout(0, 0), IDLE_ACQUIRE_NANOS);
+        for (held, queued) in [(1, 0), (0, 1), (3, 2)] {
+            assert_eq!(acquire_timeout(held, queued), BUSY_ACQUIRE_NANOS);
+        }
+        assert!(IDLE_ACQUIRE_NANOS < BUSY_ACQUIRE_NANOS);
     }
 
     #[test]
