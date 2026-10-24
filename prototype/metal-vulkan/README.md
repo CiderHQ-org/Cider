@@ -120,10 +120,9 @@ additionally requests GPU spans while diagnostics is enabled. Encoder lifetime i
 time spent by the caller; these observations are not a frame-time or FPS measurement.
 `currentAllocatedSize` now uses per-device live allocator bytes; reserved/imported bytes
 are separate. Vulkan driver allocations and wrapped external images are excluded.
-Working-set recommendations use device-local heap budgets where available: a discrete card's
-largest device-local heap counts once (without Resizable BAR the driver lists a 256 MiB window
-onto VRAM as a heap beside it), and a unified-memory GPU's heaps all count (an APU's small VRAM
-carve-out beside the system memory it also maps). `MACOBLOX_VRAM_BYTES` can only lower the answer.
+Working-set recommendations come from `host/src/memory.rs`: the device-local heap budget the driver reports,
+polled about once a second, the largest such heap for a discrete card and a low cap for a unified-memory GPU.
+`MACOBLOX_VRAM_BYTES` can only lower the answer.
 
 Presentation defaults to mailbox when the surface supports it, keeping vblank synchronization
 while replacing obsolete queued frames. It falls back to FIFO when mailbox is unavailable.
