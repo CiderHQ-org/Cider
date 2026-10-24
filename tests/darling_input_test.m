@@ -31,10 +31,15 @@ extern void *method_setImplementation(void *, void *);
 - (void)finishLaunching;
 - (void)_setKeyWindow:(id)window;
 @end
+@interface NSView : NSObject
+- (id)initWithFrame:(Rect)frame;
+@end
 @interface NSWindow : NSObject
 - (id)initWithContentRect:(Rect)rect styleMask:(unsigned long)style backing:(unsigned long)backing defer:(unsigned char)defer;
 - (void)makeKeyAndOrderFront:(id)sender;
 - (void)setAcceptsMouseMovedEvents:(signed char)accepts;
+- (void)setContentView:(id)view;
+- (void)sendEvent:(id)event;
 - (id)platformWindow;
 @end
 @interface NSDisplay : NSObject
@@ -61,6 +66,33 @@ extern void *method_setImplementation(void *, void *);
 - (unsigned long)modifierFlags;
 @end
 extern id objc_msgSend(id, SEL, ...);
+/* Records the NSEvent type of every mouse event that reaches the view. */
+static int view_log[16], view_count;
+static void record(id event) { view_log[view_count++ & 15] = (int)[(NSEvent *)event type]; }
+@interface RecordingView : NSView @end
+@implementation RecordingView
+- (void)mouseDown:(id)event { record(event); }
+- (void)mouseUp:(id)event { record(event); }
+- (void)mouseDragged:(id)event { record(event); }
+- (void)rightMouseDown:(id)event { record(event); }
+- (void)rightMouseUp:(id)event { record(event); }
+- (void)rightMouseDragged:(id)event { record(event); }
+@end
+static void send_button(NSWindow *window, unsigned long type) {
+    [window sendEvent:[NSEvent mouseEventWithType:type location:(Point){100,100} modifierFlags:0
+                                          window:window clickCount:1 deltaX:0 deltaY:0]];
+}
+static int delivered(const int *expected, int count) {
+    int same = view_count == count;
+    for (int index = 0; same && index < count; index++)
+        same = view_log[index] == expected[index];
+    if (!same) {
+        printf("view received %d events:", view_count);
+        for (int index = 0; index < view_count && index < 16; index++) printf(" %d", view_log[index]);
+        printf("\n");
+    }
+    return same;
+}
 #define CHECK(condition) do { if (!(condition)) { printf("FAIL line %d: %s\n", __LINE__, #condition); fflush(0); return 1; } } while (0)
 struct ElfHead { void *(*open)(const char *); int (*close)(void *); void *(*symbol)(void *, const char *); };
 struct Motion {
@@ -140,6 +172,31 @@ int main(void) {
                                                 styleMask:3 backing:2 defer:0];
     [window makeKeyAndOrderFront:0]; [app _setKeyWindow:window];
     [window setAcceptsMouseMovedEvents:1];
+
+    /* One button going up must not hide the other from the game. Clicking left
+     * during a right-button camera drag used to lose the right-button release:
+     * the camera kept turning until the menu was opened. Types: 1/2 left
+     * down/up, 3/4 right down/up, 6/7 left/right dragged. */
+    id view = [[RecordingView alloc] initWithFrame:(Rect){{0,0},{640,480}}];
+    [window setContentView:view];
+    send_button(window, 3); send_button(window, 1); send_button(window, 2);
+    send_button(window, 7); send_button(window, 4);
+    const int right_first[] = {3, 1, 2, 7, 4};
+    CHECK(delivered(right_first, 5));
+    view_count = 0;
+    send_button(window, 1); send_button(window, 3); send_button(window, 4);
+    send_button(window, 6); send_button(window, 2);
+    const int left_first[] = {1, 3, 4, 6, 2};
+    CHECK(delivered(left_first, 5));
+    /* With every button up, a stray drag still reaches nobody. */
+    view_count = 0;
+    send_button(window, 1); send_button(window, 2);
+    send_button(window, 3); send_button(window, 4);
+    send_button(window, 7); send_button(window, 6);
+    const int clicks[] = {1, 2, 3, 4};
+    CHECK(delivered(clicks, 4));
+    view_count = 0;
+
     NSDisplay *display = [NSDisplay currentDisplay];
     void *connection = [display display];
     unsigned long xid = ((unsigned long (*)(id, SEL))objc_msgSend)([window platformWindow], sel_registerName("windowHandle"));

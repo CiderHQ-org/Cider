@@ -68,6 +68,11 @@
     <control>keyboard</control>
   </supports>
   <releases>
+    <release version="0.36.p1" date="2026-10-24">
+      <description>
+        <p>Fixes the camera continuing to turn after the right mouse button is released when the left button was clicked during a right-button drag.</p>
+      </description>
+    </release>
     <release version="0.36" date="2026-10-24">
       <description>
         <p>Removes the roughly 18 second menu freeze after leaving a game by making the game's I/O loops look at their queues every 100 milliseconds. Updates Quadra M2VK with memory priority, a settings tab, a startup self-test with OpenGL fallback and better diagnostics, and adds a stall watcher and richer hardware report for bug reports.</p>

@@ -1,3 +1,9 @@
+quadrahq (0.36.p1-1) unstable; urgency=medium
+
+  * Fix the camera continuing to turn after releasing the right mouse button when the left button was clicked during a right-button drag.
+
+ -- Quadra maintainers <noreply@aubree.wtf>  Sat, 24 Oct 2026 14:27:11 -0500
+
 quadrahq (0.36-1) unstable; urgency=medium
 
   * Remove the menu freeze after leaving a game by polling the game's idle I/O loops.

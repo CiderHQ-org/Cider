@@ -3,6 +3,17 @@
 ## Unreleased
 
 
+## 0.36.p1 — 2026-10-24
+
+- Fix the camera continuing to turn after the right mouse button was released, when the left button had been clicked
+  during the right-button drag. The game never saw the right button go up (or the drags after the left release), so it
+  kept the mouse lock until the menu was opened. Darling's `NSWindow` keeps one mouse-down location for every button
+  and invalidates it whenever any button goes up, which left nothing to deliver the other button's drag and release
+  to. The window event hook now keeps the location while the other button is still held. This applies to X11 and
+  native Wayland, including the releases sent when the Wayland window loses focus.
+- Add an AppKit regression to `tests/darling_input_test.m` that sends right-down, left click and right-up (and the
+  reverse order) to a recording view. Before the change the view received `3 1 2` and never the right release.
+
 ## 0.36 — 2026-10-24
 
 - Stop the menu freezing for about 18 s after leaving a game. Roblox's `RBX IoEvLoop` threads wait up to 10 s per

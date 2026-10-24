@@ -4637,6 +4637,34 @@ static void hooked_window_perform_close(id self, SEL cmd, id sender) {
         orig_window_perform_close(self, cmd, sender);
 }
 
+// Darling's NSWindow keeps one mouse-down location for all buttons and sets it
+// to NaN whenever any button goes up. AppKit hit-tests that location to find
+// the view for drags and for the matching up event. A left click during a
+// right-button camera drag therefore left nothing to hit: the game never saw
+// the right button go up and kept turning the camera until the menu opened.
+// While the other button is still held, put the location back after its up.
+static unsigned int macoblox_window_buttons_down; // bit 0 left, bit 1 right
+static void macoblox_window_track_button(id self, unsigned long type, id event,
+                                         void (*dispatch)(id, SEL, id), SEL cmd) {
+    static long offset = -2;
+    if (offset == -2) {
+        Ivar ivar = class_getInstanceVariable(objc_getClass("NSWindow"), "_mouseDownLocationInWindow");
+        offset = ivar ? ivar_getOffset(ivar) : -1;
+    }
+    unsigned int button = (type == 1 || type == 2) ? 1u : 2u;
+    if (type == 1 || type == 3) {
+        macoblox_window_buttons_down |= button;
+        dispatch(self, cmd, event);
+        return;
+    }
+    macoblox_window_buttons_down &= ~button;
+    MacOBloxPoint* location = offset >= 0 ? (MacOBloxPoint*)((char*)self + offset) : 0;
+    MacOBloxPoint kept = location ? *location : (MacOBloxPoint){0, 0};
+    dispatch(self, cmd, event);
+    if (location && macoblox_window_buttons_down)
+        *location = kept;
+}
+
 // MACOBLOX_TRACE_EVENTS=1: log mouse events as AppKit dispatches them.
 // Movement is sampled; button, enter/exit and scroll events are all logged.
 static void (*orig_window_send_event)(id, SEL, id) = 0;
@@ -4695,7 +4723,12 @@ static void hooked_window_send_event(id self, SEL cmd, id event) {
             write_str("\n");
         }
     }
-    orig_window_send_event(self, cmd, event);
+    unsigned long type = event ? ((unsigned long (*)(id, SEL))objc_msgSend)(
+        event, sel_registerName("type")) : 0;
+    if (type >= 1 && type <= 4)
+        macoblox_window_track_button(self, type, event, orig_window_send_event, cmd);
+    else
+        orig_window_send_event(self, cmd, event);
 }
 
 // Log where Roblox tries to send the user: an in-app WKWebView page or an
@@ -5415,6 +5448,7 @@ static void hooked_post_x_event_inner(id self, SEL cmd, void* event) {
             macoblox_unlock(&macoblox_capture_request_lock);
             macoblox_release_mouse_capture(0);
             macoblox_raw_buttons = 0;
+            macoblox_window_buttons_down = 0;
             macoblox_x_modifier_flags = 0;
         }
     } else if (type == 9 /* FocusIn */) {
