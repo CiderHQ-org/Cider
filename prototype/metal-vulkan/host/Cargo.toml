@@ -14,8 +14,8 @@ path = "src/lib.rs"
 
 [dependencies]
 # GPL-2.0-or-later OR LGPL-3.0-or-later. Pin the reviewed Quadra M2VK runtime.
-metal2vulkan-runtime = { git = "https://github.com/CiderHQ-org/QuadraM2VK", rev = "24a3ff0a1b610897bd6e1c3290d50f992e820ed9" }
-metal2vulkan = { git = "https://github.com/CiderHQ-org/QuadraM2VK", rev = "24a3ff0a1b610897bd6e1c3290d50f992e820ed9", features = ["ash", "serde"] }
+metal2vulkan-runtime = { git = "https://github.com/CiderHQ-org/QuadraM2VK", rev = "f44f1b213bc7d4c00e2d13c3b5489d4375ce3849" }
+metal2vulkan = { git = "https://github.com/CiderHQ-org/QuadraM2VK", rev = "f44f1b213bc7d4c00e2d13c3b5489d4375ce3849", features = ["ash", "serde"] }
 ash = { version = "0.38", default-features = false, features = ["std", "loaded"] }
 libc = "0.2"
 # SHA-256: metallib HASH tags and the upgrade cache keys.
@@ -24,7 +24,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 [dev-dependencies]
-metal2vulkan-air = { git = "https://github.com/CiderHQ-org/QuadraM2VK", rev = "24a3ff0a1b610897bd6e1c3290d50f992e820ed9" }
+metal2vulkan-air = { git = "https://github.com/CiderHQ-org/QuadraM2VK", rev = "f44f1b213bc7d4c00e2d13c3b5489d4375ce3849" }
 
 [profile.release]
 opt-level = 3
