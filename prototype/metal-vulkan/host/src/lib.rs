@@ -6,6 +6,7 @@
 pub mod air;
 mod cache;
 mod diagnostics;
+mod identity;
 mod limits;
 mod memory;
 mod preload;
@@ -367,6 +368,7 @@ extern "C" fn device_create(_options: *const c_void) -> *mut c_void {
         match Device::system_default_with(&options) {
             Ok(device) => {
                 log_once(&format!("[Quadra Metal] Vulkan device: {}", device.name()));
+                identity::log(&device);
                 preload::initialize();
                 diagnostics::register(&device);
                 let budget = memory::Budget::default();

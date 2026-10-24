@@ -72,7 +72,8 @@ pub fn message_sink() -> MessageSink {
         } else if matches!(
             message.severity,
             MessageSeverity::Error | MessageSeverity::Warning
-        ) {
+        ) || crate::identity::forwarded_info(&message.id_name)
+        {
             log_once(&format!(
                 "[Quadra Metal] {}: {}",
                 message.id_name, message.text
