@@ -177,8 +177,54 @@ def missing_metal_dependencies():
     return [] if vulkan_loader() else ["Vulkan loader"]
 
 
+METAL_ACCURACY = ("fast", "textures", "exact")
+METAL_PRESENT_MODES = ("auto", "mailbox", "fifo", "immediate")
+METAL_MAX_COMPILE_THREADS = 32
+METAL_MAX_WARM_STATES = 1024
+METAL_MAX_VRAM_GIB = 256
+
+
+def _whole(value, low, high):
+    """value if it is an integer (not a bool) within [low, high], else None."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value if low <= value <= high else None
+
+
+def metal_tuning_environment(settings):
+    """Quadra M2VK tuning variables the host library reads (bridge host/src/tuning.rs).
+
+    Only a setting that differs from its default sets a variable, and a stored value that is
+    not one of the choices is the default: a damaged settings file never changes how a game runs.
+    """
+    environment = {}
+    if settings.get("metal_accuracy") in METAL_ACCURACY[1:]:
+        environment["MACOBLOX_METAL_ACCURACY"] = settings["metal_accuracy"]
+    if settings.get("metal_present_mode") in METAL_PRESENT_MODES[1:]:
+        environment["MACOBLOX_METAL_PRESENT_MODE"] = settings["metal_present_mode"]
+    if settings.get("metal_memory_priority", True) is False:
+        environment["MACOBLOX_METAL_MEMORY_PRIORITY"] = "0"
+    threads = _whole(settings.get("metal_compile_threads", 0), 1, METAL_MAX_COMPILE_THREADS)
+    if threads:
+        environment["MACOBLOX_METAL_COMPILE_THREADS"] = str(threads)
+    warm = _whole(settings.get("metal_warm_states", 256), 0, METAL_MAX_WARM_STATES)
+    if warm is not None and warm != 256:
+        environment["MACOBLOX_METAL_WARM_STATES"] = str(warm)
+    return environment
+
+
+def metal_vram_cap(settings, measured):
+    """The graphics memory limit in bytes: the user's cap and the launcher's measured budget,
+    whichever is lower (a cap never raises it). `measured` is 0 when unknown."""
+    gib = _whole(settings.get("metal_vram_limit_gib", 0), 1, METAL_MAX_VRAM_GIB)
+    if not gib:
+        return measured
+    cap = gib << 30
+    return min(cap, measured) if measured else cap
+
+
 def metal_environment(metal_dir, shader_cache, *, preload=True, preload_key="unscoped",
-                      diagnostics=False, diagnostics_file=None):
+                      diagnostics=False, diagnostics_file=None, tuning=None):
     """Host and guest variables of the Metal renderer. metal_dir holds
     Metal.framework and libquadra_metal_host.so (prototype/metal-vulkan/build.sh)."""
     metal_dir = Path(metal_dir)
@@ -196,6 +242,7 @@ def metal_environment(metal_dir, shader_cache, *, preload=True, preload_key="uns
     }
     if diagnostics and diagnostics_file:
         environment["MACOBLOX_METAL_DIAGNOSTICS_FILE"] = str(diagnostics_file)
+    environment.update(tuning or {})
     return environment
 
 

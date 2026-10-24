@@ -1399,33 +1399,7 @@ class SettingsPage(Adw.Bin):
         self._renderer_rows = []
         game.add(self._renderer_row())
 
-        self.shader_preload_switch = Adw.SwitchRow(
-            title=_("Shader preloading"),
-            subtitle=_("Quadra M2VK: prepare learned shaders before playing. New shaders may still compile during play."),
-            active=settings.get("metal_shader_preload", True))
-        self.shader_preload_switch.connect("notify::active", lambda row, *_args: window.set_setting(
-            "metal_shader_preload", row.get_active()))
-        game.add(self.shader_preload_switch)
-
-        for key, title, subtitle in (
-                ("metal_library_preload", "Prepare client shader libraries",
-                 "Quadra M2VK: prepare installed shader libraries before playing, including the first launch."),
-                ("metal_resource_preload", "Preload local textures and fonts",
-                 "Quadra M2VK: warm bundled resources before playing. Downloaded world assets still load in game.")):
-            row = Adw.SwitchRow(title=_(title), subtitle=_(subtitle), active=settings.get(key, True))
-            row.set_sensitive(self.shader_preload_switch.get_active())
-            self.shader_preload_switch.connect("notify::active", lambda switch, _prop, row=row:
-                                               row.set_sensitive(switch.get_active()))
-            row.connect("notify::active", lambda row, _prop, key=key: window.set_setting(key, row.get_active()))
-            game.add(row)
-
-        metal_diagnostics = Adw.SwitchRow(
-            title=_("Quadra M2VK performance diagnostics"),
-            subtitle=_("Record compilation, encoding, GPU timing and memory use for performance reports."),
-            active=settings.get("metal_diagnostics", False))
-        metal_diagnostics.connect("notify::active", lambda row, *_args: window.set_setting(
-            "metal_diagnostics", row.get_active()))
-        game.add(metal_diagnostics)
+        self._build_m2vk_group(settings)
 
         self._gpu_codes = ["auto"]
         self._gpu_rows = []
@@ -1524,6 +1498,7 @@ class SettingsPage(Adw.Bin):
         game.add(server_location)
 
         self.env_page.add(game)
+        self.env_page.add(self.m2vk_group)
 
         # VR headsets through the host's OpenXR runtime (the VR tab)
         from . import vr
@@ -1921,6 +1896,130 @@ class SettingsPage(Adw.Bin):
     # Keep the stored Metal key so existing selections follow Quadra M2VK.
     RENDERER_CODES = ("opengl", "vulkan", "metal")
 
+    # (code, label, subtitle) of the choices; the first is the default.
+    M2VK_ACCURACY = (
+        ("fast", "Fast (recommended)", "The device's own maths and texture decoders."),
+        ("textures", "Exact textures", "Metal's BC texture decode where the driver's may differ. Costs memory."),
+        ("exact", "Exact everything", "Every exact form: for diagnosing wrong colors or shapes. Slowest."))
+    M2VK_PRESENT = (
+        ("auto", "Automatic", "Tear-free with low latency where the driver supports it."),
+        ("mailbox", "Mailbox", "Tear-free; the newest frame replaces a waiting one."),
+        ("fifo", "FIFO (vsync)", "Strict vsync. Adds latency; always supported."),
+        ("immediate", "Immediate", "Lowest latency; may tear."))
+
+    def _m2vk_combo(self, key, title, subtitle, choices):
+        codes = [code for code, _label, _hint in choices]
+        row = Adw.ComboRow(title=_(title), subtitle=_(subtitle),
+                           model=Gtk.StringList.new([_(label) for _code, label, _hint in choices]))
+        current = self.window.settings.get(key, codes[0])
+        row.set_selected(codes.index(current) if current in codes else 0)
+        row.connect("notify::selected", lambda row, _pspec: self.window.set_setting(
+            key, codes[row.get_selected()]))
+        self._m2vk_defaults[key] = (row, codes[0])
+        return row
+
+    def _m2vk_spin(self, key, title, subtitle, low, high, step, default):
+        row = Adw.SpinRow.new_with_range(low, high, step)
+        row.set_digits(0)
+        row.set_title(_(title))
+        row.set_subtitle(_(subtitle))
+        value = self.window.settings.get(key, default)
+        row.set_value(value if isinstance(value, int) and not isinstance(value, bool)
+                      and low <= value <= high else default)
+        row.connect("notify::value", lambda row, _pspec: self.window.set_setting(
+            key, int(row.get_value())))
+        self._m2vk_defaults[key] = (row, default)
+        return row
+
+    def _build_m2vk_group(self, settings):
+        """Quadra M2VK's settings: the host library reads them at the next launch."""
+        window = self.window
+        self._m2vk_defaults = {}
+        group = Adw.PreferencesGroup(
+            title=_("Quadra M2VK"),
+            description=_("Applies on next launch, and only while the renderer is Quadra M2VK. "
+                          "The defaults suit most computers."))
+        self.m2vk_group = group
+
+        self.shader_preload_switch = Adw.SwitchRow(
+            title=_("Shader preloading"),
+            subtitle=_("Prepare learned shaders before playing. New shaders may still compile during play."),
+            active=settings.get("metal_shader_preload", True))
+        self.shader_preload_switch.connect("notify::active", lambda row, *_args: window.set_setting(
+            "metal_shader_preload", row.get_active()))
+        group.add(self.shader_preload_switch)
+        for key, title, subtitle in (
+                ("metal_library_preload", "Prepare client shader libraries",
+                 "Prepare installed shader libraries before playing, including the first launch."),
+                ("metal_resource_preload", "Preload local textures and fonts",
+                 "Warm bundled resources before playing. Downloaded world assets still load in game.")):
+            row = Adw.SwitchRow(title=_(title), subtitle=_(subtitle), active=settings.get(key, True))
+            row.set_sensitive(self.shader_preload_switch.get_active())
+            self.shader_preload_switch.connect("notify::active", lambda switch, _prop, row=row:
+                                               row.set_sensitive(switch.get_active()))
+            row.connect("notify::active", lambda row, _prop, key=key: window.set_setting(key, row.get_active()))
+            group.add(row)
+
+        group.add(self._m2vk_combo(
+            "metal_accuracy", "Accuracy",
+            "How closely shaders and textures follow Metal. Try Exact textures if textures look wrong.",
+            self.M2VK_ACCURACY))
+        group.add(self._m2vk_combo(
+            "metal_present_mode", "Frame presentation",
+            "How finished frames reach the screen. Try FIFO if the picture stutters or tears.",
+            self.M2VK_PRESENT))
+        priority = Adw.SwitchRow(
+            title=_("Keep important graphics memory resident"),
+            subtitle=_("When video memory runs out, let the driver move textures aside before render targets "
+                       "instead of failing. Turn off if a driver misbehaves."),
+            active=settings.get("metal_memory_priority", True))
+        priority.connect("notify::active", lambda row, *_args: window.set_setting(
+            "metal_memory_priority", row.get_active()))
+        self._m2vk_defaults["metal_memory_priority"] = (priority, True)
+        group.add(priority)
+        group.add(self._m2vk_spin(
+            "metal_vram_limit_gib", "Graphics memory limit (GiB)",
+            "0 uses what the card has free at launch. A limit only lowers it; try 4 on a busy 6 GiB card.",
+            0, 256, 1, 0))
+        group.add(self._m2vk_spin(
+            "metal_compile_threads", "Shader compile threads",
+            "0 chooses from your processor and free memory. Fewer lowers memory use during compiles.",
+            0, 32, 1, 0))
+        group.add(self._m2vk_spin(
+            "metal_warm_states", "Learned shaders kept ready",
+            "Up to this many, within a quarter of free memory. More smooths areas you have visited before.",
+            0, 1024, 32, 256))
+
+        diagnostics = Adw.SwitchRow(
+            title=_("Quadra M2VK performance diagnostics"),
+            subtitle=_("Record compilation, encoding, GPU timing and memory use for performance reports."),
+            active=settings.get("metal_diagnostics", False))
+        diagnostics.connect("notify::active", lambda row, *_args: window.set_setting(
+            "metal_diagnostics", row.get_active()))
+        group.add(diagnostics)
+
+        reset = _button_row(_("Reset Quadra M2VK settings"))
+        reset.connect("activated", lambda *_args: self._reset_m2vk())
+        group.add(reset)
+        self._update_m2vk(settings.get("renderer", "opengl"))
+
+    def _reset_m2vk(self):
+        """Put the tuning rows back to their defaults; each row saves its own change."""
+        for row, default in self._m2vk_defaults.values():
+            if isinstance(row, Adw.ComboRow):
+                row.set_selected(0)
+            elif isinstance(row, Adw.SwitchRow):
+                row.set_active(bool(default))
+            else:
+                row.set_value(default)
+        _toast(self.window.toasts, _("Quadra M2VK settings reset"))
+
+    def _update_m2vk(self, renderer):
+        """The group applies only while Quadra M2VK is the renderer."""
+        group = getattr(self, "m2vk_group", None)
+        if group is not None:
+            group.set_sensitive(renderer == "metal")
+
     def _renderer_row(self):
         row = Adw.ComboRow(
             title=_("Renderer"),
@@ -1933,6 +2032,7 @@ class SettingsPage(Adw.Bin):
         return row
 
     def _show_renderer(self, code):
+        self._update_m2vk(code)
         index = self.RENDERER_CODES.index(code) if code in self.RENDERER_CODES else 0
         for row, handler in self._renderer_rows:
             if row.get_selected() != index:

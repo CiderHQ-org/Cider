@@ -11,6 +11,47 @@ from macoblox import core, graphics
 from session_fixture import bare_session
 
 
+class MetalTuningTests(unittest.TestCase):
+    def test_defaults_set_nothing(self):
+        self.assertEqual(graphics.metal_tuning_environment({}), {})
+        self.assertEqual(graphics.metal_tuning_environment(dict(core.DEFAULT_SETTINGS)), {})
+
+    def test_each_changed_setting_sets_its_variable(self):
+        settings = dict(core.DEFAULT_SETTINGS, metal_accuracy="exact", metal_present_mode="fifo",
+                        metal_memory_priority=False, metal_compile_threads=4, metal_warm_states=512)
+        self.assertEqual(graphics.metal_tuning_environment(settings), {
+            "MACOBLOX_METAL_ACCURACY": "exact", "MACOBLOX_METAL_PRESENT_MODE": "fifo",
+            "MACOBLOX_METAL_MEMORY_PRIORITY": "0", "MACOBLOX_METAL_COMPILE_THREADS": "4",
+            "MACOBLOX_METAL_WARM_STATES": "512"})
+        self.assertEqual(graphics.metal_tuning_environment(
+            dict(core.DEFAULT_SETTINGS, metal_warm_states=0)), {"MACOBLOX_METAL_WARM_STATES": "0"})
+
+    def test_damaged_values_are_the_defaults(self):
+        for key, value in (("metal_accuracy", "excat"), ("metal_accuracy", 3), ("metal_present_mode", "tearing"),
+                           ("metal_memory_priority", "no"), ("metal_compile_threads", -1),
+                           ("metal_compile_threads", 99), ("metal_compile_threads", True),
+                           ("metal_compile_threads", 2.5), ("metal_warm_states", 5000),
+                           ("metal_warm_states", "many")):
+            with self.subTest(key=key, value=value):
+                self.assertEqual(graphics.metal_tuning_environment(dict(core.DEFAULT_SETTINGS, **{key: value})), {})
+
+    def test_the_memory_cap_only_lowers_the_measured_budget(self):
+        gib = 1 << 30
+        self.assertEqual(graphics.metal_vram_cap({}, 5 * gib), 5 * gib)
+        self.assertEqual(graphics.metal_vram_cap({"metal_vram_limit_gib": 0}, 5 * gib), 5 * gib)
+        self.assertEqual(graphics.metal_vram_cap({"metal_vram_limit_gib": 4}, 5 * gib), 4 * gib)
+        self.assertEqual(graphics.metal_vram_cap({"metal_vram_limit_gib": 8}, 5 * gib), 5 * gib)
+        self.assertEqual(graphics.metal_vram_cap({"metal_vram_limit_gib": 8}, 0), 8 * gib)
+        for damaged in (-1, 1000, "8", True, 2.5):
+            self.assertEqual(graphics.metal_vram_cap({"metal_vram_limit_gib": damaged}, 5 * gib), 5 * gib)
+
+    def test_tuning_joins_the_metal_environment(self):
+        environment = graphics.metal_environment("/m", "/c", tuning={"MACOBLOX_METAL_ACCURACY": "textures"})
+        self.assertEqual(environment["MACOBLOX_METAL_ACCURACY"], "textures")
+        self.assertEqual(environment["MACOBLOX_METAL"], "1")
+        self.assertNotIn("MACOBLOX_METAL_ACCURACY", graphics.metal_environment("/m", "/c"))
+
+
 class GraphicsTests(unittest.TestCase):
     def test_gpu_budget_uses_selected_adapter_and_current_free_memory(self):
         output = "NVIDIA GeForce RTX 3060 Ti, 8192, 4096\nNVIDIA Other, 24576, 20000\n"

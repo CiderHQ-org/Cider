@@ -112,6 +112,13 @@ DEFAULT_SETTINGS = {
     "metal_library_preload": True,
     "metal_resource_preload": True,
     "metal_diagnostics": False,
+    # Quadra M2VK tuning (graphics.metal_tuning_environment); the values are the defaults.
+    "metal_accuracy": "fast",
+    "metal_present_mode": "auto",
+    "metal_memory_priority": True,
+    "metal_compile_threads": 0,
+    "metal_warm_states": 256,
+    "metal_vram_limit_gib": 0,
     "gpu": "auto",
     "roblox_channel": "",
     "mangohud": False,
@@ -2468,7 +2475,8 @@ class RobloxSession:
                                           preload=self.settings.get("metal_shader_preload", True),
                                           preload_key=installed_version() or "unknown-client",
                                           diagnostics=self.settings.get("metal_diagnostics", False),
-                                          diagnostics_file=self.metal_diagnostics_path) \
+                                          diagnostics_file=self.metal_diagnostics_path,
+                                          tuning=graphics.metal_tuning_environment(self.settings)) \
             if renderer == "metal" else {}
         if metal and self._metal_preload_skipped:
             metal["MACOBLOX_METAL_PRELOAD_IN_PROCESS"] = "0"
@@ -2524,6 +2532,9 @@ class RobloxSession:
         variables.extend(f"{name}={value}" for name, value in
                          self._graphics_environment().items())
         vram = host_vram_bytes(getattr(self, "renderer_name", None), self.gpu_adapter)
+        if self.settings.get("renderer") == "metal":
+            from . import graphics
+            vram = graphics.metal_vram_cap(self.settings, vram)
         if vram:
             variables.append(f"MACOBLOX_VRAM_BYTES={vram}")
         if self.settings.get("hide_menu_bar"):
