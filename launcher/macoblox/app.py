@@ -1498,7 +1498,14 @@ class SettingsPage(Adw.Bin):
         game.add(server_location)
 
         self.env_page.add(game)
-        self.env_page.add(self.m2vk_group)
+
+        # Quadra M2VK has a tab of its own: the renderer and graphics card to choose it with, then its settings.
+        self.m2vk_page = Adw.PreferencesPage()
+        graphics_group = Adw.PreferencesGroup(title=_("Renderer"))
+        graphics_group.add(self._renderer_row())
+        graphics_group.add(self._gpu_row(always_visible=True))
+        self.m2vk_page.add(graphics_group)
+        self.m2vk_page.add(self.m2vk_group)
 
         # VR headsets through the host's OpenXR runtime (the VR tab)
         from . import vr
@@ -1648,6 +1655,7 @@ class SettingsPage(Adw.Bin):
         self.env_page.add(diagnostics)
 
         self.stack.add_titled_with_icon(self.env_page, "env", _("Environment"), "preferences-system-symbolic")
+        self.stack.add_titled_with_icon(self.m2vk_page, "m2vk", "Quadra M2VK", "video-display-symbolic")
 
         # 2. Roblox page (Download, updates, version, account)
         self.roblox_page = Adw.PreferencesPage()
@@ -3143,7 +3151,7 @@ class LauncherWindow(Adw.ApplicationWindow):
 
         if page == "ciderdarling":
             self.show_ciderdarling_settings()
-        elif page in ("flags", "env", "roblox", "vr"):
+        elif page in ("flags", "env", "m2vk", "roblox", "vr"):
             self.stack.set_visible_child_name("settings")
             self.settings_page.set_tab(page)
         else:

@@ -33,11 +33,11 @@ with patch.object(core, "load_settings", return_value=dict(core.DEFAULT_SETTINGS
         patch.object(app, "_error_dialog", side_effect=lambda *args: errors.append(args)), \
         patch.object(graphics, "missing_vulkan_dependencies", return_value=["Zink"]):
     window = app.LauncherWindow(application)
-    # Environment -> Game, and its copy on the CiderDarling tab.
+    # Environment -> Game, and its copies on the Quadra M2VK and CiderDarling tabs.
     rows = [widget for widget in walk(window.settings_page)
             if isinstance(widget, Adw.ComboRow) and widget.get_title() == "Renderer"]
-    assert len(rows) == 2
-    row, copy = rows
+    assert len(rows) == 3
+    row, middle, copy = rows
     assert row.get_model().get_string(2) == copy.get_model().get_string(2) == "Quadra M2VK (experimental)"
     row.set_selected(1)
     assert not row.get_sensitive() and not copy.get_sensitive() and window.settings["renderer"] == "opengl"
@@ -70,6 +70,7 @@ with patch.object(core, "load_settings", return_value=dict(core.DEFAULT_SETTINGS
         assert row.get_selected() == copy.get_selected() == 0
         assert window.settings["renderer"] == "opengl"
         assert "not part of this package" in str(errors[-1])
+    assert middle.get_selected() == row.get_selected() == copy.get_selected() == 0
     window.destroy()
 
 print("PASS: renderer installation, cancellation, Metal selection, unavailable packages and switching back")

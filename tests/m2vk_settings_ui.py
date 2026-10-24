@@ -39,6 +39,14 @@ with patch.object(core, "load_settings", return_value=dict(core.DEFAULT_SETTINGS
     window = app.LauncherWindow(application)
     page = window.settings_page
     group = page.m2vk_group
+    # Its own tab, holding the renderer choice and the settings.
+    tab = page.stack.get_page(page.m2vk_page)
+    assert tab.get_name() == "m2vk" and tab.get_title() == "Quadra M2VK"
+    assert [p.get_name() for p in page.stack.get_pages()][:2] == ["env", "m2vk"]
+    assert group.get_parent() is not None
+    tab_renderer = [w for w in walk(page.m2vk_page) if isinstance(w, Adw.ComboRow) and w.get_title() == "Renderer"]
+    assert len(tab_renderer) == 1
+    assert group not in list(walk(page.env_page)), "the settings are no longer on the Environment tab"
     # Only meaningful for Quadra M2VK.
     assert window.settings["renderer"] == "opengl" and not group.get_sensitive()
     with patch.object(core, "PREBUILT_SHIM", None), \
@@ -85,9 +93,13 @@ with patch.object(core, "load_settings", return_value=dict(core.DEFAULT_SETTINGS
     assert graphics.metal_tuning_environment(window.settings) == {}
     assert not errors
 
-    # Back to OpenGL greys the group again.
-    renderer.set_selected(0)
-    assert not group.get_sensitive()
+    # Back to OpenGL greys the group again, but the renderer row on its own tab stays usable.
+    tab_renderer[0].set_selected(0)
+    assert window.settings["renderer"] == "opengl" and not group.get_sensitive()
+    assert tab_renderer[0].get_sensitive()
+    tab_renderer[0].set_selected(2)
+    assert window.settings["renderer"] == "metal" and group.get_sensitive()
+    tab_renderer[0].set_selected(0)
     window.destroy()
 
 print("PASS: Quadra M2VK settings group: availability, saving, environment and reset")
