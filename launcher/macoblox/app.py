@@ -1898,9 +1898,9 @@ class SettingsPage(Adw.Bin):
 
     # (code, label, subtitle) of the choices; the first is the default.
     M2VK_ACCURACY = (
-        ("fast", "Fast (recommended)", "The device's own maths and texture decoders."),
-        ("textures", "Exact textures", "Metal's BC texture decode where the driver's may differ. Costs memory."),
-        ("exact", "Exact everything", "Every exact form: for diagnosing wrong colors or shapes. Slowest."))
+        ("fast", "Fast", "The device's own maths and texture decoders."),
+        ("textures", "Textures", "Metal's BC texture decode where the driver's may differ. Costs memory."),
+        ("exact", "Exact", "Every exact form: for diagnosing wrong colors or shapes. Slowest."))
     M2VK_PRESENT = (
         ("auto", "Automatic", "Tear-free with low latency where the driver supports it."),
         ("mailbox", "Mailbox", "Tear-free; the newest frame replaces a waiting one."),
@@ -1962,7 +1962,8 @@ class SettingsPage(Adw.Bin):
 
         group.add(self._m2vk_combo(
             "metal_accuracy", "Accuracy",
-            "How closely shaders and textures follow Metal. Try Exact textures if textures look wrong.",
+            "Fast uses the device's own maths and texture decoders. Textures decodes BC textures as Metal does: try it "
+            "if textures look wrong. Exact is slowest, for diagnosing wrong colors or shapes.",
             self.M2VK_ACCURACY))
         group.add(self._m2vk_combo(
             "metal_present_mode", "Frame presentation",
