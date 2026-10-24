@@ -444,8 +444,12 @@ for the busy threads it also reads where they are (function and callers), and
 each second it notes where blocked threads wait. The report lines this up with
 the launch log's markers (joining, leaving, swapchain timeouts) and is written
 next to the logs as `stall-watch-*.txt` with the raw `stall-watch-*.jsonl`.
-It costs about 2% of one CPU core and stops each sampled thread for about a
-tenth of a millisecond. Send the `.txt` with the launch log;
+When the game does almost nothing for three seconds or more, the report adds a
+"lull" section: which thread woke first at the end, what the main thread was
+doing meanwhile, what darlingserver used, and what every blocked thread waited
+on (system call, futex word, timeout). It costs about 2% of one CPU core and
+stops each busy thread, and the main thread while it is not in a futex wait,
+for about a tenth of a millisecond. Send the `.txt` with the launch log;
 `quadrahq --watch-stalls --report FILE.jsonl` prints a report again, and
 `--all` covers the whole capture instead of the join and leave windows.
 

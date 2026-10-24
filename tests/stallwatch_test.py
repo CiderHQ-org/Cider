@@ -145,6 +145,112 @@ class ReportTests(unittest.TestCase):
         self.assertNotIn("Network[22] from", text)
 
 
+class WaitDecodeTests(unittest.TestCase):
+    def fields(self, number, args, sp=0x7000, pc=0x1100):
+        values = [number, *args, *([0] * (6 - len(args)))]
+        return [str(values[0]), *[hex(value) for value in values[1:]], hex(sp), hex(pc)]
+
+    def test_a_futex_wait_names_its_word_and_a_relative_timeout(self):
+        memory = FakeMemory({0x9000: 7})
+        memory.read = lambda address, size: (struct.pack("<I", 7) if address == 0x9000 and size == 4 else
+                                              struct.pack("<qq", 16, 500_000_000) if address == 0xa000 else b"")
+        # futex(0x9000, FUTEX_WAIT_PRIVATE = 128, 7, &timeout)
+        detail = stallwatch.decode_wait(self.fields(202, [0x9000, 128, 7, 0xa000]), memory)
+        self.assertEqual(detail["fx"], [0x9000, 7])
+        self.assertEqual(detail["to"], 16500.0)
+        self.assertNotIn("abs", detail)
+
+    def test_an_untimed_futex_wait_has_no_timeout(self):
+        memory = FakeMemory({})
+        memory.read = lambda address, size: struct.pack("<I", 1) if size == 4 else b""
+        detail = stallwatch.decode_wait(self.fields(202, [0x9000, 128, 1, 0]), memory)
+        self.assertEqual(detail, {"fx": [0x9000, 1]})
+
+    def test_a_bitset_wait_is_a_deadline_on_the_monotonic_clock(self):
+        now_ms = time.clock_gettime(time.CLOCK_MONOTONIC) * 1000.0
+        deadline = now_ms + 2500.0
+        memory = FakeMemory({})
+        memory.read = lambda address, size: (struct.pack("<I", 0) if size == 4 else
+                                              struct.pack("<qq", int(deadline // 1000), int(deadline % 1000 * 1e6)))
+        detail = stallwatch.decode_wait(self.fields(202, [0x9000, 137, 0, 0xa000]), memory)  # WAIT_BITSET_PRIVATE
+        self.assertTrue(detail["abs"])
+        self.assertAlmostEqual(detail["to"], 2500.0, delta=200.0)
+
+    def test_poll_and_epoll_timeouts_are_milliseconds_and_minus_one_is_none(self):
+        memory = FakeMemory({})
+        self.assertEqual(stallwatch.decode_wait(self.fields(7, [0, 1, 250]), memory)["to"], 250.0)
+        self.assertEqual(stallwatch.decode_wait(self.fields(232, [3, 0, 8, 1500]), memory)["to"], 1500.0)
+        self.assertEqual(stallwatch.decode_wait(self.fields(7, [0, 1, 0xffffffff]), memory), {})
+        self.assertEqual(stallwatch.decode_wait(self.fields(47, [3, 0, 0]), memory), {})
+
+    def test_a_thread_that_is_running_has_no_wait_to_decode(self):
+        self.assertEqual(stallwatch.decode_wait([], FakeMemory({})), {})
+        self.assertEqual(stallwatch.decode_wait(["-1", "0x7000", "0x1100"], FakeMemory({})), {})
+
+
+def lull_capture(servers=True):
+    """CPU at 100% until t=100, almost none until t=116, busy again; a futex waiter with a 16 s timeout."""
+    start = 90.0
+    records = [{"k": "meta", "t": start, "pid": 7, "interval": 0.1, "stacks": True, "servers": [99] if servers else []},
+               {"k": "name", "t": start, "tid": 11, "name": "Main"},
+               {"k": "name", "t": start, "tid": 22, "name": "Worker"}]
+    for step in range(0, 400):
+        moment = start + step * 0.1
+        if moment < 100 or moment >= 116:
+            records.append({"k": "cpu", "t": moment, "d": {11: 90.0, 22: 40.0}})
+        elif step % 10 == 0:
+            records.append({"k": "cpu", "t": moment, "d": {11: 3.0}})
+        if servers and 100 <= moment < 116 and step % 10 == 0:
+            records.append({"k": "srv", "t": moment, "d": {501: 2.0}})
+        if 101 <= moment < 115 and step % 5 == 0:
+            records.append({"k": "run", "t": moment, "tid": 11, "w": 1,
+                            "f": [["/lib/libwork.dylib", 0x1100], ["/lib/libwork.dylib", 0x1200]]})
+    records.append({"k": "wait", "t": 100.6, "tid": 22, "state": "S", "wchan": "futex_wait_queue", "syscall": "202",
+                    "x": {"fx": [0x9000, 7], "to": 15400.0, "raw": 15400.0}, "pc": ["/lib/libwork.dylib", 0x1300],
+                    "s": [["/lib/libwork.dylib", 0x1400]]})
+    records.append({"k": "end", "t": 130.0, "truncated": False})
+    return records
+
+
+class LullTests(unittest.TestCase):
+    def test_a_stretch_of_almost_no_cpu_is_found(self):
+        records = lull_capture()
+        lulls = stallwatch.find_lulls(records, 90.0, 130.0)
+        self.assertEqual(len(lulls), 1)
+        self.assertAlmostEqual(lulls[0][0], 100.0, delta=0.6)
+        self.assertAlmostEqual(lulls[0][1], 116.0, delta=0.6)
+
+    def test_short_quiet_spells_are_not_lulls(self):
+        records = [record for record in lull_capture()
+                   if not (record["k"] == "cpu" and 100 <= record["t"] < 116 and record["t"] > 102)]
+        records += [{"k": "cpu", "t": 102.5 + step * 0.1, "d": {11: 90.0}} for step in range(0, 135)]
+        self.assertEqual(stallwatch.find_lulls(records, 90.0, 130.0), [])
+
+    def test_the_lull_report_says_who_woke_what_waited_and_when_it_times_out(self):
+        symbols = {("/lib/libwork.dylib", 0x1100): "mach_msg_recv", ("/lib/libwork.dylib", 0x1200): "runloop_wait",
+                   ("/lib/libwork.dylib", 0x1300): "futex_stub", ("/lib/libwork.dylib", 0x1400): "pool_idle"}
+        text = stallwatch.render(lull_capture(), [(100.0, "leave", "x")], symbols, before=2, after=5)
+        self.assertIn("lull from 10.0 s to 26.0 s", text)
+        self.assertIn("after leave at 10.0 s", text)
+        self.assertIn("first busy again: Main[11] at 26.00 s", text)
+        self.assertIn("the main thread, sampled while it waited", text)
+        self.assertIn("libwork.dylib!mach_msg_recv  <-  libwork.dylib!runloop_wait", text)
+        self.assertIn("futex 0x9000 = 0x7, times out in 15.4 s (about 26.0 s)", text)
+        self.assertIn("darlingserver CPU in the lull: 32 ms", text)
+
+    def test_a_capture_without_server_records_does_not_claim_a_server_figure(self):
+        text = stallwatch.render(lull_capture(servers=False), [], {}, everything=True)
+        self.assertIn("== lull", text)
+        self.assertNotIn("darlingserver CPU", text)
+
+    def test_waiting_samples_stay_out_of_the_busy_thread_listing(self):
+        symbols = {("/lib/libwork.dylib", 0x1100): "mach_msg_recv"}
+        text = stallwatch.render(lull_capture(), [(100.0, "leave", "x")], symbols, before=2, after=20)
+        self.assertIn("mach_msg_recv", text)
+        self.assertNotIn("where the busy threads were", text)  # the only samples are the main thread's waits
+        self.assertGreater(text.index("mach_msg_recv"), text.index("== lull"))
+
+
 CHILD = textwrap.dedent("""
     import ctypes, threading, time
     libc = ctypes.CDLL(None)

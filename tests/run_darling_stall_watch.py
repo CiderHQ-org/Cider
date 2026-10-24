@@ -46,31 +46,42 @@ def main():
                     '-mmacosx-version-min=11.0', '-O1', '-fno-omit-frame-pointer',
                     str(ROOT / 'tests/darling_stall_watch_test.c'), '-o', str(binary)],
                    check=True, timeout=60)
-    prefix = Path(tempfile.mkdtemp(prefix='quadra-stall-watch-prefix-')) / 'prefix'
     values = {'MACOBLOX_ALLOW_DEBUGGER': '1', 'DYLD_FORCE_FLAT_NAMESPACE': '1',
               'DYLD_INSERT_LIBRARIES': '/Volumes/SystemRoot' + str(args.shim.resolve())}
-    environment = {key: value for key, value in os.environ.items()
-                   if key not in ('DPREFIX', 'DYLD_INSERT_LIBRARIES', 'DYLD_FRAMEWORK_PATH', 'LD_PRELOAD')}
-    environment.update(DPREFIX=str(prefix))
-    command = [client, 'shell', '/bin/bash', '-c', 'exec /usr/bin/env "$@"', 'stall-watch-fixture',
-               *[f'{key}={value}' for key, value in values.items()],
-               '/Volumes/SystemRoot' + str(binary), '90']
     log_path = output / 'fixture.log'
     failures = []
+    pid = process = environment = None
+    prefix = None
+    # A new Darling prefix sometimes makes its client exit before the program runs: try a fresh one.
+    for attempt in range(3):
+        prefix = Path(tempfile.mkdtemp(prefix='quadra-stall-watch-prefix-')) / 'prefix'
+        environment = {key: value for key, value in os.environ.items()
+                       if key not in ('DPREFIX', 'DYLD_INSERT_LIBRARIES', 'DYLD_FRAMEWORK_PATH', 'LD_PRELOAD')}
+        environment.update(DPREFIX=str(prefix))
+        command = [client, 'shell', '/bin/bash', '-c', 'exec /usr/bin/env "$@"', 'stall-watch-fixture',
+                   *[f'{key}={value}' for key, value in values.items()],
+                   '/Volumes/SystemRoot' + str(binary), '90']
+        log = log_path.open('w')
+        process = subprocess.Popen(command, env=environment, stdout=log, stderr=subprocess.STDOUT)
+        log.close()
+        deadline = time.monotonic() + 120
+        while pid is None and time.monotonic() < deadline and process.poll() is None:
+            pid = fixture_pid('stall-watch-fixture')
+            time.sleep(0.5)
+        if pid is not None:
+            break
+        subprocess.run([client, 'shutdown'], env=environment, stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL, timeout=30)
+        print(f'The fixture did not start (attempt {attempt + 1} of 3, client status {process.poll()}); '
+              f'see {log_path}')
+        print('  command:', ' '.join(command))
     try:
-        with log_path.open('w') as log:
-            process = subprocess.Popen(command, env=environment, stdout=log, stderr=subprocess.STDOUT)
-            pid, deadline = None, time.monotonic() + 120
-            while pid is None and time.monotonic() < deadline and process.poll() is None:
-                pid = fixture_pid('stall-watch-fixture')
-                time.sleep(0.5)
-            if pid is None:
-                print(f'The fixture did not start; see {log_path}')
-                return 1
-            time.sleep(1.0)  # let both threads settle
-            capture = output / 'capture.jsonl'
-            until = time.monotonic() + args.watch_seconds
-            stacks = stallwatch.capture(pid, capture, stop=lambda: time.monotonic() > until)
+        if pid is None:
+            return 1
+        time.sleep(1.0)  # let both threads settle
+        capture = output / 'capture.jsonl'
+        until = time.monotonic() + args.watch_seconds
+        stacks = stallwatch.capture(pid, capture, stop=lambda: time.monotonic() > until)
         if not stacks:
             failures.append('the shim did not allow reading the fixture (MACOBLOX_ALLOW_DEBUGGER)')
         records = stallwatch.load(capture)
@@ -85,6 +96,8 @@ def main():
                  for location in ([record.get('pc')] + (record.get('s') or [])) if location]
         if not any('stall_watch_wait_for_pipe' in name for name in waits):
             failures.append('the thread waiting on the pipe was not placed in stall_watch_wait_for_pipe')
+        if not any(record['k'] == 'run' and record.get('w') and record['tid'] == pid for record in records):
+            failures.append('the main thread was not sampled while it slept')
     finally:
         subprocess.run([client, 'shutdown'], env=environment, stdout=subprocess.DEVNULL,
                        stderr=subprocess.DEVNULL, timeout=30)

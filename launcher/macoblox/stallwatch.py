@@ -47,6 +47,9 @@ STOP_TIMEOUT = 0.1
 MAX_STOPS = 3
 BUSY_FRACTION = 0.2  # of an interval on the CPU for a thread to be worth stopping
 STACK_BYTES = 8192
+LULL_FRACTION = 0.3  # of a core, over half-second buckets
+LULL_SECONDS = 3.0
+FUTEX = 202
 CANDIDATES = 12
 FRAMES = 24
 MAX_FILE_BYTES = 150 * 1024 * 1024
@@ -154,6 +157,61 @@ def stack_candidates(memory, regions, stack_pointer, count=CANDIDATES):
     return found
 
 
+def _timespec_ms(memory, address, size=16, microseconds=False):
+    data = memory.read(address, size) if address else b""
+    if len(data) < 16:
+        return None
+    seconds, fraction = struct.unpack("<qq", data[:16])
+    return seconds * 1000.0 + fraction / (1e3 if microseconds else 1e6)
+
+
+def decode_wait(fields, memory):
+    """What a blocked thread waits on and for how long, from the fields of
+    /proc/PID/task/TID/syscall ("nr arg1..arg6 sp pc"): {"fx": [futex address,
+    word], "to": milliseconds until it times out, "abs": the timeout was a
+    deadline, "raw": the timeout as the caller wrote it}. Empty when the call
+    has neither."""
+    if len(fields) < 9:
+        return {}
+    try:
+        number, args = int(fields[0]), [int(value, 16) for value in fields[1:7]]
+    except ValueError:
+        return {}
+    info, timeout, deadline, clock = {}, None, False, 1
+    signed = lambda value: value - (1 << 32) if value & 0x80000000 else value  # noqa: E731
+    if number == FUTEX:
+        word = memory.read(args[0], 4)
+        info["fx"] = [args[0], struct.unpack("<I", word)[0] if len(word) == 4 else None]
+        command = args[1] & 0x7f
+        if command in (0, 9):
+            timeout, deadline = _timespec_ms(memory, args[3]), command == 9
+            clock = 0 if args[1] & 256 else 1
+    elif number == 7:  # poll
+        value = signed(args[2] & 0xffffffff)
+        timeout = None if value < 0 else float(value)
+    elif number in (232, 281):  # epoll_wait, epoll_pwait
+        value = signed(args[3] & 0xffffffff)
+        timeout = None if value < 0 else float(value)
+    elif number in (271, 270):  # ppoll, pselect6
+        timeout = _timespec_ms(memory, args[2] if number == 271 else args[4])
+    elif number == 23:  # select
+        timeout = _timespec_ms(memory, args[4], microseconds=True)
+    elif number == 35:  # nanosleep
+        timeout = _timespec_ms(memory, args[0])
+    elif number == 230:  # clock_nanosleep
+        timeout, deadline, clock = _timespec_ms(memory, args[2]), bool(args[1] & 1), args[0] & 0xf
+    if timeout is not None:
+        info["raw"] = round(timeout, 3)
+        if deadline:
+            try:
+                timeout -= time.clock_gettime(time.CLOCK_REALTIME if clock == 0 else time.CLOCK_MONOTONIC) * 1000.0
+            except (OSError, ValueError):
+                pass
+            info["abs"] = True
+        info["to"] = round(timeout, 1)
+    return info
+
+
 class Tracer:
     """Stops one thread for an instant and reads its registers."""
 
@@ -241,9 +299,10 @@ class Recorder:
         self.file.close()
 
 
-def capture(pid, path, *, interval=INTERVAL, trace=True, stop=lambda: False):
+def capture(pid, path, *, interval=INTERVAL, trace=True, stop=lambda: False, servers=()):
     """Record the game's threads until it exits or `stop()` is true. Returns
-    whether stacks could be read."""
+    whether stacks could be read. `servers` are darlingserver processes whose
+    CPU use is recorded beside the game's."""
     recorder = Recorder(path)
     try:
         memory = Memory(pid)
@@ -252,9 +311,10 @@ def capture(pid, path, *, interval=INTERVAL, trace=True, stop=lambda: False):
     regions = Regions(pid)
     tracer = Tracer() if trace and memory and can_trace(pid) else None
     stacks = tracer is not None
-    recorder.write({"k": "meta", "t": time.time(), "pid": pid, "interval": interval, "stacks": stacks},
-                   essential=True)
-    cpu_before, names, census_before = {}, {}, {}
+    recorder.write({"k": "meta", "t": time.time(), "pid": pid, "interval": interval, "stacks": stacks,
+                    "servers": list(servers)}, essential=True)
+    cpu_before, names, census_before, in_futex = {}, {}, {}, {}
+    server_before = {}
     skip_until = {}
     last_census = last_maps = 0.0
     try:
@@ -274,18 +334,36 @@ def capture(pid, path, *, interval=INTERVAL, trace=True, stop=lambda: False):
                     deltas[tid] = round((nanoseconds - before) / 1e6, 1)
             if deltas:
                 recorder.write({"k": "cpu", "t": round(now, 3), "d": deltas}, essential=True)
+            served = {}
+            for server in servers:
+                for tid in diagnostics._threads(server):
+                    nanoseconds = _cpu_nanoseconds(server, tid)
+                    before = server_before.get(tid)
+                    if nanoseconds is not None:
+                        server_before[tid] = nanoseconds
+                        if before is not None and nanoseconds - before >= 1_000_000:
+                            served[tid] = round((nanoseconds - before) / 1e6, 1)
+            if served:
+                recorder.write({"k": "srv", "t": round(now, 3), "d": served}, essential=True)
             if tracer:
                 busy = sorted((tid for tid, ms in deltas.items()
                                if ms >= interval * 1000 * BUSY_FRACTION and skip_until.get(tid, 0) < started),
-                              key=lambda tid: -deltas[tid])
-                for tid in busy[:MAX_STOPS]:
+                              key=lambda tid: -deltas[tid])[:MAX_STOPS]
+                # The game's main thread is also read while it waits, unless
+                # that is a futex wait: stopping a futex waiter makes it check
+                # the word again, which could end a lost wakeup being watched.
+                waiting = [pid] if pid not in busy and not in_futex.get(pid) and skip_until.get(pid, 0) < started else []
+                for tid in busy + waiting:
                     found = tracer.registers(tid)
                     if not found:
                         skip_until[tid] = started + 5.0
                         continue
                     frames = frame_chain(memory, regions, *found)
-                    recorder.write({"k": "run", "t": round(time.time(), 3), "tid": tid,
-                                    "f": [regions.locate(address) or hex(address) for address in frames]})
+                    record = {"k": "run", "t": round(time.time(), 3), "tid": tid,
+                              "f": [regions.locate(address) or hex(address) for address in frames]}
+                    if tid in waiting:
+                        record["w"] = 1
+                    recorder.write(record)
             if started - last_census >= CENSUS_INTERVAL:
                 last_census = started
                 for tid in diagnostics._threads(pid):
@@ -296,12 +374,17 @@ def capture(pid, path, *, interval=INTERVAL, trace=True, stop=lambda: False):
                         recorder.write({"k": "name", "t": round(now, 3), "tid": tid, "name": name}, essential=True)
                     syscall = sample.get("syscall", "")
                     fields = [] if syscall.startswith("<") or syscall == "running" else syscall.split()
-                    state = (sample.get("state"), fields[0] if fields else "", fields[-1] if fields else "")
+                    in_futex[tid] = bool(fields) and fields[0] == str(FUTEX)
+                    detail = decode_wait(fields, memory) if memory and fields else {}
+                    state = (sample.get("state"), fields[0] if fields else "", fields[-1] if fields else "",
+                             tuple(detail.get("fx") or ()), detail.get("raw"))
                     if census_before.get(tid) == state:
                         continue
                     census_before[tid] = state
                     record = {"k": "wait", "t": round(now, 3), "tid": tid, "state": sample.get("state"),
                               "wchan": sample.get("wchan"), "syscall": fields[0] if fields else ""}
+                    if memory and fields:
+                        record["x"] = detail  # empty: decoded, no timeout and no futex
                     if memory and len(fields) >= 3 and fields[-2].startswith("0x"):
                         pc, stack_pointer = int(fields[-1], 16), int(fields[-2], 16)
                         record["pc"] = regions.locate(pc) or hex(pc)
@@ -414,7 +497,7 @@ def render(records, markers, symbols, *, before=2, after=40, everything=False, t
                     seconds[int(record["t"] - first)][int(tid)] += milliseconds
         leaves = defaultdict(Counter)
         for record in records:
-            if record["k"] == "run" and first <= record["t"] <= last and record["f"]:
+            if record["k"] == "run" and not record.get("w") and first <= record["t"] <= last and record["f"]:
                 leaves[(int(record["t"] - first), record["tid"])][_name_of(symbols, record["f"][0])] += 1
         for second in range(int(last - first) + 1):
             row = seconds.get(second, {})
@@ -432,7 +515,7 @@ def render(records, markers, symbols, *, before=2, after=40, everything=False, t
 
         busy = defaultdict(Counter)
         for record in records:
-            if record["k"] == "run" and first <= record["t"] <= last and record["f"]:
+            if record["k"] == "run" and not record.get("w") and first <= record["t"] <= last and record["f"]:
                 busy[record["tid"]][tuple(_name_of(symbols, location) for location in record["f"][:6])] += 1
         if busy:
             lines.append(f"\n== {tag}: where the busy threads were (stack samples) ==")
@@ -442,6 +525,8 @@ def render(records, markers, symbols, *, before=2, after=40, everything=False, t
                 for stack, count in counter.most_common(4):
                     lines.append(f"    {count:4}x  " + "  <-  ".join(stack))
         lines.extend(_new_waits(records, first, last, start, tag, label, symbols))
+    for first, last in find_lulls(records, start, end):
+        lines.extend(_lull(records, first, last, start, markers, label, symbols, bool(meta.get("servers"))))
     return "\n".join(lines) + "\n"
 
 
@@ -478,6 +563,105 @@ def _new_waits(records, first, last, start, tag, label, symbols, minimum=2.0):
         stack = [_name_of(symbols, location) for location in record.get("s") or () if location]
         if stack:
             lines.append("      stack: " + "  <-  ".join(stack[:6]))
+    return lines
+
+
+def find_lulls(records, start, end):
+    """[(first, last)] epoch seconds of stretches of LULL_SECONDS or more in
+    which the game used under LULL_FRACTION of one core."""
+    buckets = int((end - start) * 2) + 1
+    used = [0.0] * buckets
+    for record in records:
+        if record["k"] == "cpu":
+            index = int((record["t"] - start) * 2)
+            if 0 <= index < buckets:
+                used[index] += sum(record["d"].values())
+    lulls, first = [], None
+    for index, milliseconds in enumerate(used + [1e9]):
+        if milliseconds < LULL_FRACTION * 500:
+            first = index if first is None else first
+        elif first is not None:
+            if (index - first) / 2 >= LULL_SECONDS:
+                lulls.append((start + first / 2, start + index / 2))
+            first = None
+    return lulls
+
+
+def _wait_text(record, start, symbols):
+    """One line's worth of what a blocked thread waits on."""
+    detail = record.get("x") or {}
+    number = record.get("syscall", "")
+    call = SYSCALLS.get(int(number), number) if number.lstrip("-").isdigit() else number
+    parts = [call]
+    if "fx" in detail:
+        word = detail["fx"][1]
+        parts.append(f"futex 0x{detail['fx'][0]:x} = {word if word is None else hex(word)}")
+    if "to" in detail:
+        wake = record["t"] - start + detail["to"] / 1000.0
+        parts.append(f"times out in {detail['to'] / 1000.0:.1f} s (about {wake:.1f} s)")
+    elif "x" in record and number in ("7", "232", "281", "271", "270", "23", "35", "230"):
+        parts.append("no timeout")
+    if number == "202" and "x" in record and "to" not in detail:
+        parts.append("no timeout")
+    return ", ".join(parts)
+
+
+def _lull(records, first, last, start, markers, label, symbols, servers):
+    """What the game was doing while it did almost nothing."""
+    earlier = [marker for marker in markers if marker[0] <= first + 1.0]
+    after = (f", {first - earlier[-1][0]:.1f} s after {earlier[-1][1]} at {earlier[-1][0] - start:.1f} s"
+             if earlier and first - earlier[-1][0] < 30 else "")
+    lines = [f"\n== lull from {first - start:.1f} s to {last - start:.1f} s: {last - first:.1f} s with under "
+             f"{LULL_FRACTION * 100:.0f}% of a core{after} =="]
+    used = Counter()
+    for record in records:
+        if record["k"] == "cpu" and first <= record["t"] <= last:
+            for tid, milliseconds in record["d"].items():
+                used[int(tid)] += milliseconds
+    lines.append("  CPU in the lull: " + ("; ".join(f"{label(tid)} {ms:.0f} ms" for tid, ms in used.most_common(4))
+                                         or "none"))
+    if servers:
+        served = sum(sum(record["d"].values()) for record in records
+                     if record["k"] == "srv" and first <= record["t"] <= last)
+        lines.append(f"  darlingserver CPU in the lull: {served:.0f} ms "
+                     f"({served / (last - first) / 10:.1f}% of a core)")
+    woke = {}
+    for record in records:
+        if record["k"] == "cpu" and last - 1.0 <= record["t"] <= last + 0.5:
+            for tid, milliseconds in record["d"].items():
+                if milliseconds >= 10 and int(tid) not in woke:
+                    woke[int(tid)] = (record["t"] - start, milliseconds)
+    if woke:
+        lines.append("  first busy again: " + "; ".join(
+            f"{label(tid)} at {when:.2f} s ({ms:.0f} ms)"
+            for tid, (when, ms) in sorted(woke.items(), key=lambda item: item[1][0])[:3]))
+    waiting = Counter()
+    for record in records:
+        if record["k"] == "run" and record.get("w") and first <= record["t"] <= last and record["f"]:
+            waiting[tuple(_name_of(symbols, location) for location in record["f"][:10])] += 1
+    if waiting:
+        lines.append("  the main thread, sampled while it waited:")
+        for stack, count in waiting.most_common(3):
+            lines.append(f"    {count:4}x  " + "  <-  ".join(stack))
+    middle = (first + last) / 2
+    latest = {}
+    for record in records:
+        if record["k"] == "wait" and record["t"] <= middle:
+            latest[record["tid"]] = record
+    groups = defaultdict(list)
+    for tid, record in latest.items():
+        if record["state"] in ("S", "D"):
+            detail = record.get("x") or {}
+            groups[(_wait_text(record, start, symbols), _name_of(symbols, record.get("pc", "?")),
+                    detail.get("raw"))].append(record)
+    if groups:
+        lines.append("  blocked threads in the middle of the lull, by what they wait on:")
+        for (text, where, _raw), members in sorted(groups.items(), key=lambda item: -len(item[1]))[:12]:
+            who = ", ".join(label(record["tid"]) for record in members[:4]) + (", ..." if len(members) > 4 else "")
+            lines.append(f"    {len(members):3}x  {text}; at {where}; {who}")
+            stack = [_name_of(symbols, location) for location in members[0].get("s") or () if location]
+            if stack:
+                lines.append("           stack: " + "  <-  ".join(stack[:6]))
     return lines
 
 
@@ -548,7 +732,7 @@ def cli(argv):
     path = directory / f"stall-watch-{time.strftime('%Y%m%d-%H%M%S')}.jsonl"
     print(f"Watching process {pid}; capture {path}", file=sys.stderr, flush=True)
     stacks = capture(pid, path, interval=arguments.interval, trace=not arguments.no_stacks,
-                     stop=lambda: bool(stopping))
+                     stop=lambda: bool(stopping), servers=core._darlingservers())
     if not stacks and not arguments.no_stacks:
         print("Stacks were not readable: start the game with MACOBLOX_ALLOW_DEBUGGER=1 "
               "(Settings -> Environment -> allow freeze diagnostics).", file=sys.stderr)
