@@ -246,8 +246,9 @@ def metal_environment(metal_dir, shader_cache, *, preload=True, preload_key="uns
     return environment
 
 
-def validate_metal(environment, host_library):
-    """Open the Vulkan device the game will use, in a separate process."""
+def _run_metal_probe(environment, host_library):
+    """The probe process's (exit code, JSON answer, stderr tail), or raises RuntimeError where it
+    cannot run at all."""
     probe_environment = {name: value for name, value in environment.items() if name != "LD_PRELOAD"}
     probe_environment.update(MACOBLOX_METAL_PRELOAD_IN_PROCESS="0", MACOBLOX_METAL_DIAGNOSTICS="0")
     try:
@@ -259,13 +260,43 @@ def validate_metal(environment, host_library):
         data = json.loads(result.stdout.strip().splitlines()[-1])
     except (ValueError, IndexError):
         data = {}
+    return result.returncode, data, (result.stderr or "").strip()[-600:]
+
+
+def _is_software(name, identity):
+    if isinstance(identity, dict) and identity.get("kind") == "cpu":
+        return True
+    return any(software in name.lower() for software in ("llvmpipe", "lavapipe", "swiftshader"))
+
+
+def validate_metal(environment, host_library):
+    """Open the Vulkan device the game will use, in a separate process, and run a test copy on it."""
+    code, data, stderr = _run_metal_probe(environment, host_library)
     name = data.get("device", "")
-    if result.returncode or not name:
-        reason = data.get("error") or (result.stderr or "").strip()[-600:] or f"probe exited with code {result.returncode}"
+    if code or not name:
+        reason = data.get("error") or stderr or f"probe exited with code {code}"
         raise RuntimeError(f"Quadra M2VK is unavailable: {reason.rstrip('. ')}. Select OpenGL in Settings.")
-    if any(software in name.lower() for software in ("llvmpipe", "lavapipe", "swiftshader")):
+    if _is_software(name, data.get("identity")):
         raise RuntimeError(f"Quadra M2VK found only a software Vulkan device ({name}). Install your GPU's Vulkan driver or select OpenGL.")
     return name
+
+
+def metal_report(environment, host_library):
+    """What the probe learns, for a hardware report; never raises. `status` is `pass` for a
+    hardware device that ran the test copy, else `software` or `fail` with `error`."""
+    try:
+        code, data, stderr = _run_metal_probe(environment, host_library)
+    except RuntimeError as error:
+        return {"status": "fail", "error": str(error)}
+    name = data.get("device", "")
+    report = {"device": name or None, "identity": data.get("identity"), "self_test": data.get("self_test")}
+    if code or not name:
+        report.update(status="fail", error=data.get("error") or stderr or f"probe exited with code {code}")
+    elif _is_software(name, data.get("identity")):
+        report["status"] = "software"
+    else:
+        report["status"] = "pass"
+    return report
 
 
 def _metal_probe(library):
@@ -295,14 +326,24 @@ def _metal_probe(library):
     # A device that opens but cannot run work (a half-initialized GPU, a broken install) fails
     # here, not in the game. Host libraries before the test existed skip it.
     self_test = getattr(host, "quadra_metal_host_self_test", None)
+    passed = None
     if self_test is not None:
         self_test.restype, self_test.argtypes = ctypes.c_int, (pointer,)
-        if not self_test(device):
+        passed = bool(self_test(device))
+        if not passed:
             reason = (last_error() or b"the GPU did not run a test copy").decode(errors="replace")
             release(device)
             raise RuntimeError(f"{name}: {reason}")
+    identity = None
+    describe = getattr(host, "quadra_metal_host_identity", None)
+    if describe is not None:
+        describe.restype, describe.argtypes = ctypes.c_char_p, (pointer,)
+        try:
+            identity = json.loads((describe(device) or b"null").decode(errors="replace"))
+        except ValueError:
+            identity = None
     release(device)
-    return {"device": name}
+    return {"device": name, "identity": identity, "self_test": passed}
 
 
 def renderer_environment(renderer):

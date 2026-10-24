@@ -4,6 +4,7 @@
 use crate::util::log_once;
 use ash::vk;
 use metal2vulkan_runtime::{Device, DeviceKind, Error};
+use serde::Serialize;
 
 /// The id of the runtime's informational message about an unmeasured driver.
 const UNMEASURED_DRIVER: &str = "metal2vulkan-unmeasured-driver";
@@ -15,14 +16,14 @@ pub fn forwarded_info(id_name: &str) -> bool {
 }
 
 /// One memory heap of the device.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 pub struct Heap {
     pub size: u64,
     pub device_local: bool,
 }
 
 /// What the identity line states.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Identity {
     pub name: String,
     pub vendor_id: u32,
@@ -60,6 +61,11 @@ fn kind_name(kind: DeviceKind) -> &'static str {
 
 fn mib(bytes: u64) -> u64 {
     bytes >> 20
+}
+
+/// The identity as one JSON object, for a hardware report.
+pub fn json(identity: &Identity) -> String {
+    serde_json::to_string(identity).unwrap_or_else(|_| "{}".to_owned())
 }
 
 /// The single line a bug report quotes. Stable field names, no paths or account data.
@@ -265,6 +271,18 @@ mod tests {
         assert!(line.contains("driver workarounds none"));
         identity.extensions.clear();
         assert!(describe(&identity).ends_with("extensions none"));
+    }
+
+    #[test]
+    fn the_json_carries_the_fields_a_report_needs() {
+        let parsed: serde_json::Value = serde_json::from_str(&json(&sample())).unwrap();
+        assert_eq!(parsed["name"], "Test GPU");
+        assert_eq!(parsed["device_id"], 0x2489);
+        assert_eq!(parsed["driver_info"], "615.78.08");
+        assert_eq!(parsed["measured"], false);
+        assert_eq!(parsed["defects"][0], "MultisampledStencilColourCopies");
+        assert_eq!(parsed["heaps"][0]["size"], 8u64 << 30);
+        assert_eq!(parsed["extensions"][0], "VK_EXT_memory_priority");
     }
 
     #[test]

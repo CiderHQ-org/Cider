@@ -48,6 +48,8 @@ def collect(output_dir=None, *, graphics=False, gameplay=None):
         except (OSError, ValueError, subprocess.SubprocessError) as error:
             report['inventory_error'] = str(error)
     if graphics:
+        report['m2vk'] = _m2vk(core, environment)
+        report['coverage']['m2vk'] = report['m2vk']['status']
         if not (matrix.is_file() and probe.is_file()):
             report['coverage']['host_graphics'] = 'unavailable'
         else:
@@ -69,6 +71,17 @@ def collect(output_dir=None, *, graphics=False, gameplay=None):
         json.dump(report, output, indent=2)
         output.write('\n')
     return Path(name)
+
+
+def _m2vk(core, environment):
+    """Quadra M2VK's own view of the GPU: the device and driver it opens, whether the runtime has
+    measured that exact combination, and whether a test copy ran on it. No paths or account data."""
+    from . import graphics as renderer
+    if not core.metal_built():
+        return {'status': 'not_built'}
+    environment = dict(environment, **renderer.metal_environment(
+        core.METAL_DIR, core.CACHE_DIR / 'metal-shader-cache', preload=False))
+    return renderer.metal_report(environment, core.METAL_HOST_LIBRARY)
 
 
 def cli(argv):

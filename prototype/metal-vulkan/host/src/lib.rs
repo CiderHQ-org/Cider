@@ -2773,6 +2773,28 @@ fn self_test(device: &Device) -> Result<(), String> {
     Ok(())
 }
 
+/// The device's identity as a JSON object (the launch log's `gpu:` line, structured), for the
+/// launcher's hardware report. The text is valid until this thread's next call; null for a handle
+/// that is not a device.
+///
+/// # Safety
+/// `device` is null or a live handle from `device_create`.
+#[no_mangle]
+pub unsafe extern "C" fn quadra_metal_host_identity(device: *mut c_void) -> *const c_char {
+    thread_local! {
+        static TEXT: std::cell::RefCell<std::ffi::CString> = std::cell::RefCell::default();
+    }
+    let device = get_or!(device, Device, std::ptr::null());
+    guard(std::ptr::null(), || {
+        let text =
+            std::ffi::CString::new(identity::json(&identity::of(device))).unwrap_or_default();
+        TEXT.with(|slot| {
+            *slot.borrow_mut() = text;
+            slot.borrow().as_ptr()
+        })
+    })
+}
+
 /// Recreate locally recorded pipeline states in the launcher's isolated helper process.
 /// Returns the successful count, or -1 with `last_error` set. Progress is counts only.
 #[no_mangle]
