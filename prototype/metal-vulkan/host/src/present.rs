@@ -23,6 +23,7 @@ use std::ffi::{c_char, c_int, c_uint, c_ulong, c_void, CStr, CString};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{sync_channel, SyncSender};
 use std::sync::{Arc, Mutex, Weak};
+use std::time::Duration;
 
 /// Mailbox stays synchronized to vblank while replacing obsolete pending frames. FIFO's
 /// compositor backpressure must not be mistaken for a shader or GPU bottleneck.
@@ -403,6 +404,11 @@ pub struct Chain {
     owner: Arc<ChainOwner>,
     abandoned: AtomicBool,
     statistics: Option<Arc<crate::diagnostics::PresentationStatistics>>,
+    made: std::time::Instant,
+    /// The drawables of this chain the game holds: acquired and not yet released.
+    held: std::sync::atomic::AtomicU32,
+    /// The drawables of this chain queued for presentation whose present call has not returned.
+    unpresented: std::sync::atomic::AtomicU32,
 }
 
 struct Acquire {
@@ -444,6 +450,9 @@ pub struct Surface {
     presenter: Mutex<Option<SyncSender<QueuedDrawable>>>,
     statistics: Option<Arc<crate::diagnostics::PresentationStatistics>>,
     presented: std::sync::atomic::AtomicU64,
+    /// When a present call last returned, as nanoseconds after `born`.
+    last_present: std::sync::atomic::AtomicU64,
+    born: std::time::Instant,
 }
 
 // The raw Vulkan and X handles are used only under `inner`'s lock or by the presenter thread.
@@ -541,6 +550,8 @@ impl Surface {
             presenter: Mutex::new(None),
             statistics: crate::diagnostics::presentation(device),
             presented: std::sync::atomic::AtomicU64::new(0),
+            last_present: std::sync::atomic::AtomicU64::new(0),
+            born: std::time::Instant::now(),
         });
         // A blocked compositor must not accumulate an unbounded queue through resizes.
         let (sender, receiver) = sync_channel::<QueuedDrawable>(16);
@@ -788,6 +799,9 @@ impl Surface {
             owner,
             abandoned: AtomicBool::new(false),
             statistics: self.statistics.clone(),
+            made: std::time::Instant::now(),
+            held: 0.into(),
+            unpresented: 0.into(),
         }));
         inner.dirty = false;
         Ok(())
@@ -879,6 +893,7 @@ impl Surface {
                     if suboptimal {
                         self.inner.lock().unwrap().dirty = true;
                     }
+                    chain.held.fetch_add(1, Ordering::AcqRel);
                     return Ok(Arc::new(Drawable {
                         surface: Arc::downgrade(self),
                         texture: chain.textures[index as usize].clone(),
@@ -892,12 +907,39 @@ impl Surface {
                     if let Some(statistics) = &self.statistics {
                         statistics.acquire_timeouts.fetch_add(1, Ordering::Relaxed);
                     }
+                    self.explain_timeout(&chain);
                     return Err("no drawable became free within a second".into());
                 }
                 Err(error) => return Err(format!("vkAcquireNextImageKHR: {error}")),
             }
         }
         Err("the window kept changing while acquiring a drawable".into())
+    }
+
+    /// Say once per distinct state why no image was free after a second: the images, how many the
+    /// game holds, how many are queued for the presenter, and how long since the swapchain was
+    /// made and since a present call last returned. A wedged presentation engine and a game that
+    /// holds every image look alike from `vkAcquireNextImageKHR`, and differ here.
+    fn explain_timeout(&self, chain: &Chain) {
+        let last = self.last_present.load(Ordering::Relaxed);
+        let ago = if last == 0 {
+            None
+        } else {
+            Some(
+                self.born
+                    .elapsed()
+                    .saturating_sub(Duration::from_nanos(last))
+                    .as_millis() as u64,
+            )
+        };
+        log_once(&timeout_line(
+            chain.textures.len(),
+            chain.held.load(Ordering::Acquire),
+            chain.unpresented.load(Ordering::Acquire),
+            chain.made.elapsed().as_millis() as u64 / 250 * 250,
+            ago.map(|ms| ms / 250 * 250),
+            self.presented.load(Ordering::Relaxed),
+        ));
     }
 
     fn queue_present(&self, drawable: &Drawable, wait: bool) {
@@ -916,6 +958,11 @@ impl Surface {
             self.present_queue
                 .with_vk_queue(|queue, _| self.swapchain_fn.queue_present(queue, &info))
         };
+        chain.unpresented.fetch_sub(1, Ordering::AcqRel);
+        self.last_present.store(
+            (self.born.elapsed().as_nanos() as u64).max(1),
+            Ordering::Relaxed,
+        );
         match result {
             Ok(false) => {
                 if let Some(statistics) = &self.statistics {
@@ -957,6 +1004,7 @@ impl Surface {
 
 impl Drop for Drawable {
     fn drop(&mut self) {
+        self.chain.held.fetch_sub(1, Ordering::AcqRel);
         // Without maintenance1 an unused acquisition cannot be returned individually. Retire
         // its chain at the next acquisition; existing drawables can still finish on it.
         if !self.queued.load(Ordering::Acquire) {
@@ -993,6 +1041,7 @@ impl Drawable {
                 .clone()
                 .ok_or("the presenter is stopped")?;
             let drawable = self.clone();
+            self.chain.unpresented.fetch_add(1, Ordering::AcqRel);
             buffer
                 .add_scheduled_handler(Box::new(move |command| {
                     drawable.chain.owner.last_use.lock().unwrap()[drawable.index as usize] =
@@ -1009,12 +1058,14 @@ impl Drawable {
                         }
                         drawable.queued.store(false, Ordering::Release);
                         drawable.chain.abandoned.store(true, Ordering::Release);
+                        drawable.chain.unpresented.fetch_sub(1, Ordering::AcqRel);
                     }
                 }))
                 .map_err(|error| format!("scheduled handler: {error}"))
         })();
         if result.is_err() {
             self.queued.store(false, Ordering::Release);
+            self.chain.unpresented.fetch_sub(1, Ordering::AcqRel);
         }
         result
     }
@@ -1038,9 +1089,34 @@ impl Drawable {
     }
 }
 
+/// The line `Surface::explain_timeout` logs: times rounded to a quarter second, so that a state
+/// that repeats logs once.
+fn timeout_line(
+    images: usize,
+    held: u32,
+    unpresented: u32,
+    chain_age_ms: u64,
+    since_present_ms: Option<u64>,
+    presented: u64,
+) -> String {
+    let since = since_present_ms.map_or("never".to_owned(), |ms| format!("{ms} ms ago"));
+    format!(
+        "[Quadra Metal] nextDrawable timed out: {images} images, {held} held by the game, {unpresented} queued for the presenter, swapchain {chain_age_ms} ms old, last present returned {since}, {presented} presented so far"
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_timeout_line_states_who_holds_the_images() {
+        let line = timeout_line(3, 2, 1, 1250, Some(1000), 703);
+        assert!(line.contains("3 images, 2 held by the game, 1 queued for the presenter"));
+        assert!(line.contains("swapchain 1250 ms old"));
+        assert!(line.contains("last present returned 1000 ms ago"));
+        assert!(timeout_line(3, 0, 0, 0, None, 0).contains("returned never"));
+    }
 
     #[test]
     fn display_sync_keeps_vblank_without_requiring_a_fifo_backlog() {
