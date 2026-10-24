@@ -82,6 +82,38 @@ pub fn message_sink() -> MessageSink {
     })
 }
 
+/// The most lines of [`log_limited`] one process writes: a game that makes thousands of large
+/// buffers must not fill its launch log.
+const LIMITED_LINES: u64 = 60;
+static LIMITED: AtomicU64 = AtomicU64::new(0);
+
+/// A line in the launch log, at most [`LIMITED_LINES`] of them in a process, repeats included.
+pub fn log_limited(text: &str) {
+    if LIMITED.fetch_add(1, Ordering::Relaxed) < LIMITED_LINES {
+        let mut stderr = std::io::stderr().lock();
+        let _ = writeln!(stderr, "{text}");
+    }
+}
+
+/// What to say about a buffer the game asked for: one of 16 MiB or more, or one whose creation
+/// took 50 ms or more, with its size, the options' raw value (storage mode in bits 4-7, CPU
+/// cache mode in bits 0-3), whether it came with bytes and the milliseconds it took.
+pub fn large_buffer_line(
+    length: u64,
+    options: u64,
+    with_bytes: bool,
+    took_ms: u64,
+) -> Option<String> {
+    if length < 16 << 20 && took_ms < 50 {
+        return None;
+    }
+    Some(format!(
+        "[Quadra Metal] buffer of {} MiB (options {options:#x}{}) took {took_ms} ms",
+        length >> 20,
+        if with_bytes { ", with bytes" } else { "" },
+    ))
+}
+
 static PIPELINES: AtomicU64 = AtomicU64::new(0);
 static PIPELINE_NANOS: AtomicU64 = AtomicU64::new(0);
 
@@ -117,4 +149,22 @@ pub unsafe fn input_bytes<'a>(
         return Err("null source for a nonempty host byte span".into());
     }
     Ok(unsafe { std::slice::from_raw_parts(pointer.cast::<u8>(), length as usize) })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_large_or_slow_buffers_are_said() {
+        assert_eq!(large_buffer_line(64 << 10, 0, false, 1), None);
+        assert_eq!(large_buffer_line(15 << 20, 0, true, 49), None);
+        assert_eq!(
+            large_buffer_line(256 << 20, 0x20, false, 61).unwrap(),
+            "[Quadra Metal] buffer of 256 MiB (options 0x20) took 61 ms"
+        );
+        assert!(large_buffer_line(4096, 0, true, 80)
+            .unwrap()
+            .contains("with bytes"));
+    }
 }

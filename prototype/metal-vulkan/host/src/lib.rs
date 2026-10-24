@@ -463,6 +463,7 @@ extern "C" fn buffer_new(
             Ok(options) => options,
             Err(error) => return fail(format!("buffer options {options:#x}: {error}")),
         };
+        let started = std::time::Instant::now();
         let result = if bytes.is_null() {
             device.new_buffer(length.max(1), options)
         } else {
@@ -472,6 +473,14 @@ extern "C" fn buffer_new(
             };
             device.new_buffer_with_bytes(bytes, options)
         };
+        if let Some(line) = util::large_buffer_line(
+            length,
+            options.raw(),
+            !bytes.is_null(),
+            started.elapsed().as_millis() as u64,
+        ) {
+            util::log_limited(&line);
+        }
         match result {
             Ok(buffer) => handle(Obj::Buffer(buffer)),
             Err(error) => fail(format!("newBufferWithLength {length}: {error}")),
