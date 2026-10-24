@@ -120,7 +120,10 @@ additionally requests GPU spans while diagnostics is enabled. Encoder lifetime i
 time spent by the caller; these observations are not a frame-time or FPS measurement.
 `currentAllocatedSize` now uses per-device live allocator bytes; reserved/imported bytes
 are separate. Vulkan driver allocations and wrapped external images are excluded.
-Working-set recommendations use device-local heap budgets where available.
+Working-set recommendations use device-local heap budgets where available: a discrete card's
+largest device-local heap counts once (without Resizable BAR the driver lists a 256 MiB window
+onto VRAM as a heap beside it), and a unified-memory GPU's heaps all count (an APU's small VRAM
+carve-out beside the system memory it also maps). `MACOBLOX_VRAM_BYTES` can only lower the answer.
 
 Presentation defaults to mailbox when the surface supports it, keeping vblank synchronization
 while replacing obsolete queued frames. It falls back to FIFO when mailbox is unavailable.
@@ -144,6 +147,39 @@ results must be collected separately from the software offscreen tests.
 
 Native helpers can call `quadra_metal_host_preload` and
 `quadra_metal_host_diagnostics`; these optional exports do not change guest ABI 2.
+
+## Tuning, memory pressure and hardware reports
+
+Settings -> Environment -> Quadra M2VK sets these for the next launch; the host reads them
+from the environment, and an unset, empty or misspelled value is the default:
+
+| Variable | Values | Effect |
+| --- | --- | --- |
+| `MACOBLOX_METAL_ACCURACY` | `fast` (default), `textures`, `exact` | `textures` keeps Metal's BC1-BC5 decode in a twin where the driver's is not measured to match; `exact` is every exact form (`DevicePolicy::exact_answers`) |
+| `MACOBLOX_METAL_PRESENT_MODE` | empty (automatic), `mailbox`, `fifo`, `immediate` | the swapchain's present mode where the surface offers it |
+| `MACOBLOX_METAL_MEMORY_PRIORITY` | `0` | leaves memory priority and pageable memory off |
+| `MACOBLOX_METAL_COMPILE_THREADS` | 1-32 (default from CPUs and memory) | pipeline compilations at once |
+| `MACOBLOX_METAL_WARM_STATES` | 0-1024 (default 256) | the most learned states kept warm, within a quarter of the available memory |
+| `MACOBLOX_VRAM_BYTES` | bytes | a cap on the graphics memory the game is told it has |
+
+The runtime enables `VK_EXT_memory_priority` and `VK_EXT_pageable_device_local_memory` on a device
+that has them and gives its blocks priorities (render targets and buffers above pooled textures).
+On the RTX 3060 Ti (8 GiB, 615.78.08) it made 9,216 MiB of `Private` buffers where the same runtime
+without them failed at 7,168 MiB with an out-of-device-memory error: a card short of video memory
+demotes textures instead of failing an allocation. The launch log's `[Quadra Metal] gpu:` line states the
+vendor and device IDs, driver, whether the runtime has measured that exact combination, the driver
+defects it assumes and the optional extensions taken; a problem report should include it.
+
+Before a launch, the launcher's probe opens the device and runs `quadra_metal_host_self_test`
+(a fill of host memory copied through device-local memory and read back). If either fails, the launch
+uses OpenGL once and says why (the saved renderer is unchanged; the "Fall back to OpenGL" switch turns
+this off). `quadrahq --hardware-report --graphics` adds the host's view of the GPU, from
+`quadra_metal_host_identity`, under `m2vk`: the single file to send for an AMD, Intel or other
+NVIDIA GPU.
+
+A presenter that waits a second for an image and finds none logs, once per distinct state, how many
+images the game holds and how many presents are queued, with the swapchain's age and the time since
+a present last returned.
 
 ## Baseline evidence and qualification
 
@@ -225,8 +261,9 @@ clang -O2 -Wall -Wextra tests/metal_host_test.c -ldl -o /tmp/quadra-metal-host-t
 
 The test script sets `renderer=metal`, turns VR, MangoHud and Discord off, and never writes
 `settings.json`. Logs go to `logs/` in the repository. The host library reads
-`MACOBLOX_METAL_PRESENT_MODE` (`fifo`, `mailbox` or `immediate`) and `MACOBLOX_METAL_LIBLLVM`
-(an explicit libLLVM).
+`MACOBLOX_METAL_PRESENT_MODE` (`fifo`, `mailbox` or `immediate`), `MACOBLOX_METAL_LIBLLVM`
+(an explicit libLLVM; by default a libLLVM the process already maps, then the newest 15 or later) and
+the tuning variables above.
 
 ## ABI 2 behavior
 
