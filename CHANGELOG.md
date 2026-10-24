@@ -2,13 +2,31 @@
 
 ## Unreleased
 
+
+## 0.36 — 2026-10-24
+
 - Stop the menu freezing for about 18 s after leaving a game. Roblox's `RBX IoEvLoop` threads wait up to 10 s per
   `kevent()` and were not woken for the work that follows a leave; they now look at their queues every 100 ms
   (setting `kevent_poll_ms`, default 100, 0 turns it off). The game ran at full speed 2 s after a leave in 3 of 3 trials
-  instead of 18 s in 9 of 9. Only threads with that name are affected.
-- Add `quadrahq --watch-stalls`, which records the game's per-thread CPU use,
-  stacks of busy threads and the places blocked threads wait while a hang
-  happens, and reports them against the launch log's join and leave markers.
+  instead of 18 s in 9 of 9. Only threads with that name are affected. It is a workaround for Darling's kqueue
+  emulation: what those loops were not woken for is still not identified.
+- Update Quadra M2VK: the pinned runtime enables `VK_EXT_memory_priority` and pageable device-local memory by default
+  (an 8 GiB card made 9,216 MiB of device buffers where it failed at 7,168 MiB before), and the performance trace
+  splits live memory into device-local and host.
+- Add a Quadra M2VK settings tab (accuracy, present mode, memory priority, compile threads, warm states, VRAM limit and
+  fallback). Before launch the GPU path is proven with a self-test, and Quadra falls back to OpenGL once when the GPU
+  cannot run Metal, with a clearer message when no driver is found.
+- Log the GPU and driver identity and the runtime's account of an unmeasured driver, say why a drawable acquisition
+  timed out and wait only 100 ms for an image when nothing of ours can free one, and name large or slow buffer
+  creations (16 MiB or more, or 50 ms or more).
+- Prefer the libLLVM a process already maps and find Debian's `libLLVM.so.1` by its directory, so the legacy shader
+  upgrade works with LLVM 18, 19 and 23.
+- Add the GPU and driver, the session type, desktop, Xwayland version, window backend, raw mouse setting and the
+  `[Quadra Input]` lines to `quadrahq --hardware-report`.
+- Add `quadrahq --watch-stalls`, which records the game's per-thread CPU use, stacks of busy threads, what blocked
+  threads wait on (futex words, timeouts, sockets, pipes, timers) and reports them against the launch log's join and
+  leave markers. The game must be started with the freeze diagnostics setting on. It never stops the game's threads
+  more than 60 times a second.
 - Host the website and report form on the VPS, with a detailed diagnostics
   collection guide, archive-content checks for both diagnostics switches,
   private report storage and queued Discord delivery with attachments.

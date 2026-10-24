@@ -68,6 +68,11 @@
     <control>keyboard</control>
   </supports>
   <releases>
+    <release version="0.36" date="2026-10-24">
+      <description>
+        <p>Removes the roughly 18 second menu freeze after leaving a game by making the game's I/O loops look at their queues every 100 milliseconds. Updates Quadra M2VK with memory priority, a settings tab, a startup self-test with OpenGL fallback and better diagnostics, and adds a stall watcher and richer hardware report for bug reports.</p>
+      </description>
+    </release>
     <release version="0.35.p2" date="2026-10-23">
       <description>
         <p>Repairs public Roblox download recovery when an alternate server reports a missing upload, rate limit or temporary server error after HTTP 403. Adds a website bug-report guide and a public GitHub form requiring the matching diagnostics archive.</p>

@@ -1,3 +1,10 @@
+quadrahq (0.36-1) unstable; urgency=medium
+
+  * Remove the menu freeze after leaving a game by polling the game's idle I/O loops.
+  * Update Quadra M2VK and add a stall watcher and richer hardware report.
+
+ -- Quadra maintainers <noreply@aubree.wtf>  Sat, 24 Oct 2026 10:19:13 -0500
+
 quadrahq (0.35.p2-1) unstable; urgency=medium
 
   * Recover public Roblox downloads when alternate origins are unavailable.
