@@ -39,6 +39,12 @@ if sys.argv[1:2] == ["--collect-diagnostics"]:
         sys.exit(1)
     sys.exit(diagnostics.collect_cli(sys.argv[2:]))
 
+# `quadrahq --watch-stalls` records what the game's threads do while it hangs
+# (see `quadrahq --watch-stalls --help`); start it before or during the game.
+if sys.argv[1:2] == ["--watch-stalls"]:
+    from macoblox import stallwatch  # noqa: E402
+    sys.exit(stallwatch.cli(sys.argv[2:]))
+
 if sys.argv[1:2] == ['--hardware-report']:
     from macoblox import hardware_report
     sys.exit(hardware_report.cli(sys.argv[2:]))

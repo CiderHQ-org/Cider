@@ -429,6 +429,26 @@ states. Thread stacks need **Allow freeze diagnostics**
 set; launch logs are capped at 200 MB in total, and `dserver.log` is rotated
 to `dserver.log.old` past 32 MB while Darling is stopped.
 
+**Watch a hang as it happens.** Collect diagnostics shows the game at two
+moments; a stall after joining or leaving a game needs the whole minute.
+With **Allow freeze diagnostics** turned on, run this in a terminal before or
+during the game, play until the stall has happened, then close the game or
+press Ctrl-C:
+
+```bash
+quadrahq --watch-stalls
+```
+
+It records, ten times a second, how much CPU each thread of the game uses;
+for the busy threads it also reads where they are (function and callers), and
+each second it notes where blocked threads wait. The report lines this up with
+the launch log's markers (joining, leaving, swapchain timeouts) and is written
+next to the logs as `stall-watch-*.txt` with the raw `stall-watch-*.jsonl`.
+It costs about 2% of one CPU core and stops each sampled thread for about a
+tenth of a millisecond. Send the `.txt` with the launch log;
+`quadrahq --watch-stalls --report FILE.jsonl` prints a report again, and
+`--all` covers the whole capture instead of the join and leave windows.
+
 Submit bugs through [the report page](https://quadrahq.org/report/). Follow its
 collection guide, then attach the matching diagnostics `.tar.gz` and describe
 what happened and how to reproduce it. The form verifies both **Crash

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add `quadrahq --watch-stalls`, which records the game's per-thread CPU use,
+  stacks of busy threads and the places blocked threads wait while a hang
+  happens, and reports them against the launch log's join and leave markers.
 - Host the website and report form on the VPS, with a detailed diagnostics
   collection guide, archive-content checks for both diagnostics switches,
   private report storage and queued Discord delivery with attachments.
