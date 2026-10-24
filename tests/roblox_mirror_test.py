@@ -78,6 +78,38 @@ class MirrorTests(unittest.TestCase):
         for error in errors:
             error.close()
 
+    def test_cold_archive_tries_next_origin_after_an_alternates_http_failure(self):
+        primary = f'https://setup.rbxcdn.com/mac/{UPLOAD}-RobloxPlayer.zip'
+        aws = primary.replace('setup.rbxcdn.com', 'setup-aws.rbxcdn.com')
+        akamai = primary.replace('setup.rbxcdn.com', 'setup-ak.rbxcdn.com')
+        for code in (404, 408, 429, 500, 502, 503, 504):
+            with self.subTest(code=code):
+                errors = [urllib.error.HTTPError(primary, 403, 'Denied', {}, io.BytesIO()),
+                          urllib.error.HTTPError(aws, code, 'Unavailable', {}, io.BytesIO())]
+                with patch.object(mirror.urllib.request, 'urlopen', side_effect=[*errors, Response(archive(), url=akamai)]) as opener:
+                    with mirror.upstream(primary, 10) as response:
+                        self.assertEqual(response.read(), archive())
+                    self.assertEqual([call.args[0].full_url for call in opener.call_args_list], [primary, aws, akamai])
+                self.assertTrue(all(error.fp.closed for error in errors))
+
+    def test_initial_errors_and_alternate_authentication_failures_propagate(self):
+        primary = f'https://setup.rbxcdn.com/mac/{UPLOAD}-RobloxPlayer.zip'
+        for code in (401, 404, 429, 500):
+            error = urllib.error.HTTPError(primary, code, 'Unavailable', {}, io.BytesIO())
+            with patch.object(mirror.urllib.request, 'urlopen', side_effect=error) as opener:
+                with self.assertRaises(urllib.error.HTTPError):
+                    mirror.upstream(primary, 10)
+                self.assertEqual(opener.call_count, 1)
+            error.close()
+        errors = [urllib.error.HTTPError(primary, code, 'Unavailable', {}, io.BytesIO()) for code in (403, 401)]
+        with patch.object(mirror.urllib.request, 'urlopen', side_effect=errors) as opener:
+            with self.assertRaises(urllib.error.HTTPError) as raised:
+                mirror.upstream(primary, 10)
+            self.assertEqual(raised.exception.code, 401)
+            self.assertEqual(opener.call_count, 2)
+        for error in errors:
+            error.close()
+
     def test_version_is_cached_without_changing_channel(self):
         body = json.dumps({'version': '0.743.0.7431134', 'clientVersionUpload': UPLOAD}).encode()
         path = '/v2/client-version/MacPlayer/channel/znext'

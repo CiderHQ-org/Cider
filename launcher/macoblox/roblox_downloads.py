@@ -13,6 +13,7 @@ from . import __version__
 MIRROR = "https://vps.korona.lat/quadra/roblox"
 VERSION_PATH = re.compile(r"/v2/client-version/MacPlayer(?:/channel/[A-Za-z0-9_-]{1,64})?")
 ARCHIVE_PATH = re.compile(r"/mac/version-[0-9a-fA-F]{16,64}-RobloxPlayer\.zip")
+ALTERNATE_RETRY_STATUSES = {403, 404, 408, 429, 500, 502, 503, 504}
 
 
 def mirror_url(url):
@@ -39,7 +40,8 @@ def open_public(url, *, timeout=30, on_fallback=None):
     """A public 403 tries official alternates before the independent mirror.
 
     Initial non-403 failures retain their normal behavior. After a 403, an
-    unavailable alternate does not prevent trying the next download source.
+    unavailable, lagging or overloaded alternate must not block the mirror.
+    Authentication errors still propagate without trying another source.
     """
     headers = {'User-Agent': f'Quadra/{__version__}'}
     try:
@@ -56,7 +58,7 @@ def open_public(url, *, timeout=30, on_fallback=None):
         try:
             return urllib.request.urlopen(urllib.request.Request(alternate, headers=headers), timeout=timeout)
         except urllib.error.HTTPError as error:
-            if error.code != 403:
+            if error.code not in ALTERNATE_RETRY_STATUSES:
                 raise
             error.close()
         except (urllib.error.URLError, TimeoutError):

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#000000">
+  <meta name="description" content="Report a Quadra bug with reproduction steps and the diagnostics archive from the failed run.">
+  <link rel="canonical" href="https://quadrahq.org/report/">
+  <link rel="icon" href="/assets/quadrahq-icon.png" type="image/png">
+  <link rel="preload" href="/assets/fonts/Archivo.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="stylesheet" href="/style.css">
+  <title>Report a bug — Quadra</title>
+  <script src="/assets/vendor/p5.min.js" defer></script>
+  <script src="/assets/vendor/vanta.topology.min.js" defer></script>
+  <script src="/background.js" defer></script>
+</head>
+<body>
+  <div id="wallpaper" aria-hidden="true"></div>
+  <main class="desktop report-desktop">
+    <section class="window" aria-labelledby="report-title">
+      <header class="window-bar"><span>Quadra / bug reports</span><a href="/">back to home</a></header>
+      <div class="window-body">
+        <img class="brand-logo" src="/assets/quadrahq.webp" width="1024" height="1024" alt="Quadra logo">
+        <h1 id="report-title">Report a bug</h1>
+        <p>Tell us what happened and attach the diagnostics archive from the run that failed. The report form requires a <strong>.tar.gz</strong> file, your Quadra version, reproduction steps, expected behavior, renderer and window backend.</p>
+        <ol class="report-steps">
+          <li><strong>Prepare crash or freeze diagnostics.</strong> For crashes, enable <strong>Settings → Environment → Diagnostics → Crash diagnostics</strong> and <strong>Allow freeze diagnostics</strong> before starting Roblox.</li>
+          <li><strong>Reproduce the problem.</strong> Note what you clicked or pressed and the error you saw. For HTTP 403, include which download failed and its URL if shown.</li>
+          <li><strong>Collect the matching archive.</strong> Choose <strong>Collect diagnostics</strong> in Quadra’s menu after the failure. For a freeze, collect while the game is still frozen. Keep the generated <code>quadra-diagnostics-*.tar.gz</code> compressed.</li>
+          <li><strong>Check the run, then attach it.</strong> Make sure the archive’s version and timestamps match this failure. A hardware-report JSON or a log from an older run will not contain the current crash details.</li>
+        </ol>
+        <p class="report-privacy">Reports and attachments are public on GitHub. Review the archive before uploading. Quadra redacts known sign-in secrets and join tickets; avoid adding cookies or unredacted join links yourself.</p>
+        <div class="report-actions">
+          <a class="button" href="https://github.com/CiderHQ-org/Cider/issues/new?template=bug_report.yml">Continue to GitHub</a>
+          <a href="https://github.com/CiderHQ-org/Cider/issues">View existing reports</a>
+        </div>
+        <p class="report-note">Sign in to GitHub to complete the form and upload the required archive (up to 25 MB). Screenshots and extra logs are optional. If you need help collecting the archive, <a href="https://discord.gg/jpbsf44tBE">ask on Discord</a>.</p>
+      </div>
+    </section>
+  </main>
+  <footer class="site-footer report-footer"><p><a href="/">Quadra</a> · Roblox on Linux through Darling</p><p><a href="https://github.com/CiderHQ-org/Cider">Source code</a></p></footer>
+</body>
+</html>

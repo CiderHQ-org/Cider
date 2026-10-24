@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Help collecting diagnostics
+    url: https://quadrahq.org/report/
+    about: Prepare the matching diagnostics archive before reporting a bug.
+  - name: Questions and feature requests
+    url: https://discord.gg/jpbsf44tBE
+    about: Get help from the community or discuss an idea for Quadra.

@@ -1,7 +1,7 @@
 %bcond_with prebuilt_metal
-%global upstream_version 0.35.p1
+%global upstream_version 0.35.p2
 Name:           quadrahq
-Version:        0.35.p1
+Version:        0.35.p2
 Release:        1%{?dist}
 Summary:        Run the macOS Roblox client on Linux through Darling
 License:        GPL-3.0-only AND MIT AND ISC AND OFL-1.1
@@ -99,6 +99,10 @@ python3 -m compileall -q -d "%{_datadir}/quadrahq/launcher" "%{buildroot}%{_data
 %{_datadir}/mime/packages/org.quadrahq.Quadra.xml
 
 %changelog
+* Fri Oct 23 2026 Quadra maintainers <noreply@aubree.wtf> - 0.35.p2-1
+- Recover public Roblox downloads when alternate origins are unavailable.
+- Add the website report guide and required diagnostics archive issue form.
+
 * Fri Oct 23 2026 Quadra maintainers <noreply@aubree.wtf> - 0.35.p1-1
 - Keep setup and routine updates on the public Roblox release channel.
 - Repair Wayland clipboard handling for rich text views and Unicode.

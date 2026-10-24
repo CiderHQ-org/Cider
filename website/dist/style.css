@@ -180,6 +180,20 @@ h1 { margin: 0 0 .75rem; font-size: clamp(1.8rem, 2.3vw, 2.5rem); font-weight: 6
 .site-footer a { color: #bdbdbd; }
 .site-footer a:hover { color: var(--accent); }
 
+.desktop.report-desktop { display: block; max-width: 940px; }
+.report-desktop .window-body { padding: clamp(1.25rem, 4vw, 2.5rem); }
+.report-desktop .brand-logo { width: 80px; }
+.report-steps { margin: 1.5rem 0; padding-left: 1.4rem; color: #bdbdbd; }
+.report-steps li { padding-left: .35rem; }
+.report-steps li + li { margin-top: 1rem; }
+.report-steps strong { color: var(--text); }
+.report-steps code { overflow-wrap: anywhere; font: 400 .85em/1.6 var(--mono); }
+.report-desktop .report-privacy { padding: 1rem; border: 1px solid var(--border); font-size: 14px; }
+.report-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 1rem; }
+.report-actions > a:not(.button), .report-note a { text-decoration: underline; text-underline-offset: 4px; }
+.report-desktop .report-note { margin: 1rem 0 0; color: var(--dim); font-size: 14px; }
+.report-footer { max-width: 940px; }
+
 @media (max-width: 1050px) {
   .desktop { grid-template-columns: minmax(300px, 1fr) minmax(0, 1.4fr); gap: 16px; }
   .window-body { padding: 1.25rem; }

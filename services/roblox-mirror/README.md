@@ -8,7 +8,9 @@ are also blocked or unreachable, the launcher uses:
 
 `https://vps.korona.lat/quadra/roblox`
 
-Other errors keep their normal behavior. Account, sign-in, game and cookie
+After the primary 403, an alternate's 404, 408, 429 or temporary server error
+also advances to the next source. Initial non-403 errors and authentication
+restrictions keep their normal behavior. Account, sign-in, game and cookie
 requests never use this service. Restricted-channel errors still allow the
 launcher's existing recovery from the client's required-update log.
 
@@ -52,6 +54,9 @@ For an update, replace the service script and restart only
 `quadra-roblox-mirror.service`. Do not publish an incomplete `.part` file or
 turn this route into a general URL proxy. No launcher authentication is
 required because all supplied data is public Roblox deployment data.
+Verify the deployed script's checksum against this checkout: the older mirror
+did not retry archive origins and could repeat a primary CDN denial on a cold
+cache even when the launcher had the newer fallback logic.
 
 ## Validation
 

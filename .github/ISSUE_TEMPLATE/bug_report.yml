@@ -1,0 +1,102 @@
+name: Bug report
+description: Report a Quadra problem with the diagnostics archive from the failed run.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Attach the **diagnostics .tar.gz from the run that failed**. In Quadra, use the menu → **Collect diagnostics** after reproducing.
+        For a crash, enable **Settings → Environment → Diagnostics → Crash diagnostics** and **Allow freeze diagnostics** before starting Roblox. For a freeze, collect while the game is still frozen.
+        Reports and attachments are public. Review the archive before uploading; do not paste cookies or unredacted join links.
+  - type: dropdown
+    id: category
+    attributes:
+      label: Problem type
+      options:
+        - Installation or download (including HTTP 403)
+        - Crash or unexpected exit
+        - Freeze or hang
+        - Graphics or performance
+        - Keyboard, mouse or clipboard
+        - Audio or VR
+        - Other bug
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Quadra version
+      description: Copy the version shown in the launcher or at the start of the matching launch log.
+      placeholder: e.g. 0.35.p2
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include what you clicked or pressed, when it fails, and whether it happens every time. For HTTP 403, include the failing download URL if available.
+      placeholder: |
+        1. Start Quadra with…
+        2. Join a game / start setup / press…
+        3. The problem happens when…
+    validations:
+      required: true
+      min_length: 20
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened?
+      description: Include the exact error and whether Quadra, Roblox, or both closed.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: dropdown
+    id: renderer
+    attributes:
+      label: Renderer
+      options:
+        - OpenGL
+        - Vulkan (Zink)
+        - Quadra M2VK (Metal)
+        - Not sure / setup did not complete
+    validations:
+      required: true
+  - type: dropdown
+    id: window-backend
+    attributes:
+      label: Window backend
+      options:
+        - Wayland
+        - X11 / Xwayland
+        - Not sure / setup did not complete
+    validations:
+      required: true
+  - type: upload
+    id: diagnostics
+    attributes:
+      label: Diagnostics archive
+      description: Upload the matching quadra-diagnostics-*.tar.gz from Collect diagnostics (up to 25 MB). Keep it compressed. A hardware-report JSON or an older launch archive does not contain this run's crash details.
+    validations:
+      required: true
+      accept: ".tar.gz"
+  - type: upload
+    id: screenshots
+    attributes:
+      label: Screenshots or additional logs (optional)
+      description: These supplement the required diagnostics archive.
+    validations:
+      required: false
+      accept: ".png,.jpg,.jpeg,.webp,.log,.txt"
+  - type: checkboxes
+    id: matching-run
+    attributes:
+      label: Before submitting
+      options:
+        - label: I attached the diagnostics archive collected after this failure and checked that its version and timestamps match the run I am reporting.
+          required: true

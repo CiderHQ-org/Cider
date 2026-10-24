@@ -1,3 +1,10 @@
+quadrahq (0.35.p2-1) unstable; urgency=medium
+
+  * Recover public Roblox downloads when alternate origins are unavailable.
+  * Add the website report guide and required diagnostics archive issue form.
+
+ -- Quadra maintainers <noreply@aubree.wtf>  Fri, 23 Oct 2026 21:42:31 -0500
+
 quadrahq (0.35.p1-1) unstable; urgency=medium
 
   * Keep setup and routine updates on the public Roblox release channel.

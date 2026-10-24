@@ -91,7 +91,7 @@ class PublicDownloadTests(unittest.TestCase):
         response.close()
 
     def test_alternate_restrictions_and_final_403_are_not_hidden(self):
-        for code in (401, 404, 429, 500):
+        for code in (400, 401, 405):
             error = denied(status=code)
             with patch.object(roblox_downloads.urllib.request, 'urlopen', side_effect=[denied(), error]) as opener:
                 with self.assertRaises(urllib.error.HTTPError) as raised:
@@ -106,6 +106,18 @@ class PublicDownloadTests(unittest.TestCase):
             self.assertEqual(raised.exception.code, 403)
         for error in errors:
             error.close()
+
+    def test_unavailable_alternate_after_403_reaches_the_same_deployment_on_mirror(self):
+        for code in (404, 408, 429, 500, 502, 503, 504):
+            for url in (VERSION, VERSION + '/channel/znext', ARCHIVE):
+                with self.subTest(code=code, url=url):
+                    errors = [denied(url), *[denied(candidate, code) for candidate in roblox_downloads.official_alternates(url)]]
+                    response = Response()
+                    with patch.object(roblox_downloads.urllib.request, 'urlopen', side_effect=[*errors, response]) as opener:
+                        self.assertIs(roblox_downloads.open_public(url), response)
+                        self.assertEqual(opener.call_args.args[0].full_url, roblox_downloads.mirror_url(url))
+                    self.assertTrue(all(error.fp.closed for error in errors))
+                    response.close()
 
     def test_other_http_errors_and_account_paths_never_use_mirror(self):
         cases = [(VERSION, code) for code in (401, 404, 429, 500)]

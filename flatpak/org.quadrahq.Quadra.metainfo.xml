@@ -68,6 +68,11 @@
     <control>keyboard</control>
   </supports>
   <releases>
+    <release version="0.35.p2" date="2026-10-23">
+      <description>
+        <p>Repairs public Roblox download recovery when an alternate server reports a missing upload, rate limit or temporary server error after HTTP 403. Adds a website bug-report guide and a public GitHub form requiring the matching diagnostics archive.</p>
+      </description>
+    </release>
     <release version="0.35.p1" date="2026-10-23">
       <description>
         <p>Keeps setup and routine Roblox update checks on the public release channel. Fixes native Wayland copy and paste with rich text views and Unicode, and explains unavailable OverlayFS support before startup. Adds NixOS packaging and live Darling status in the launcher. Native Metal packages also refresh shared-memory GPU budgets and limit resident shader preloads.</p>

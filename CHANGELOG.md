@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.p2 — 2026-10-23
+
+- Add a website bug-report guide linked to a public GitHub form requiring a
+  diagnostics `.tar.gz`, reproduction steps and the affected configuration.
+- Keep the public Roblox 403 fallback moving past an alternate origin's
+  missing upload, rate limit or temporary server failure. Update the deployed
+  mirror to retry official archive origins on a cold cache.
+
 ## 0.35.p1 — 2026-10-23
 
 - Stop launch immediately when Darling reports unavailable OverlayFS support.

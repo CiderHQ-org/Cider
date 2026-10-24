@@ -24,6 +24,7 @@ VERSION_PATH = re.compile(r'/v2/client-version/MacPlayer(?:/channel/[A-Za-z0-9_-
 ARCHIVE_PATH = re.compile(r'/mac/(version-[0-9a-fA-F]{16,64})-RobloxPlayer\.zip')
 MAX_ARCHIVE = 512 << 20
 MAX_CACHE = 2 << 30
+ALTERNATE_RETRY_STATUSES = {403, 404, 408, 429, 500, 502, 503, 504}
 
 
 def upstream(url, timeout):
@@ -36,7 +37,7 @@ def upstream(url, timeout):
             response = urllib.request.urlopen(urllib.request.Request(candidate, headers={'User-Agent': 'Quadra-download-mirror/1'}), timeout=timeout)
             break
         except urllib.error.HTTPError as error:
-            if error.code != 403 or index == len(urls) - 1:
+            if (index == 0 and error.code != 403) or error.code not in ALTERNATE_RETRY_STATUSES or index == len(urls) - 1:
                 raise
             error.close()
         except (urllib.error.URLError, TimeoutError):
