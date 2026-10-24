@@ -3,7 +3,7 @@
 //! these facts to be useful.
 use crate::util::log_once;
 use ash::vk;
-use metal2vulkan_runtime::{Device, DeviceKind};
+use metal2vulkan_runtime::{Device, DeviceKind, Error};
 
 /// The id of the runtime's informational message about an unmeasured driver.
 const UNMEASURED_DRIVER: &str = "metal2vulkan-unmeasured-driver";
@@ -176,6 +176,24 @@ pub fn of(device: &Device) -> Identity {
     }
 }
 
+/// What to tell someone whose game found no usable Vulkan device: the cause the runtime reports,
+/// in the words of the fix. The loader lists no surface extension when no driver is installed, so
+/// that refusal is the missing driver, not a bridge problem.
+pub fn explain_no_device(error: &Error) -> String {
+    const DRIVERS: &str = "Install the Vulkan driver for your GPU: NVIDIA's proprietary driver (nvidia-utils), \
+        or Mesa's for AMD (vulkan-radeon, mesa-vulkan-drivers) or Intel (vulkan-intel, mesa-vulkan-drivers).";
+    match error {
+        Error::NoDevice => format!("the Vulkan loader found no graphics device. {DRIVERS}"),
+        Error::InstanceExtensionRequired(missing) if missing.instance_extension == "VK_KHR_surface" => {
+            format!("the Vulkan loader found no graphics driver. {DRIVERS}")
+        }
+        Error::LoaderNotFound(_) => format!(
+            "the Vulkan loader (libvulkan.so.1) is not installed ({error}). Install vulkan-icd-loader, libvulkan1 or vulkan-loader."
+        ),
+        other => other.to_string(),
+    }
+}
+
 /// Log the identity line once, and the runtime's own account of an unmeasured identity.
 pub fn log(device: &Device) {
     let identity = of(device);
@@ -254,6 +272,20 @@ mod tests {
         assert!(forwarded_info("metal2vulkan-unmeasured-driver"));
         assert!(!forwarded_info("metal2vulkan-pipeline-log"));
         assert!(!forwarded_info(""));
+    }
+
+    #[test]
+    fn a_missing_device_is_explained_with_its_remedy() {
+        let text = explain_no_device(&Error::NoDevice);
+        assert!(text.contains("no graphics device"), "{text}");
+        assert!(
+            text.contains("nvidia-utils") && text.contains("vulkan-radeon"),
+            "{text}"
+        );
+        assert_eq!(
+            explain_no_device(&Error::DeviceLost),
+            Error::DeviceLost.to_string()
+        );
     }
 
     #[test]

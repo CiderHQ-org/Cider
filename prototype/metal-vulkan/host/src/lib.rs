@@ -384,7 +384,10 @@ extern "C" fn device_create(_options: *const c_void) -> *mut c_void {
                     budget,
                 }))
             }
-            Err(error) => fail(format!("no Vulkan device for Metal: {error}")),
+            Err(error) => fail(format!(
+                "no Vulkan device for Metal: {}",
+                identity::explain_no_device(&error)
+            )),
         }
     })
 }
@@ -2693,6 +2696,83 @@ pub extern "C" fn quadra_metal_host_check_air() -> c_int {
     })
 }
 
+/// Submit a little work to `device` (a handle from `device_create`) and check it came back: a
+/// fill of host-visible memory, copied through device-local memory and read back. A driver that
+/// opens a device but cannot run work on it (a broken install, a half-initialized GPU) fails here,
+/// in the launcher's probe process, rather than in the game. 1 on success; 0 with `last_error` set.
+#[no_mangle]
+/// # Safety
+/// `device` is null or a live handle from `device_create`.
+pub unsafe extern "C" fn quadra_metal_host_self_test(device: *mut c_void) -> c_int {
+    let device = get_or!(device, Device, 0);
+    guard(0, || match self_test(device) {
+        Ok(()) => 1,
+        Err(error) => {
+            set_error(error);
+            0
+        }
+    })
+}
+
+const SELF_TEST_BYTES: u64 = 64 << 10;
+
+fn failed(what: &str, error: impl std::fmt::Display) -> String {
+    format!("self test: {what}: {error}")
+}
+
+fn self_test(device: &Device) -> Result<(), String> {
+    let source = device
+        .new_buffer(SELF_TEST_BYTES, ResourceOptions::shared())
+        .map_err(|e| failed("source buffer", e))?;
+    let middle = device
+        .new_buffer(SELF_TEST_BYTES, ResourceOptions::private())
+        .map_err(|e| failed("device-local buffer", e))?;
+    let target = device
+        .new_buffer(SELF_TEST_BYTES, ResourceOptions::shared())
+        .map_err(|e| failed("target buffer", e))?;
+    let queue = device
+        .new_command_queue()
+        .map_err(|e| failed("command queue", e))?;
+    let command = queue
+        .command_buffer()
+        .map_err(|e| failed("command buffer", e))?;
+    let mut blit = command
+        .blit_command_encoder()
+        .map_err(|e| failed("blit encoder", e))?;
+    blit.fill_buffer(&source, 0..SELF_TEST_BYTES, 0xa5)
+        .map_err(|e| failed("fill", e))?;
+    blit.copy_from_buffer_to_buffer(&source, 0, &middle, 0, SELF_TEST_BYTES)
+        .map_err(|e| failed("copy to device memory", e))?;
+    blit.copy_from_buffer_to_buffer(&middle, 0, &target, 0, SELF_TEST_BYTES)
+        .map_err(|e| failed("copy back", e))?;
+    blit.end_encoding().map_err(|e| failed("encoding", e))?;
+    command.commit().map_err(|e| failed("commit", e))?;
+    command
+        .wait_until_completed_for(std::time::Duration::from_secs(15))
+        .map_err(|_| {
+            "self test: the GPU did not finish a 64 KiB copy within 15 seconds".to_owned()
+        })?;
+    if command.status() != CommandBufferStatus::Completed {
+        return Err(format!(
+            "self test: the command buffer ended {:?}: {:?}",
+            command.status(),
+            command.error()
+        ));
+    }
+    let bytes = target
+        .contents()
+        .ok_or("self test: the target buffer has no CPU mapping")?;
+    // SAFETY: a shared buffer of SELF_TEST_BYTES bytes, complete and no longer written.
+    let read = unsafe { std::slice::from_raw_parts(bytes.as_ptr(), SELF_TEST_BYTES as usize) };
+    if let Some(at) = read.iter().position(|&byte| byte != 0xa5) {
+        return Err(format!(
+            "self test: byte {at} read back as {:#04x}, not 0xa5: the GPU copied wrong data",
+            read[at]
+        ));
+    }
+    Ok(())
+}
+
 /// Recreate locally recorded pipeline states in the launcher's isolated helper process.
 /// Returns the successful count, or -1 with `last_error` set. Progress is counts only.
 #[no_mangle]
@@ -2791,6 +2871,36 @@ mod handle_storage_tests {
         assert!(
             bytes <= 256,
             "every resource handle would allocate {bytes} bytes"
+        );
+    }
+}
+
+#[cfg(test)]
+mod self_test_tests {
+    use super::*;
+
+    /// The launcher's probe runs this on the device the game will use.
+    #[test]
+    #[ignore = "requires a Vulkan device; run in the Metal host CI job"]
+    fn the_self_test_runs_work_on_the_selected_device() {
+        let device = device_create(std::ptr::null());
+        assert!(!device.is_null(), "no device: {:?}", unsafe {
+            CStr::from_ptr(util::last_error())
+        });
+        assert_eq!(
+            unsafe { quadra_metal_host_self_test(device) },
+            1,
+            "{:?}",
+            unsafe { CStr::from_ptr(util::last_error()) }
+        );
+        release(device);
+    }
+
+    #[test]
+    fn a_null_device_fails_the_self_test_with_a_message() {
+        assert_eq!(
+            unsafe { quadra_metal_host_self_test(std::ptr::null_mut()) },
+            0
         );
     }
 }

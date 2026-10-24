@@ -119,6 +119,8 @@ DEFAULT_SETTINGS = {
     "metal_compile_threads": 0,
     "metal_warm_states": 256,
     "metal_vram_limit_gib": 0,
+    # Play with OpenGL this once, rather than not at all, when Quadra M2VK cannot start.
+    "metal_fallback": True,
     "gpu": "auto",
     "roblox_channel": "",
     "mangohud": False,
@@ -2625,6 +2627,23 @@ class RobloxSession:
             self.finish("startup_failure")
             raise
 
+    def _validated_metal(self, env):
+        """The environment and renderer name once the Metal host has opened a device and run a
+        test copy. Where it cannot and `metal_fallback` allows, this launch (and only this one: the
+        saved renderer is untouched) uses OpenGL, and the reason is kept for the log and the UI."""
+        from . import graphics
+        try:
+            return env, "Quadra M2VK (" + graphics.validate_metal(env, METAL_HOST_LIBRARY) + ")"
+        except RuntimeError as error:
+            if not self.settings.get("metal_fallback", True):
+                raise
+            reason = str(error).strip()
+        self.metal_fallback_reason = reason
+        self.notes.append("Quadra M2VK could not start, so this launch uses OpenGL: " + reason)
+        self.settings = dict(self.settings, renderer="opengl")
+        self._gpu_environment = None
+        return self.environment(), "OpenGL (Quadra M2VK could not start)"
+
     def _start(self):
         missing = missing_tools()
         if missing:
@@ -2659,8 +2678,7 @@ class RobloxSession:
             from . import graphics
             renderer_name = graphics.validate_vulkan(env)
         elif self.settings.get("renderer", "opengl") == "metal":
-            from . import graphics
-            renderer_name = "Quadra M2VK (" + graphics.validate_metal(env, METAL_HOST_LIBRARY) + ")"
+            env, renderer_name = self._validated_metal(env)
         self.renderer_name = renderer_name
         # A game closed a moment ago may still be shutting down. A new one next
         # to it shared its darlingserver, and when that went both died. Give it

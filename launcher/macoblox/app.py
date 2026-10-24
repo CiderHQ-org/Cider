@@ -1990,6 +1990,15 @@ class SettingsPage(Adw.Bin):
             "Up to this many, within a quarter of free memory. More smooths areas you have visited before.",
             0, 1024, 32, 256))
 
+        fallback = Adw.SwitchRow(
+            title=_("Fall back to OpenGL if Quadra M2VK cannot start"),
+            subtitle=_("Play with OpenGL this time instead of stopping, when no working GPU driver is found."),
+            active=settings.get("metal_fallback", True))
+        fallback.connect("notify::active", lambda row, *_args: window.set_setting(
+            "metal_fallback", row.get_active()))
+        self._m2vk_defaults["metal_fallback"] = (fallback, True)
+        group.add(fallback)
+
         diagnostics = Adw.SwitchRow(
             title=_("Quadra M2VK performance diagnostics"),
             subtitle=_("Record compilation, encoding, GPU timing and memory use for performance reports."),
@@ -3800,6 +3809,10 @@ class LauncherWindow(Adw.ApplicationWindow):
             return
         self._stop_rpc()
         self.session = session
+        reason = getattr(session, "metal_fallback_reason", None)
+        if reason:
+            _toast(self.toasts, _("Quadra M2VK could not start; playing with OpenGL this time. {reason}",
+                                  reason=reason.splitlines()[0][:160]))
         if self._transport_warning_dialog is not None:
             self._transport_warning_dialog.close()
         self._transport_warning_session = None

@@ -262,7 +262,7 @@ def validate_metal(environment, host_library):
     name = data.get("device", "")
     if result.returncode or not name:
         reason = data.get("error") or (result.stderr or "").strip()[-600:] or f"probe exited with code {result.returncode}"
-        raise RuntimeError(f"Quadra M2VK is unavailable: {reason}. Select OpenGL in Settings.")
+        raise RuntimeError(f"Quadra M2VK is unavailable: {reason.rstrip('. ')}. Select OpenGL in Settings.")
     if any(software in name.lower() for software in ("llvmpipe", "lavapipe", "swiftshader")):
         raise RuntimeError(f"Quadra M2VK found only a software Vulkan device ({name}). Install your GPU's Vulkan driver or select OpenGL.")
     return name
@@ -292,6 +292,15 @@ def _metal_probe(library):
     info = ctypes.create_string_buffer(512)
     device_info(device, info)
     name = info.raw[:256].split(b"\0", 1)[0].decode(errors="replace")
+    # A device that opens but cannot run work (a half-initialized GPU, a broken install) fails
+    # here, not in the game. Host libraries before the test existed skip it.
+    self_test = getattr(host, "quadra_metal_host_self_test", None)
+    if self_test is not None:
+        self_test.restype, self_test.argtypes = ctypes.c_int, (pointer,)
+        if not self_test(device):
+            reason = (last_error() or b"the GPU did not run a test copy").decode(errors="replace")
+            release(device)
+            raise RuntimeError(f"{name}: {reason}")
     release(device)
     return {"device": name}
 
