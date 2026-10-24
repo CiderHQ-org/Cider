@@ -274,6 +274,56 @@ def _alive(pid):
     return stat.rsplit(")", 1)[-1].split()[0] not in ("Z", "X")
 
 
+# ----------------------------------------------------------------- sockets
+
+TCP_STATES = {"01": "ESTABLISHED", "02": "SYN_SENT", "03": "SYN_RECV", "04": "FIN_WAIT1", "05": "FIN_WAIT2",
+              "06": "TIME_WAIT", "07": "CLOSE", "08": "CLOSE_WAIT", "09": "LAST_ACK", "0A": "LISTEN",
+              "0B": "CLOSING"}
+
+
+def _address(text):
+    """'0100007F:01BB' -> '127.0.0.1:443' (IPv4; IPv6 stays hexadecimal)."""
+    host, _separator, port = text.partition(":")
+    try:
+        if len(host) == 8:
+            host = ".".join(str(int(host[index:index + 2], 16)) for index in (6, 4, 2, 0))
+        return f"{host}:{int(port, 16)}"
+    except ValueError:
+        return text
+
+
+def socket_table(pid):
+    """{fd: {"p": protocol, "st": state, "rx": unread bytes, "tx": unsent bytes, "to": remote address}} of
+    the process's TCP and UDP sockets. A receive queue with bytes in it while the owner sleeps in kevent
+    is how a lost edge-triggered readiness event shows."""
+    inodes = {}
+    try:
+        for entry in os.listdir(f"/proc/{pid}/fd"):
+            try:
+                target = os.readlink(f"/proc/{pid}/fd/{entry}")
+            except OSError:
+                continue
+            if target.startswith("socket:["):
+                inodes[target[8:-1]] = int(entry)
+    except OSError:
+        return {}
+    found = {}
+    for protocol in ("tcp", "tcp6", "udp", "udp6"):
+        try:
+            lines = Path(f"/proc/{pid}/net/{protocol}").read_text().splitlines()[1:]
+        except OSError:
+            continue
+        for line in lines:
+            fields = line.split()
+            if len(fields) < 10 or fields[9] not in inodes:
+                continue
+            transmit, _separator, receive = fields[4].partition(":")
+            kind = protocol.rstrip("6")
+            found[inodes[fields[9]]] = {"p": kind, "st": TCP_STATES.get(fields[3], fields[3]) if kind == "tcp" else "",
+                                       "rx": int(receive, 16), "tx": int(transmit, 16), "to": _address(fields[2])}
+    return found
+
+
 # ----------------------------------------------------------------- capture
 
 class Recorder:
@@ -314,6 +364,7 @@ def capture(pid, path, *, interval=INTERVAL, trace=True, stop=lambda: False, ser
     recorder.write({"k": "meta", "t": time.time(), "pid": pid, "interval": interval, "stacks": stacks,
                     "servers": list(servers)}, essential=True)
     cpu_before, names, census_before, in_futex = {}, {}, {}, {}
+    socket_before = {}
     server_before = {}
     skip_until = {}
     last_census = last_maps = 0.0
@@ -391,6 +442,15 @@ def capture(pid, path, *, interval=INTERVAL, trace=True, stop=lambda: False, ser
                         record["s"] = [regions.locate(address) for address in
                                        stack_candidates(memory, regions, stack_pointer)]
                     recorder.write(record)
+                sockets = socket_table(pid)
+                for fd, info in sockets.items():
+                    signature = (info["p"], info["st"], info["rx"] > 0, info["tx"] > 0, info["to"])
+                    if socket_before.get(fd) != signature:
+                        socket_before[fd] = signature
+                        recorder.write({"k": "sock", "t": round(now, 3), "fd": fd, **info})
+                for fd in [fd for fd in socket_before if fd not in sockets]:
+                    del socket_before[fd]
+                    recorder.write({"k": "sock", "t": round(now, 3), "fd": fd, "gone": 1})
                 recorder.flush()
             time.sleep(max(0.0, interval - (time.monotonic() - started)))
     finally:
@@ -662,6 +722,15 @@ def _lull(records, first, last, start, markers, label, symbols, servers):
             stack = [_name_of(symbols, location) for location in members[0].get("s") or () if location]
             if stack:
                 lines.append("           stack: " + "  <-  ".join(stack[:6]))
+    unread = {}
+    for record in records:
+        if record["k"] == "sock" and record["t"] <= middle:
+            unread[record["fd"]] = record
+    unread = {fd: record for fd, record in unread.items() if not record.get("gone") and record.get("rx", 0) > 0}
+    if any(record["k"] == "sock" for record in records):
+        lines.append("  sockets holding unread bytes in the middle of the lull: " + (
+            "; ".join(f"fd {fd} {record['p']} {record['st'] or ''} to {record['to']}, {record['rx']} bytes since "
+                      f"{record['t'] - start:.1f} s" for fd, record in sorted(unread.items())) or "none"))
     return lines
 
 

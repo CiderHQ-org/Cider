@@ -251,6 +251,46 @@ class LullTests(unittest.TestCase):
         self.assertGreater(text.index("mach_msg_recv"), text.index("== lull"))
 
 
+class SocketTests(unittest.TestCase):
+    def test_a_connection_with_unread_bytes_shows_its_receive_queue(self):
+        import socket
+        server = socket.socket()
+        self.addCleanup(server.close)
+        server.bind(("127.0.0.1", 0))
+        server.listen(1)
+        client = socket.create_connection(server.getsockname())
+        self.addCleanup(client.close)
+        accepted, _address = server.accept()
+        self.addCleanup(accepted.close)
+        client.sendall(b"x" * 1234)
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline:
+            table = stallwatch.socket_table(os.getpid())
+            if table.get(accepted.fileno(), {}).get("rx"):
+                break
+            time.sleep(0.02)
+        info = table[accepted.fileno()]
+        self.assertEqual((info["p"], info["st"], info["rx"]), ("tcp", "ESTABLISHED", 1234))
+        self.assertTrue(info["to"].startswith("127.0.0.1:"))
+        self.assertEqual(table[client.fileno()]["rx"], 0)
+
+    def test_the_report_names_a_socket_with_unread_bytes_during_a_lull(self):
+        records = lull_capture()
+        records.insert(-1, {"k": "sock", "t": 99.0, "fd": 12, "p": "tcp", "st": "ESTABLISHED", "rx": 0, "tx": 0,
+                            "to": "203.0.113.5:443"})
+        records.insert(-1, {"k": "sock", "t": 100.2, "fd": 12, "p": "tcp", "st": "ESTABLISHED", "rx": 4096, "tx": 0,
+                            "to": "203.0.113.5:443"})
+        records.insert(-1, {"k": "sock", "t": 100.2, "fd": 13, "p": "udp", "st": "", "rx": 0, "tx": 0,
+                            "to": "0.0.0.0:0"})
+        text = stallwatch.render(records, [], {}, everything=True)
+        self.assertIn("sockets holding unread bytes in the middle of the lull: fd 12 tcp ESTABLISHED to "
+                      "203.0.113.5:443, 4096 bytes since 10.2 s", text)
+
+    def test_a_capture_without_socket_records_does_not_claim_none(self):
+        text = stallwatch.render(lull_capture(), [], {}, everything=True)
+        self.assertNotIn("sockets holding unread bytes", text)
+
+
 CHILD = textwrap.dedent("""
     import ctypes, threading, time
     libc = ctypes.CDLL(None)
