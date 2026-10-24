@@ -324,6 +324,46 @@ def socket_table(pid):
     return found
 
 
+def _fdinfo(pid, fd):
+    try:
+        return Path(f"/proc/{pid}/fdinfo/{fd}").read_text()
+    except OSError:
+        return ""
+
+
+def wake_table(pid):
+    """What a kqueue loop is woken by. Darling emulates kqueue on epoll, timers on timerfds and
+    user events on eventfds, all readable without touching the game:
+    {"efd": {fd: count of unconsumed signals}, "tfd": {fd: (seconds until it fires, interval)},
+     "ep": {fd: sorted fds it watches}}."""
+    found = {"efd": {}, "tfd": {}, "ep": {}}
+    try:
+        entries = os.listdir(f"/proc/{pid}/fd")
+    except OSError:
+        return found
+    for entry in entries:
+        try:
+            target = os.readlink(f"/proc/{pid}/fd/{entry}")
+        except OSError:
+            continue
+        if not target.startswith("anon_inode:"):
+            continue
+        fd, info = int(entry), _fdinfo(pid, entry)
+        if target.endswith("[eventfd]"):
+            match = re.search(r"eventfd-count:\s*(\d+)", info)
+            if match:
+                found["efd"][fd] = int(match[1])
+        elif target.endswith("[timerfd]"):
+            value = re.search(r"it_value: \((\d+), (\d+)\)", info)
+            interval = re.search(r"it_interval: \((\d+), (\d+)\)", info)
+            if value:
+                found["tfd"][fd] = (int(value[1]) + int(value[2]) / 1e9,
+                                    int(interval[1]) + int(interval[2]) / 1e9 if interval else 0.0)
+        elif target.endswith("[eventpoll]"):
+            found["ep"][fd] = sorted(int(match) for match in re.findall(r"tfd:\s*(\d+)", info))
+    return found
+
+
 # ----------------------------------------------------------------- capture
 
 class Recorder:
@@ -365,6 +405,7 @@ def capture(pid, path, *, interval=INTERVAL, trace=True, stop=lambda: False, ser
                     "servers": list(servers)}, essential=True)
     cpu_before, names, census_before, in_futex = {}, {}, {}, {}
     socket_before = {}
+    wake_before = {"efd": {}, "tfd": {}, "ep": {}}
     server_before = {}
     skip_until = {}
     last_census = last_maps = 0.0
@@ -451,6 +492,20 @@ def capture(pid, path, *, interval=INTERVAL, trace=True, stop=lambda: False, ser
                 for fd in [fd for fd in socket_before if fd not in sockets]:
                     del socket_before[fd]
                     recorder.write({"k": "sock", "t": round(now, 3), "fd": fd, "gone": 1})
+                wakes = wake_table(pid)
+                for fd, count in wakes["efd"].items():
+                    if wake_before["efd"].get(fd) != count:
+                        recorder.write({"k": "efd", "t": round(now, 3), "fd": fd, "n": count})
+                for fd, (remaining, interval) in wakes["tfd"].items():
+                    previous = wake_before["tfd"].get(fd)  # (recorded at, remaining then)
+                    if previous is None or abs((previous[1] - (now - previous[0])) - remaining) > 0.25:
+                        wake_before["tfd"][fd] = (now, remaining)
+                        recorder.write({"k": "tfd", "t": round(now, 3), "fd": fd, "v": round(remaining, 3),
+                                        "i": round(interval, 3)})
+                for fd, watched in wakes["ep"].items():
+                    if wake_before["ep"].get(fd) != watched:
+                        recorder.write({"k": "ep", "t": round(now, 3), "fd": fd, "w": watched})
+                wake_before["efd"], wake_before["ep"] = wakes["efd"], wakes["ep"]
                 recorder.flush()
             time.sleep(max(0.0, interval - (time.monotonic() - started)))
     finally:
@@ -722,6 +777,7 @@ def _lull(records, first, last, start, markers, label, symbols, servers):
             stack = [_name_of(symbols, location) for location in members[0].get("s") or () if location]
             if stack:
                 lines.append("           stack: " + "  <-  ".join(stack[:6]))
+    lines.extend(_wake_lines(records, first, last, start, middle))
     unread = {}
     for record in records:
         if record["k"] == "sock" and record["t"] <= middle:
@@ -731,6 +787,40 @@ def _lull(records, first, last, start, markers, label, symbols, servers):
         lines.append("  sockets holding unread bytes in the middle of the lull: " + (
             "; ".join(f"fd {fd} {record['p']} {record['st'] or ''} to {record['to']}, {record['rx']} bytes since "
                       f"{record['t'] - start:.1f} s" for fd, record in sorted(unread.items())) or "none"))
+    return lines
+
+
+def _wake_lines(records, first, last, start, middle):
+    """The kqueue loops' wake sources in the middle of a lull: signals nobody consumed, and the timers
+    armed then with the time each fires; a timer firing within a second of the lull's end is marked."""
+    if not any(record["k"] in ("efd", "tfd", "ep") for record in records):
+        return []
+    pending, timers, sets = {}, {}, {}
+    for record in records:
+        if record["t"] > middle:
+            continue
+        if record["k"] == "efd":
+            pending[record["fd"]] = record
+        elif record["k"] == "tfd":
+            timers[record["fd"]] = record
+        elif record["k"] == "ep":
+            sets[record["fd"]] = record["w"]
+    lines = []
+    waiting = {fd: record for fd, record in pending.items() if record["n"] > 0}
+    lines.append("  eventfd signals nobody consumed in the middle of the lull: " + (
+        "; ".join(f"fd {fd} count {record['n']} since {record['t'] - start:.1f} s (watched by epoll "
+                  f"{[ep for ep, watched in sets.items() if fd in watched] or '?'})"
+                  for fd, record in sorted(waiting.items())) or "none"))
+    armed = []
+    for fd, record in timers.items():
+        if record["v"] > 0:
+            armed.append((record["t"] - start + record["v"], fd, record))
+    if armed:
+        lines.append("  timers armed in the middle of the lull (fires at): " + "; ".join(
+            f"fd {fd} {fires:.1f} s" + (f" (every {record['i']:.1f} s)" if record["i"] else "")
+            + (" <- ends the lull" if abs(fires - (last - start)) <= 1.0 else "")
+            + f" (epoll {[ep for ep, watched in sets.items() if fd in watched] or '?'})"
+            for fires, fd, record in sorted(armed)))
     return lines
 
 

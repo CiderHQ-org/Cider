@@ -291,6 +291,49 @@ class SocketTests(unittest.TestCase):
         self.assertNotIn("sockets holding unread bytes", text)
 
 
+class WakeTests(unittest.TestCase):
+    def test_eventfd_timerfd_and_epoll_sets_are_read_from_proc(self):
+        import ctypes
+        import select
+        libc = ctypes.CDLL(None, use_errno=True)
+        timer = libc.timerfd_create(1, 0)  # CLOCK_MONOTONIC
+        self.assertGreaterEqual(timer, 0)
+        self.addCleanup(os.close, timer)
+        spec = (ctypes.c_long * 4)(0, 0, 12, 0)  # it_interval 0, it_value 12 s
+        self.assertEqual(libc.timerfd_settime(timer, 0, spec, None), 0)
+        event = os.eventfd(0)
+        self.addCleanup(os.close, event)
+        os.eventfd_write(event, 3)
+        poller = select.epoll()
+        self.addCleanup(poller.close)
+        poller.register(timer, select.EPOLLIN)
+        poller.register(event, select.EPOLLIN)
+        table = stallwatch.wake_table(os.getpid())
+        self.assertEqual(table["efd"][event], 3)
+        remaining, interval = table["tfd"][timer]
+        self.assertTrue(10.0 < remaining <= 12.0 and interval == 0.0)
+        self.assertEqual(table["ep"][poller.fileno()], sorted([timer, event]))
+
+    def test_the_lull_report_names_a_timer_that_fires_when_the_freeze_ends(self):
+        records = lull_capture()
+        records[-1:-1] = [
+            {"k": "ep", "t": 90.5, "fd": 3, "w": [9, 11]},
+            {"k": "tfd", "t": 100.4, "fd": 11, "v": 15.5, "i": 0.0},
+            {"k": "tfd", "t": 100.4, "fd": 18, "v": 900.0, "i": 0.0},
+            {"k": "efd", "t": 101.0, "fd": 9, "n": 2},
+        ]
+        text = stallwatch.render(records, [], {}, everything=True)
+        self.assertIn("eventfd signals nobody consumed in the middle of the lull: fd 9 count 2 since 11.0 s "
+                      "(watched by epoll [3])", text)
+        self.assertIn("fd 11 25.9 s <- ends the lull (epoll [3])", text)
+        self.assertIn("fd 18 910.4 s (epoll ?)", text)
+
+    def test_a_capture_without_wake_records_says_nothing_about_them(self):
+        text = stallwatch.render(lull_capture(), [], {}, everything=True)
+        self.assertNotIn("eventfd signals", text)
+        self.assertNotIn("timers armed", text)
+
+
 CHILD = textwrap.dedent("""
     import ctypes, threading, time
     libc = ctypes.CDLL(None)
