@@ -4,6 +4,8 @@ import json
 import os
 from pathlib import Path
 import platform
+import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -12,6 +14,44 @@ import time
 from . import __version__, gpus
 
 STAGES = ('startup', 'join', 'leave', 'shutdown', 'fullscreen', 'suspend_resume')
+
+
+def _xwayland_version():
+    """The Xwayland release (`24.1.14`), or None where it is not installed."""
+    program = shutil.which('Xwayland')
+    if not program:
+        return None
+    try:
+        text = subprocess.run([program, '-version'], capture_output=True, text=True, timeout=3)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    match = re.search(r'Xwayland Version (\d+(?:\.\d+)*)', text.stderr + text.stdout)
+    return match[1] if match else None
+
+
+def _input(core, environment=None):
+    """What decides whether the camera lock works: the window backend, raw mouse, and the
+    mouse-lock lines the newest launch log recorded (counts of each distinct line; no paths)."""
+    settings = core.load_settings()
+    lines = {}
+    try:
+        newest = max(Path(core.LOGS).glob('launch-*.log'), key=lambda path: path.stat().st_mtime)
+        with newest.open(errors='replace') as stream:
+            for line in stream.read(32 * 1024 * 1024).splitlines():
+                at = line.find('[Quadra Input]')
+                if at >= 0 and 'addLocalMonitor' not in line:
+                    text = line[at:at + 160].strip()
+                    lines[text] = lines.get(text, 0) + 1
+    except (OSError, ValueError):
+        pass
+    return {'display_backend': settings.get('display_backend'), 'raw_mouse': settings.get('raw_mouse'),
+            'log': [{'line': text, 'count': count} for text, count in list(lines.items())[:25]]}
+
+
+def _desktop(environment):
+    return {'wayland': bool(environment.get('WAYLAND_DISPLAY')), 'x11': bool(environment.get('DISPLAY')),
+            'session_type': environment.get('XDG_SESSION_TYPE', ''),
+            'desktop': environment.get('XDG_CURRENT_DESKTOP', ''), 'xwayland': _xwayland_version()}
 
 
 def collect(output_dir=None, *, graphics=False, gameplay=None):
@@ -30,7 +70,7 @@ def collect(output_dir=None, *, graphics=False, gameplay=None):
               'architecture': platform.machine(), 'kernel': platform.release(),
               'allowed_cpus': len(os.sched_getaffinity(0)), 'gpus': gpus.enumerate_gpus(),
               'runtime': core.DARLING_RUNTIME.get('metadata') or {'name': core.DARLING_RUNTIME['runtime']},
-              'desktop': {'wayland': bool(os.environ.get('WAYLAND_DISPLAY')), 'x11': bool(os.environ.get('DISPLAY'))},
+              'desktop': _desktop(os.environ), 'input': _input(core),
               'coverage': {'host_graphics': 'not_run', 'gameplay': {stage: 'not_tested' for stage in STAGES}}}
     if gameplay:
         for stage, result in gameplay.items():
