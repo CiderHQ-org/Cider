@@ -96,7 +96,7 @@ checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 [[package]]
 name = "metal2vulkan"
 version = "0.2.0"
-source = "git+https://github.com/CiderHQ-org/QuadraM2VK?rev=8406bd26f51ff267775280024296c707deff1686#8406bd26f51ff267775280024296c707deff1686"
+source = "git+https://github.com/CiderHQ-org/QuadraM2VK?rev=24a3ff0a1b610897bd6e1c3290d50f992e820ed9#24a3ff0a1b610897bd6e1c3290d50f992e820ed9"
 dependencies = [
  "ash",
  "metal2vulkan-air",
@@ -108,7 +108,7 @@ dependencies = [
 [[package]]
 name = "metal2vulkan-air"
 version = "0.2.0"
-source = "git+https://github.com/CiderHQ-org/QuadraM2VK?rev=8406bd26f51ff267775280024296c707deff1686#8406bd26f51ff267775280024296c707deff1686"
+source = "git+https://github.com/CiderHQ-org/QuadraM2VK?rev=24a3ff0a1b610897bd6e1c3290d50f992e820ed9#24a3ff0a1b610897bd6e1c3290d50f992e820ed9"
 dependencies = [
  "serde",
  "sha2",
@@ -117,7 +117,7 @@ dependencies = [
 [[package]]
 name = "metal2vulkan-runtime"
 version = "0.2.0"
-source = "git+https://github.com/CiderHQ-org/QuadraM2VK?rev=8406bd26f51ff267775280024296c707deff1686#8406bd26f51ff267775280024296c707deff1686"
+source = "git+https://github.com/CiderHQ-org/QuadraM2VK?rev=24a3ff0a1b610897bd6e1c3290d50f992e820ed9#24a3ff0a1b610897bd6e1c3290d50f992e820ed9"
 dependencies = [
  "ash",
  "libc",
