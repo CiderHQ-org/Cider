@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Host the website and report form on the VPS, with a detailed diagnostics
+  collection guide, archive-content checks for both diagnostics switches,
+  private report storage and queued Discord delivery with attachments.
+- Deploy the website from each main-branch push using a signed webhook and
+  periodic recovery sync. Keep private services outside the repository.
+
 ## 0.35.p2 — 2026-10-23
 
 - Add a website bug-report guide linked to a public GitHub form requiring a

@@ -429,12 +429,15 @@ states. Thread stacks need **Allow freeze diagnostics**
 set; launch logs are capped at 200 MB in total, and `dserver.log` is rotated
 to `dserver.log.old` past 32 MB while Darling is stopped.
 
-Submit bugs through [the report page](https://quadrahq.org/report/). The public
-GitHub form requires the matching diagnostics `.tar.gz`, reproduction steps,
-Quadra version, renderer and window backend. Keep the archive compressed and
-check that its timestamps match the failing run. For freezes, collect while
-the game is still frozen; for crashes, enable **Crash diagnostics** before
-relaunching and reproducing. Review the files before attaching them publicly.
+Submit bugs through [the report page](https://quadrahq.org/report/). Follow its
+collection guide, then attach the matching diagnostics `.tar.gz` and describe
+what happened and how to reproduce it. The form verifies both **Crash
+diagnostics** and **Allow freeze diagnostics** in the archive. Enable them
+before starting the failing run; collect during a freeze or after a crash.
+Keep the archive compressed and check its timestamps. Reports are stored on
+the Quadra VPS and delivered with the log and archive to the Discord report
+channel. Review your files before sharing them. Maintainers can find hosting
+and storage details in [Website hosting](docs/WEBSITE_HOSTING.md).
 
 If no window opens and the log says `Cannot mount overlay: No such device`,
 Darling could not start its app environment. Run `sudo modprobe overlay` on

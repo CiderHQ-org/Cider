@@ -38,3 +38,6 @@ __pycache__/
 # Nix build outputs
 /result
 /result-*
+
+# Private VPS services and their local configuration
+/services/

@@ -4,6 +4,7 @@
   "buildCommand": "",
   "installCommand": "",
   "outputDirectory": "website/dist",
+  "git": {"deploymentEnabled": false},
   "headers": [{
     "source": "/install.sh",
     "headers": [

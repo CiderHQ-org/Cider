@@ -193,6 +193,29 @@ h1 { margin: 0 0 .75rem; font-size: clamp(1.8rem, 2.3vw, 2.5rem); font-weight: 6
 .report-actions > a:not(.button), .report-note a { text-decoration: underline; text-underline-offset: 4px; }
 .report-desktop .report-note { margin: 1rem 0 0; color: var(--dim); font-size: 14px; }
 .report-footer { max-width: 940px; }
+.report-desktop .window + .window { margin-top: 20px; }
+.report-heading { margin: 1.8rem 0 0; font-size: 1.25rem; }
+#report-fields { margin: 0; padding: 0; border: 0; min-width: 0; }
+#report-fields > label { display: block; margin: 1.2rem 0 .4rem; font-weight: 600; }
+#report-fields > label:first-child { margin-top: 0; }
+#report-fields > input, #report-fields > select, #report-fields > textarea {
+  width: 100%; min-height: 44px; padding: .75rem; border: 1px solid var(--border);
+  border-radius: 0; background: var(--chrome); color: var(--text); font: inherit;
+}
+#report-fields > textarea { resize: vertical; }
+#report-fields > input[type=file] { overflow-wrap: anywhere; font-size: 14px; }
+#report-fields input::file-selector-button { padding: .5rem; margin-right: .75rem; border: 1px solid var(--border); background: var(--raised); color: var(--text); font: inherit; cursor: pointer; }
+.report-checks { padding: .8rem 1rem; border: 1px solid var(--border); list-style: none; font-size: 14px; }
+.report-checks li + li { margin-top: .4rem; }
+.report-checks [data-state=pending] { color: var(--dim); }
+.report-checks [data-state=pass] { color: #a9d8b2; }
+.report-checks [data-state=fail] { color: #efb1ab; }
+#report-fields > .report-consent { display: flex; gap: .75rem; align-items: flex-start; font-size: 14px; font-weight: 400; }
+.report-consent input { flex: 0 0 auto; margin-top: .35rem; }
+.report-trap { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.button:disabled { opacity: .5; cursor: default; }
+#report-status { margin: 1rem 0 0; overflow-wrap: anywhere; }
+#report-status:empty { display: none; }
 
 @media (max-width: 1050px) {
   .desktop { grid-template-columns: minmax(300px, 1fr) minmax(0, 1.4fr); gap: 16px; }

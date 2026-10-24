@@ -13,6 +13,7 @@
   <script src="/assets/vendor/p5.min.js" defer></script>
   <script src="/assets/vendor/vanta.topology.min.js" defer></script>
   <script src="/background.js" defer></script>
+  <script src="/report/report.js" defer></script>
 </head>
 <body>
   <div id="wallpaper" aria-hidden="true"></div>
@@ -22,19 +23,61 @@
       <div class="window-body">
         <img class="brand-logo" src="/assets/quadrahq.webp" width="1024" height="1024" alt="Quadra logo">
         <h1 id="report-title">Report a bug</h1>
-        <p>Tell us what happened and attach the diagnostics archive from the run that failed. The report form requires a <strong>.tar.gz</strong> file, your Quadra version, reproduction steps, expected behavior, renderer and window backend.</p>
+        <p>Describe the problem and attach the diagnostics <strong>.tar.gz</strong> from the run that failed. We’ll check the archive, save the report on Quadra’s server, and send the description, log and file to our Discord report channel.</p>
+        <div class="report-actions"><a class="button" href="#report-form">Go to the form</a></div>
+        <h2 class="report-heading">How to get the diagnostics .tar.gz</h2>
         <ol class="report-steps">
-          <li><strong>Prepare crash or freeze diagnostics.</strong> For crashes, enable <strong>Settings → Environment → Diagnostics → Crash diagnostics</strong> and <strong>Allow freeze diagnostics</strong> before starting Roblox.</li>
-          <li><strong>Reproduce the problem.</strong> Note what you clicked or pressed and the error you saw. For HTTP 403, include which download failed and its URL if shown.</li>
-          <li><strong>Collect the matching archive.</strong> Choose <strong>Collect diagnostics</strong> in Quadra’s menu after the failure. For a freeze, collect while the game is still frozen. Keep the generated <code>quadra-diagnostics-*.tar.gz</code> compressed.</li>
-          <li><strong>Check the run, then attach it.</strong> Make sure the archive’s version and timestamps match this failure. A hardware-report JSON or a log from an older run will not contain the current crash details.</li>
+          <li><strong>Open Quadra’s settings.</strong> Go to <strong>Settings → Environment → Diagnostics</strong>.</li>
+          <li><strong>Turn on both switches:</strong> <strong>Crash diagnostics</strong> and <strong>Allow freeze diagnostics</strong>. Do this before starting Roblox; the archive check below requires both to be enabled.</li>
+          <li><strong>Restart Roblox through Quadra.</strong> Fully close the old game, start a new run, and repeat the action that causes the problem. Write down what you clicked or pressed and the error you saw.</li>
+          <li><strong>Return to the Quadra launcher.</strong> Open its menu and choose <strong>Collect diagnostics</strong>. For a crash, collect after it happens. For a freeze, leave Roblox frozen while you collect.</li>
+          <li><strong>Click Open folder</strong> in the <strong>Diagnostics collected</strong> dialog. Find the newly created <code>quadra-diagnostics-YYYYMMDD-HHMMSS.tar.gz</code>. Keep this file compressed.</li>
+          <li><strong>Select that file below.</strong> Use the archive from this failed run. The form checks its contents, reads your Quadra version, and verifies both diagnostics settings. If either is off, repeat the steps with both switches enabled.</li>
         </ol>
-        <p class="report-privacy">Reports and attachments are public on GitHub. Review the archive before uploading. Quadra redacts known sign-in secrets and join tickets; avoid adding cookies or unredacted join links yourself.</p>
-        <div class="report-actions">
-          <a class="button" href="https://github.com/CiderHQ-org/Cider/issues/new?template=bug_report.yml">Continue to GitHub</a>
-          <a href="https://github.com/CiderHQ-org/Cider/issues">View existing reports</a>
-        </div>
-        <p class="report-note">Sign in to GitHub to complete the form and upload the required archive (up to 25 MB). Screenshots and extra logs are optional. If you need help collecting the archive, <a href="https://discord.gg/jpbsf44tBE">ask on Discord</a>.</p>
+        <p class="report-note">For a setup or download failure, enable the switches and collect after the error; you can report it even if Roblox never started. Include the failing download URL if the error shows one. If you need help, <a href="https://discord.gg/jpbsf44tBE">ask on Discord</a>.</p>
+      </div>
+    </section>
+    <section class="window" aria-labelledby="form-title">
+      <header class="window-bar"><h2 id="form-title">Send a report</h2><span>.tar.gz required</span></header>
+      <div class="window-body">
+        <noscript><p>Enable JavaScript to validate the archive and submit this form.</p></noscript>
+        <form id="report-form">
+          <fieldset id="report-fields" disabled>
+            <label for="category">What kind of issue is it?</label>
+            <select id="category" name="category" required>
+              <option value="">Choose an issue type</option>
+              <option value="install">Setup or download / HTTP 403</option>
+              <option value="crash">Crash or unexpected exit</option>
+              <option value="freeze">Freeze or hang</option>
+              <option value="graphics">Graphics or performance</option>
+              <option value="input">Keyboard, mouse or clipboard</option>
+              <option value="audio">Audio</option>
+              <option value="vr">VR</option>
+              <option value="other">Other bug</option>
+            </select>
+            <label for="report-title-input">Short title</label>
+            <input id="report-title-input" name="title" required minlength="5" maxlength="120" placeholder="Roblox closes when joining a game">
+            <label for="description">What happened?</label>
+            <textarea id="description" name="description" required minlength="20" maxlength="6000" rows="5" placeholder="Describe what you saw, the error message, and what you expected to happen."></textarea>
+            <label for="steps">How can we reproduce it?</label>
+            <textarea id="steps" name="steps" required minlength="10" maxlength="6000" rows="4" placeholder="1. Start Quadra…&#10;2. Click or press…&#10;3. The problem happens when…"></textarea>
+            <label for="contact">Discord username or contact (optional)</label>
+            <input id="contact" name="contact" maxlength="200" autocomplete="off" placeholder="So we can ask for more details">
+            <label for="diagnostics">Diagnostics archive</label>
+            <input id="diagnostics" name="diagnostics" type="file" accept=".tar.gz" required aria-describedby="archive-help archive-status">
+            <p id="archive-help" class="report-note">Choose the compressed .tar.gz from Collect diagnostics, up to 8 MiB. Its version and logs should match this failure.</p>
+            <ul class="report-checks" aria-label="Archive checks">
+              <li id="crash-check" data-state="pending">Crash diagnostics — waiting for archive</li>
+              <li id="freeze-check" data-state="pending">Allow freeze diagnostics — waiting for archive</li>
+            </ul>
+            <p id="archive-status" class="report-note" role="status" aria-live="polite"></p>
+            <div class="report-trap" aria-hidden="true"><label for="website">Leave this empty</label><input id="website" name="website" tabindex="-1" autocomplete="off"></div>
+            <label class="report-consent"><input type="checkbox" name="consent" value="yes" required><span>I reviewed the files and agree to store this report on Quadra’s server and share the description, logs and archive with Quadra’s Discord report channel.</span></label>
+            <p class="report-privacy">Quadra redacts known sign-in secrets and join tickets. Review your files before uploading and avoid adding cookies or unredacted join links to the description.</p>
+            <button class="button" id="send-report" type="submit" disabled>Send report</button>
+          </fieldset>
+        </form>
+        <p id="report-status" role="status" aria-live="polite"></p>
       </div>
     </section>
   </main>
