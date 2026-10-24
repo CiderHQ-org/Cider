@@ -11,6 +11,7 @@ mod limits;
 mod memory;
 mod preload;
 mod present;
+mod tuning;
 mod util;
 
 use metal2vulkan::metal::{
@@ -355,8 +356,12 @@ extern "C" fn release(handle: *mut c_void) {
 
 extern "C" fn device_create(_options: *const c_void) -> *mut c_void {
     guard(std::ptr::null_mut(), || {
-        limits::configure();
+        let tuning = tuning::Tuning::from_env();
+        log_once(&tuning.describe());
+        limits::configure(&tuning);
         let mut options = DeviceOptions::default();
+        options.policy = tuning.policy();
+        options.withhold_memory_priority = !tuning.memory_priority;
         // Two timestamps less per command buffer; Roblox reads GPU times only for its stats.
         options.gpu_times_from_host = !diagnostics::gpu_timestamps();
         options.shader_cache.mode = metal2vulkan_runtime::ShaderCacheMode::PreferPersistent;
@@ -372,7 +377,7 @@ extern "C" fn device_create(_options: *const c_void) -> *mut c_void {
                 preload::initialize();
                 diagnostics::register(&device);
                 let budget = memory::Budget::default();
-                let warm = Mutex::new(preload::warm_live(&device, budget.value(&device)));
+                let warm = Mutex::new(preload::warm_live(&device, budget.value(&device), &tuning));
                 handle(Obj::Device(DeviceObject {
                     value: device,
                     warm,

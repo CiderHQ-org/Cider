@@ -15,7 +15,7 @@ use std::sync::{Mutex, OnceLock};
 const CAPACITY: u64 = 512 << 20;
 const MAX_RECORDS: usize = 4096;
 const MAX_RECIPE: u64 = 64 << 10;
-const MAX_RESIDENT: usize = 256;
+use crate::tuning::{Tuning, MAX_WARM_STATES};
 const UNKNOWN_MEMORY_RESIDENT: usize = 64;
 // Driver allocations are not exposed by the runtime allocator. This estimate bounds the
 // count rather than promising an exact byte cap; also recheck actual pressure between calls.
@@ -352,7 +352,7 @@ pub fn run(
     run_inner(device, progress, context, maximum, false).map(|(count, _)| count)
 }
 
-pub fn warm_live(device: &Device, graphics_budget: u64) -> WarmStates {
+pub fn warm_live(device: &Device, graphics_budget: u64, tuning: &Tuning) -> WarmStates {
     if std::env::var("MACOBLOX_METAL_PRELOAD_IN_PROCESS").as_deref() != Ok("1") {
         return WarmStates::default();
     }
@@ -362,6 +362,7 @@ pub fn warm_live(device: &Device, graphics_budget: u64) -> WarmStates {
             .properties()
             .has_unified_memory
             .then_some(graphics_budget),
+        tuning.warm_states,
     );
     match run_inner(device, None, std::ptr::null_mut(), maximum as u32, true) {
         Ok((count, states)) => {
@@ -379,10 +380,19 @@ pub fn warm_live(device: &Device, graphics_budget: u64) -> WarmStates {
     }
 }
 
-fn resident_limit(available: Option<u64>, shared_graphics_budget: Option<u64>) -> usize {
-    let host_limit = available.map_or(UNKNOWN_MEMORY_RESIDENT, |bytes| {
+/// The states kept warm: a quarter of the memory available, less the reserve, at the estimated
+/// bytes each, never above `ceiling` (the user's setting, at most [`MAX_WARM_STATES`]); with the
+/// memory unknown, the smaller of that and the small default. A unified-memory GPU's preloaded
+/// pipelines also share its graphics budget, a quarter of which they may use.
+fn resident_limit(
+    available: Option<u64>,
+    shared_graphics_budget: Option<u64>,
+    ceiling: usize,
+) -> usize {
+    let ceiling = ceiling.min(MAX_WARM_STATES);
+    let host_limit = available.map_or(UNKNOWN_MEMORY_RESIDENT.min(ceiling), |bytes| {
         let budget = (bytes / 4).min(bytes.saturating_sub(MEMORY_RESERVE));
-        (budget / ESTIMATED_STATE_BYTES).min(MAX_RESIDENT as u64) as usize
+        (budget / ESTIMATED_STATE_BYTES).min(ceiling as u64) as usize
     });
     // Preloaded pipelines are optional and share the APU's graphics budget.
     // Reserve three quarters of it for actual game resources and staging.
@@ -401,7 +411,7 @@ fn run_inner(
     let mut states = WarmStates {
         states: BTreeMap::new(),
         limit: if retain {
-            (maximum as usize).min(MAX_RESIDENT)
+            (maximum as usize).min(MAX_WARM_STATES)
         } else {
             0
         },
@@ -518,16 +528,31 @@ mod tests {
 
     #[test]
     fn residency_preserves_headroom_on_small_and_memory_limited_hosts() {
-        assert_eq!(resident_limit(Some(0), None), 0);
-        assert_eq!(resident_limit(Some(768 << 20), None), 0);
-        assert_eq!(resident_limit(Some(1 << 30), None), 32);
-        assert_eq!(resident_limit(Some(2 << 30), None), 64);
-        assert_eq!(resident_limit(Some(3 << 30), None), 96);
-        assert_eq!(resident_limit(Some(8 << 30), None), 256);
-        assert_eq!(resident_limit(Some(u64::MAX), None), 256);
-        assert_eq!(resident_limit(None, None), 64);
-        assert_eq!(resident_limit(Some(3 << 30), Some(512 << 20)), 16);
-        assert_eq!(resident_limit(Some(3 << 30), Some(128 << 20)), 4);
-        assert_eq!(resident_limit(Some(0), Some(512 << 20)), 0);
+        let default = crate::tuning::DEFAULT_WARM_STATES;
+        assert_eq!(resident_limit(Some(0), None, default), 0);
+        assert_eq!(resident_limit(Some(768 << 20), None, default), 0);
+        assert_eq!(resident_limit(Some(1 << 30), None, default), 32);
+        assert_eq!(resident_limit(Some(2 << 30), None, default), 64);
+        assert_eq!(resident_limit(Some(3 << 30), None, default), 96);
+        assert_eq!(resident_limit(Some(8 << 30), None, default), 256);
+        assert_eq!(resident_limit(Some(u64::MAX), None, default), 256);
+        assert_eq!(resident_limit(None, None, default), 64);
+        assert_eq!(resident_limit(Some(3 << 30), Some(512 << 20), default), 16);
+        assert_eq!(resident_limit(Some(3 << 30), Some(128 << 20), default), 4);
+        assert_eq!(resident_limit(Some(0), Some(512 << 20), default), 0);
+    }
+
+    #[test]
+    fn the_warm_state_setting_lowers_or_raises_the_ceiling_within_memory() {
+        // A lower ceiling binds even with plenty of memory, and 0 keeps nothing.
+        assert_eq!(resident_limit(Some(64 << 30), None, 128), 128);
+        assert_eq!(resident_limit(Some(64 << 30), None, 0), 0);
+        assert_eq!(resident_limit(None, None, 32), 32);
+        // A higher one still stops at a quarter of the memory less the reserve.
+        assert_eq!(resident_limit(Some(64 << 30), None, 1024), 1024);
+        assert_eq!(resident_limit(Some(8 << 30), None, 1024), 256);
+        assert_eq!(resident_limit(Some(u64::MAX), None, 100_000), 1024);
+        // The shared graphics budget of a unified-memory GPU still applies.
+        assert_eq!(resident_limit(Some(64 << 30), Some(512 << 20), 1024), 16);
     }
 }

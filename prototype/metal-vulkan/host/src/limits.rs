@@ -69,12 +69,12 @@ pub fn available_memory() -> Option<u64> {
     }
 }
 
-pub fn configure() {
+pub fn configure(tuning: &crate::tuning::Tuning) {
     static ONCE: Once = Once::new();
     ONCE.call_once(|| {
         let threads = std::thread::available_parallelism().map_or(1, NonZeroUsize::get);
         let available = available_memory();
-        let count = turns(threads, available);
+        let count = tuning.compile_threads.unwrap_or_else(|| turns(threads, available));
         if metal2vulkan_runtime::set_pipeline_compile_budget(NonZeroUsize::new(count).unwrap()) {
             crate::util::log_once(&format!("[Quadra Metal] pipeline compilation cap: {count}, available host/cgroup memory: {} MiB", available.unwrap_or(0) >> 20));
         }

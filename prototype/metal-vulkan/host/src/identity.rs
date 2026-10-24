@@ -36,7 +36,17 @@ pub struct Identity {
     pub measured: bool,
     pub defects: Vec<String>,
     pub heaps: Vec<Heap>,
+    /// The optional device extensions the device took.
+    pub extensions: Vec<&'static str>,
 }
+
+/// The optional device extensions whose use the log states.
+const REPORTED: [&str; 4] = [
+    "VK_EXT_memory_priority",
+    "VK_EXT_pageable_device_local_memory",
+    "VK_KHR_swapchain_maintenance1",
+    "VK_EXT_swapchain_maintenance1",
+];
 
 fn kind_name(kind: DeviceKind) -> &'static str {
     match kind {
@@ -72,7 +82,7 @@ pub fn describe(identity: &Identity) -> String {
         identity.defects.join(",")
     };
     format!(
-        "[Quadra Metal] gpu: {} | vendor {:#06x} device {:#06x} {} | driver {} {} (id {}, version {:#x}) | Vulkan {} | measured {} | driver workarounds {} | heaps {}",
+        "[Quadra Metal] gpu: {} | vendor {:#06x} device {:#06x} {} | driver {} {} (id {}, version {:#x}) | Vulkan {} | measured {} | driver workarounds {} | heaps {} | extensions {}",
         identity.name,
         identity.vendor_id,
         identity.device_id,
@@ -85,6 +95,11 @@ pub fn describe(identity: &Identity) -> String {
         if identity.measured { "yes" } else { "no" },
         defects,
         heaps,
+        if identity.extensions.is_empty() {
+            "none".to_owned()
+        } else {
+            identity.extensions.join(",")
+        },
     )
 }
 
@@ -150,6 +165,14 @@ pub fn of(device: &Device) -> Identity {
             .map(|defect| format!("{defect:?}"))
             .collect(),
         heaps,
+        extensions: REPORTED
+            .iter()
+            .copied()
+            .filter(|name| {
+                let name = std::ffi::CString::new(*name).unwrap_or_default();
+                device.extension_enabled(&name)
+            })
+            .collect(),
     }
 }
 
@@ -191,6 +214,7 @@ mod tests {
                     device_local: false,
                 },
             ],
+            extensions: vec!["VK_EXT_memory_priority"],
         }
     }
 
@@ -206,6 +230,7 @@ mod tests {
             "measured no",
             "MultisampledStencilColourCopies",
             "8192MiB(local),24576MiB",
+            "extensions VK_EXT_memory_priority",
         ] {
             assert!(line.contains(expected), "{expected:?} missing from {line}");
         }
@@ -220,6 +245,8 @@ mod tests {
         let line = describe(&identity);
         assert!(line.contains("measured yes"));
         assert!(line.contains("driver workarounds none"));
+        identity.extensions.clear();
+        assert!(describe(&identity).ends_with("extensions none"));
     }
 
     #[test]
