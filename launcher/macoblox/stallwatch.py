@@ -45,6 +45,8 @@ CENSUS_INTERVAL = 1.0
 MAPS_INTERVAL = 3.0
 STOP_TIMEOUT = 0.1
 MAX_STOPS = 3
+MIN_INTERVAL = 0.05  # a faster loop would stop the game's threads too often
+MAX_STOPS_PER_SECOND = 60  # whatever else goes wrong, the game is never stopped more often than this
 BUSY_FRACTION = 0.2  # of an interval on the CPU for a thread to be worth stopping
 STACK_BYTES = 8192
 LULL_FRACTION = 0.3  # of a core, over half-second buckets
@@ -393,6 +395,7 @@ def capture(pid, path, *, interval=INTERVAL, trace=True, stop=lambda: False, ser
     """Record the game's threads until it exits or `stop()` is true. Returns
     whether stacks could be read. `servers` are darlingserver processes whose
     CPU use is recorded beside the game's."""
+    interval = max(interval, MIN_INTERVAL)
     recorder = Recorder(path)
     try:
         memory = Memory(pid)
@@ -409,6 +412,7 @@ def capture(pid, path, *, interval=INTERVAL, trace=True, stop=lambda: False, ser
     server_before = {}
     skip_until = {}
     last_census = last_maps = 0.0
+    stop_second, stops_this_second = 0, 0
     try:
         while _alive(pid) and not stop():
             started = time.monotonic()
@@ -445,7 +449,12 @@ def capture(pid, path, *, interval=INTERVAL, trace=True, stop=lambda: False, ser
                 # that is a futex wait: stopping a futex waiter makes it check
                 # the word again, which could end a lost wakeup being watched.
                 waiting = [pid] if pid not in busy and not in_futex.get(pid) and skip_until.get(pid, 0) < started else []
+                if int(started) != stop_second:
+                    stop_second, stops_this_second = int(started), 0
                 for tid in busy + waiting:
+                    if stops_this_second >= MAX_STOPS_PER_SECOND:
+                        break
+                    stops_this_second += 1
                     found = tracer.registers(tid)
                     if not found:
                         skip_until[tid] = started + 5.0

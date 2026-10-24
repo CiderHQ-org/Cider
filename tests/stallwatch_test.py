@@ -398,6 +398,15 @@ class CaptureTests(unittest.TestCase):
             self.assertLess(runs, 120)  # at most four stacks per tenth of a second
             self.assertLess(cpu_records, 40)
 
+    def test_no_interval_can_make_the_watcher_stop_the_game_more_than_sixty_times_a_second(self):
+        child = self.start_child()
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "capture.jsonl"
+            deadline = time.monotonic() + 2.0
+            stallwatch.capture(child.pid, path, interval=0.0, stop=lambda: time.monotonic() > deadline)
+            runs = sum(1 for record in stallwatch.load(path) if record["k"] == "run")
+            self.assertLess(runs, 2 * stallwatch.MAX_STOPS_PER_SECOND + 30)
+
     def test_without_ptrace_permission_the_cpu_timeline_is_still_recorded(self):
         child = self.start_child()
         with tempfile.TemporaryDirectory() as directory, \
