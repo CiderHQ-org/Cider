@@ -754,10 +754,11 @@ static int queue_has_watched(int queue) {
     return found;
 }
 
-/* MACOBLOX_KEVENT_POLL_MS=N (a number of milliseconds; off unless set): a kevent() wait on a kqueue
- * without watched UDP sockets that would last longer than N ms returns after N ms with no events, which
- * is what a timeout looks like, so Roblox's I/O loops (RBX IoEvLoop, up to 10 s per wait) look at their
- * queues every N ms instead of trusting to be woken. Without it, a loop that is not woken for work posted
+/* MACOBLOX_KEVENT_POLL_MS=N (milliseconds; the launcher sets 100, 0 or unset is off): a kevent() wait by one of
+ * Roblox's I/O loop threads (named "RBX IoEvLoop ...", the only threads seen making timed waits over 100 ms) on a
+ * kqueue without watched UDP sockets that would last longer than N ms returns after N ms with no events, which
+ * is what a timeout looks like, so the loops (up to 10 s per wait) look at their queues every N ms instead of
+ * trusting to be woken. Other threads' waits are never shortened. Without it, a loop that is not woken for work posted
  * to it sleeps out its timeout: after leaving a game the menu waits about 18 s for such a loop, and
  * waking the loops by hand 9 s after the leave ended the wait at once (quadrahq --watch-stalls captures). */
 static long kevent_poll_ms(void) {
@@ -779,6 +780,15 @@ static long kevent_poll_ms(void) {
     return cap;
 }
 
+extern int pthread_getname_np(void *, char *, size_t);
+extern void *pthread_self(void);
+extern int strncmp(const char *, const char *, size_t);
+
+static int is_io_loop_thread(void) {
+    char name[64] = {0};
+    return pthread_getname_np(pthread_self(), name, sizeof name) == 0 && strncmp(name, "RBX IoEvLoop", 12) == 0;
+}
+
 static int traced_kevent(int queue, const void *changes, int change_count, void *events,
                          int event_count, const void *timeout) {
     if (trace_enabled())
@@ -791,7 +801,8 @@ static int traced_kevent(int queue, const void *changes, int change_count, void 
         struct darwin_timespec capped;
         if (cap > 0 && event_count > 0 && events && wait &&
             (wait->tv_sec > cap / 1000 ||
-             (wait->tv_sec == cap / 1000 && wait->tv_nsec > (cap % 1000) * 1000000L))) {
+             (wait->tv_sec == cap / 1000 && wait->tv_nsec > (cap % 1000) * 1000000L)) &&
+            is_io_loop_thread()) {
             capped.tv_sec = cap / 1000;
             capped.tv_nsec = (cap % 1000) * 1000000L;
             timeout = &capped;

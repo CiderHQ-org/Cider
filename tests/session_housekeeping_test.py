@@ -163,6 +163,7 @@ class SessionHousekeepingTests(unittest.TestCase):
             self.assertEqual("MACOBLOX_ALLOW_DEBUGGER=1" in variables, expected)
 
     def test_kevent_poll_setting_reaches_the_game_only_when_it_is_a_positive_number(self):
+        self.assertEqual(core.DEFAULT_SETTINGS["kevent_poll_ms"], 100)  # on unless turned off
         for value, expected in ((0, None), (100, "MACOBLOX_KEVENT_POLL_MS=100"), (5000, "MACOBLOX_KEVENT_POLL_MS=1000"),
                                 (-5, None), ("100", None), (True, None)):
             session = bare_session(dict(core.DEFAULT_SETTINGS, kevent_poll_ms=value))

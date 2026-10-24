@@ -429,14 +429,14 @@ states. Thread stacks need **Allow freeze diagnostics**
 set; launch logs are capped at 200 MB in total, and `dserver.log` is rotated
 to `dserver.log.old` past 32 MB while Darling is stopped.
 
-**The menu is unresponsive for about 18 s after leaving a game.** Roblox's network loops sleep up to 10 s per wait,
-and after a leave the work they must do next only gets noticed when one of them wakes by itself. The setting
-`kevent_poll_ms` (off by default) makes those loops look at their queues every that many milliseconds. With
-`"kevent_poll_ms": 100` in `settings.json` the game ran at full speed again 2 s after each leave in three of three
-trials, where it took 18 s in nine of nine without it, and Play worked 2.8 s after the first leave against 18.2 s.
-Idle CPU did not rise. Close Quadra first, then edit the file: the launcher reads the file when it starts and writes
-its own copy back when it quits. The game log says `kevent waits without UDP watches poll every 100 ms` when it is
-active. It is a workaround for Darling's kqueue emulation, not a repair of it, and it is off unless you set it.
+**Leaving a game no longer freezes the menu for about 18 s.** Roblox's network loops sleep up to 10 s per wait,
+and after a leave the work they must do next only got noticed when one of them woke by itself. The setting
+`kevent_poll_ms` (default `100`) makes only the game's `RBX IoEvLoop` threads look at their queues every that many
+milliseconds. With it, the game ran at full speed again 2 s after each leave in three of three trials, where it took
+18 s in nine of nine without it, and Play worked 2.8 s after the first leave against 18.2 s. Idle CPU did not rise.
+`"kevent_poll_ms": 0` in `settings.json` turns it off. Close Quadra first, then edit the file: the launcher reads
+the file when it starts and writes its own copy back when it quits. The game log says `kevent waits without UDP
+watches poll every 100 ms` when it is active. It is a workaround for Darling's kqueue emulation, not a repair of it.
 
 **Watch a hang as it happens.** Collect diagnostics shows the game at two
 moments; a stall after joining or leaving a game needs the whole minute.

@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Check ordinary kqueue wake-ups and MACOBLOX_KEVENT_POLL_MS in a disposable Darling prefix.
 
-Runs tests/darling_kevent_wake_test.c twice with the shim loaded: without the cap (the idle wait must last its
-full second) and with a cap of 100 ms (the idle wait must end after about 100 ms with no events, and every
-wake-up case must still pass). Needs a built shim (default build/libMacOBloxShims.dylib, or --shim). No game,
+Runs tests/darling_kevent_wake_test.c twice with the shim loaded: without the cap (every wait must last its full second) and with a cap of 100 ms (the I/O loop thread's idle wait must end after
+about 100 ms with no events, another thread's must not, and every wake-up case must still pass). Needs a built shim (default build/libMacOBloxShims.dylib, or --shim). No game,
 account, installed prefix or compositor is used; a prefix that fails to start is retried.
 """
 import argparse
@@ -68,7 +67,7 @@ def main():
         if 'RESULT PASS' not in text:
             failures += 1
     print(f'Evidence: {output}')
-    print('FAIL' if failures else 'PASS: wake-ups work with and without the cap, and the cap cuts an idle wait short')
+    print('FAIL' if failures else 'PASS: wake-ups work with and without the cap; the cap cuts an I/O loop thread\'s idle wait short and no other thread\'s')
     return 1 if failures else 0
 
 

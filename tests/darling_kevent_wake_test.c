@@ -1,6 +1,7 @@
 // Fixture: does a blocked kevent() notice work posted by another thread, and does MACOBLOX_KEVENT_POLL_MS cut
-// an idle wait short? Each wake case blocks one thread in kevent() with a long timeout, posts work from a second
-// thread after 200 ms and reports how long the waiter took; the last case waits on an empty kqueue. argv[1] is
+// an idle wait short on a thread named like Roblox's I/O loops (and only on those)? Each wake case blocks the
+// "RBX IoEvLoop 0" thread in kevent() with a long timeout, posts work from a second thread after 200 ms and reports
+// how long the waiter took; then an empty kqueue is waited on under that name and under another one. argv[1] is
 // the cap in milliseconds the shim was told (0 or absent: none). Built as Mach-O, run in a disposable Darling
 // prefix. The shim ends the process without flushing stdio, so every line is flushed.
 typedef unsigned long long u64;
@@ -14,6 +15,7 @@ extern int fcntl(int, int, ...);
 extern long write(int, const void *, size_t), read(int, void *, size_t);
 extern int pthread_create(pthread_t *, const void *, void *(*)(void *), void *), pthread_join(pthread_t, void **);
 extern u64 clock_gettime_nsec_np(int);
+extern int pthread_setname_np(const char *);
 extern void *__stdoutp;
 #define say(...) do { printf(__VA_ARGS__); fflush(__stdoutp); } while (0)
 
@@ -90,6 +92,7 @@ static void run_case(const char *name, void *(*poster)(void *), long limit) {
 
 int main(int argc, char **argv) {
     long cap = argc > 1 ? atoi(argv[1]) : 0;
+    pthread_setname_np("RBX IoEvLoop 0");
     kq = kqueue();
     if (kq < 0 || pipe(fds) != 0) { say("FAIL setup\n"); return 1; }
     fcntl(fds[0], 4 /* F_SETFL */, 4 /* O_NONBLOCK */);
@@ -102,15 +105,19 @@ int main(int argc, char **argv) {
     run_case("EVFILT_READ added by another thread while blocked", add_pipe_then_write, 900);
     long waited;
     int n = wait_once(1000, &waited);
-    say("INFO an empty wait of 1000 ms returned after %ld ms with %d events\n", waited, n);
-    if (cap > 0) {  // the cap must cut the idle wait short and report no events
+    say("INFO an empty wait of 1000 ms on the I/O loop thread returned after %ld ms with %d events\n", waited, n);
+    if (cap > 0) {  // the cap must cut the I/O loop's idle wait short and report no events
         int ok = waited <= cap + 150 && n == 0;
-        say("%s the empty wait was capped at %ld ms\n", ok ? "PASS" : "FAIL", cap);
+        say("%s the I/O loop's empty wait was capped at %ld ms\n", ok ? "PASS" : "FAIL", cap);
         if (!ok) failures++;
     } else if (waited < 900) {
         say("FAIL an uncapped empty wait returned early\n");
         failures++;
     }
+    pthread_setname_np("RBX Worker A");  // any other thread keeps its full wait
+    n = wait_once(1000, &waited);
+    say("%s an empty wait on another thread lasted %ld ms with %d events\n", waited >= 900 ? "PASS" : "FAIL", waited, n);
+    if (waited < 900) failures++;
     say(failures ? "RESULT FAIL %d\n" : "RESULT PASS\n", failures);
     return failures ? 1 : 0;
 }

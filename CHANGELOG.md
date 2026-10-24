@@ -2,10 +2,10 @@
 
 ## Unreleased
 
-- Add an opt-in `kevent_poll_ms` setting (`MACOBLOX_KEVENT_POLL_MS`, off by default). A `kevent()` wait on a kqueue
-  without watched UDP sockets that would last longer than that many milliseconds returns early with no events, so
-  Roblox's I/O loops look at their queues regularly instead of sleeping out a 10 s timeout. After leaving a game
-  the menu waited about 18 s on such a loop; waking the loops by hand 9 s after the leave ended the wait at once.
+- Stop the menu freezing for about 18 s after leaving a game. Roblox's `RBX IoEvLoop` threads wait up to 10 s per
+  `kevent()` and were not woken for the work that follows a leave; they now look at their queues every 100 ms
+  (setting `kevent_poll_ms`, default 100, 0 turns it off). The game ran at full speed 2 s after a leave in 3 of 3 trials
+  instead of 18 s in 9 of 9. Only threads with that name are affected.
 - Add `quadrahq --watch-stalls`, which records the game's per-thread CPU use,
   stacks of busy threads and the places blocked threads wait while a hang
   happens, and reports them against the launch log's join and leave markers.

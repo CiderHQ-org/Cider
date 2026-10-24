@@ -168,8 +168,9 @@ DEFAULT_SETTINGS = {
     "cider_trace": False,
     "cider_verbose_server_log": False,
     "cider_thread_kicks": False,
-    # Milliseconds between looks at an idle kqueue loop (MACOBLOX_KEVENT_POLL_MS in net_trace.c); 0 is off.
-    "kevent_poll_ms": 0,
+    # Milliseconds between looks at the game's idle I/O loops (MACOBLOX_KEVENT_POLL_MS in net_trace.c). Without it
+    # the menu waited about 18 s after leaving a game for a loop that was never woken; 0 turns it off.
+    "kevent_poll_ms": 100,
 }
 
 # Settings -> environment variables understood by the shim.
