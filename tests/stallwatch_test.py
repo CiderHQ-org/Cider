@@ -334,6 +334,33 @@ class WakeTests(unittest.TestCase):
         self.assertNotIn("timers armed", text)
 
 
+class UnreadTests(unittest.TestCase):
+    def test_bytes_waiting_in_a_pipe_and_a_socketpair_are_counted_without_consuming_them(self):
+        import socket
+        reader, writer = os.pipe()
+        self.addCleanup(os.close, reader)
+        self.addCleanup(os.close, writer)
+        left, right = socket.socketpair()
+        self.addCleanup(left.close)
+        self.addCleanup(right.close)
+        os.write(writer, b"abc")
+        right.send(b"hello")
+        found = stallwatch.unread_table(os.getpid())
+        self.assertEqual(found[reader], ("pipe", 3))
+        self.assertEqual(found[left.fileno()], ("socket", 5))
+        self.assertNotIn(right.fileno(), found)  # nothing waits on that end
+        self.assertEqual(os.read(reader, 8), b"abc")  # still there to be read: nothing was consumed
+        self.assertEqual(left.recv(8), b"hello")
+
+    def test_the_lull_report_lists_a_pipe_nobody_read(self):
+        records = lull_capture()
+        records[-1:-1] = [{"k": "ep", "t": 90.5, "fd": 3, "w": [9]},
+                          {"k": "rd", "t": 101.0, "fd": 55, "p": "pipe", "n": 1}]
+        text = stallwatch.render(records, [], {}, everything=True)
+        self.assertIn("pipes and sockets holding unread bytes in the middle of the lull: fd 55 pipe 1 bytes since 11.0 s",
+                      text)
+
+
 CHILD = textwrap.dedent("""
     import ctypes, threading, time
     libc = ctypes.CDLL(None)

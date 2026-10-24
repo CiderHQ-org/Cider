@@ -326,6 +326,43 @@ def socket_table(pid):
     return found
 
 
+def unread_table(pid):
+    """{fd: bytes waiting} for the process's pipes and sockets, asked of a duplicate of each descriptor
+    (pidfd_getfd shares the open file, so nothing is consumed and the game is not touched). Only descriptors
+    with bytes waiting are returned. This is how a lost edge-triggered wake-up of a kqueue loop shows: the
+    loop's interrupter pipe holds a byte that nobody read."""
+    import fcntl
+    import termios
+    found = {}
+    try:
+        pidfd = os.pidfd_open(pid)
+    except (OSError, AttributeError):
+        return found
+    libc = ctypes.CDLL(None, use_errno=True)
+    try:
+        for entry in os.listdir(f"/proc/{pid}/fd"):
+            try:
+                target = os.readlink(f"/proc/{pid}/fd/{entry}")
+            except OSError:
+                continue
+            if not target.startswith(("pipe:", "socket:")):
+                continue
+            duplicate = libc.syscall(438, pidfd, int(entry), 0)  # SYS_pidfd_getfd
+            if duplicate < 0:
+                continue
+            try:
+                waiting = struct.unpack("i", fcntl.ioctl(duplicate, termios.FIONREAD, struct.pack("i", 0)))[0]
+            except OSError:
+                waiting = 0
+            finally:
+                os.close(duplicate)
+            if waiting > 0:
+                found[int(entry)] = ("pipe" if target.startswith("pipe:") else "socket", waiting)
+    finally:
+        os.close(pidfd)
+    return found
+
+
 def _fdinfo(pid, fd):
     try:
         return Path(f"/proc/{pid}/fdinfo/{fd}").read_text()
@@ -409,6 +446,7 @@ def capture(pid, path, *, interval=INTERVAL, trace=True, stop=lambda: False, ser
     cpu_before, names, census_before, in_futex = {}, {}, {}, {}
     socket_before = {}
     wake_before = {"efd": {}, "tfd": {}, "ep": {}}
+    unread_before = {}
     server_before = {}
     skip_until = {}
     last_census = last_maps = 0.0
@@ -515,6 +553,14 @@ def capture(pid, path, *, interval=INTERVAL, trace=True, stop=lambda: False, ser
                     if wake_before["ep"].get(fd) != watched:
                         recorder.write({"k": "ep", "t": round(now, 3), "fd": fd, "w": watched})
                 wake_before["efd"], wake_before["ep"] = wakes["efd"], wakes["ep"]
+                unread = unread_table(pid)
+                for fd, (kind, waiting) in unread.items():
+                    if unread_before.get(fd) is None:
+                        recorder.write({"k": "rd", "t": round(now, 3), "fd": fd, "p": kind, "n": waiting})
+                for fd in unread_before:
+                    if fd not in unread:
+                        recorder.write({"k": "rd", "t": round(now, 3), "fd": fd, "n": 0})
+                unread_before = {fd: True for fd in unread}
                 recorder.flush()
             time.sleep(max(0.0, interval - (time.monotonic() - started)))
     finally:
@@ -804,6 +850,11 @@ def _wake_lines(records, first, last, start, middle):
     armed then with the time each fires; a timer firing within a second of the lull's end is marked."""
     if not any(record["k"] in ("efd", "tfd", "ep") for record in records):
         return []
+    held = {}
+    for record in records:
+        if record["k"] == "rd" and record["t"] <= middle:
+            held[record["fd"]] = record
+    held = {fd: record for fd, record in held.items() if record["n"] > 0}
     pending, timers, sets = {}, {}, {}
     for record in records:
         if record["t"] > middle:
@@ -814,7 +865,9 @@ def _wake_lines(records, first, last, start, middle):
             timers[record["fd"]] = record
         elif record["k"] == "ep":
             sets[record["fd"]] = record["w"]
-    lines = []
+    lines = ["  pipes and sockets holding unread bytes in the middle of the lull: " + (
+        "; ".join(f"fd {fd} {record['p']} {record['n']} bytes since {record['t'] - start:.1f} s"
+                  for fd, record in sorted(held.items())) or "none")]
     waiting = {fd: record for fd, record in pending.items() if record["n"] > 0}
     lines.append("  eventfd signals nobody consumed in the middle of the lull: " + (
         "; ".join(f"fd {fd} count {record['n']} since {record['t'] - start:.1f} s (watched by epoll "
