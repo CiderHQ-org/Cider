@@ -1153,7 +1153,7 @@ mod tests {
         for (held, queued) in [(1, 0), (0, 1), (3, 2)] {
             assert_eq!(acquire_timeout(held, queued), BUSY_ACQUIRE_NANOS);
         }
-        assert!(IDLE_ACQUIRE_NANOS < BUSY_ACQUIRE_NANOS);
+        const { assert!(IDLE_ACQUIRE_NANOS < BUSY_ACQUIRE_NANOS) };
     }
 
     #[test]
