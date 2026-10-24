@@ -203,3 +203,42 @@ fn legacy_scatter_upload_reaches_every_record() {
         "every instance record must survive the scatter upload"
     );
 }
+
+#[test]
+fn the_llvm_a_process_already_maps_comes_first_and_old_ones_are_left_out() {
+    let maps = "\
+7f1000000000-7f1004000000 r--p 00000000 00:1b 100 /usr/lib/x86_64-linux-gnu/libLLVM.so.19.1
+7f1004000000-7f1008000000 r-xp 04000000 00:1b 100 /usr/lib/x86_64-linux-gnu/libLLVM.so.19.1
+7f2000000000-7f2001000000 r--p 00000000 00:1b 200 /usr/lib/libLLVM-14.so
+7f3000000000-7f3001000000 r--p 00000000 00:1b 300 /usr/lib/libc.so.6
+7f4000000000-7f4001000000 r--p 00000000 00:1b 400 /usr/lib/llvm-17/lib/libLLVM.so.1 (deleted)
+7f5000000000-7f5001000000 r--p 00000000 00:00 0 [heap]";
+    assert_eq!(
+        super::mapped_llvm(maps),
+        vec![
+            std::path::PathBuf::from("/usr/lib/x86_64-linux-gnu/libLLVM.so.19.1"),
+            std::path::PathBuf::from("/usr/lib/llvm-17/lib/libLLVM.so.1"),
+        ],
+        "once each, LLVM 14 left out, a Debian libLLVM.so.1 versioned by its directory"
+    );
+    assert!(super::mapped_llvm("").is_empty());
+}
+
+#[test]
+fn library_names_state_their_version() {
+    let none = None;
+    assert_eq!(super::llvm_version("libLLVM.so.23.1", none), 23);
+    assert_eq!(super::llvm_version("libLLVM-19.so", none), 19);
+    assert_eq!(super::llvm_version("libLLVM.so.18.1", none), 18);
+    assert_eq!(super::llvm_version("libLLVM.so", none), 0);
+    assert_eq!(super::llvm_version("libc.so.6", none), 0);
+    // Debian's soname is no version: with no directory to say, none; with `llvm-N/lib`, N.
+    assert_eq!(super::llvm_version("libLLVM.so.1", none), 0);
+    let debian = Some(std::path::Path::new("/usr/lib/llvm-17/lib"));
+    assert_eq!(super::llvm_version("libLLVM.so.1", debian), 17);
+    assert_eq!(
+        super::llvm_version("libLLVM.so.19.1", debian),
+        19,
+        "a stated version is not replaced by the directory's"
+    );
+}

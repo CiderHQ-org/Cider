@@ -46,11 +46,65 @@ struct Llvm {
 unsafe impl Send for Llvm {}
 unsafe impl Sync for Llvm {}
 
-/// The newest libLLVM of the usual places (15 or newer: opaque pointers).
+/// The LLVM major version a library file name states, or 0 where it states none
+/// (`libLLVM.so.23.1`, `libLLVM-19.so`, `libLLVM.so.18.1`). Debian's `libLLVM.so.1` in
+/// `llvm-N/lib` is a soname, not a version (no LLVM major is below 3), so it takes N from its
+/// directory.
+fn llvm_version(name: &str, directory: Option<&std::path::Path>) -> u32 {
+    let Some(rest) = name.strip_prefix("libLLVM") else {
+        return 0;
+    };
+    rest.trim_start_matches(['-', '.'])
+        .trim_start_matches("so.")
+        .split(|c: char| !c.is_ascii_digit())
+        .next()
+        .and_then(|digits| digits.parse().ok())
+        .filter(|&version| version >= 3)
+        .or_else(|| {
+            directory?
+                .parent()?
+                .file_name()?
+                .to_str()?
+                .strip_prefix("llvm-")?
+                .parse()
+                .ok()
+        })
+        .unwrap_or(0)
+}
+
+/// The libLLVM files a process already maps (`/proc/self/maps` text), in map order, once each, of
+/// version 15 or newer or of none stated. Mesa's drivers link one; loading another beside it would
+/// put two LLVMs in the game's process.
+fn mapped_llvm(maps: &str) -> Vec<PathBuf> {
+    let mut found: Vec<PathBuf> = Vec::new();
+    for path in maps
+        .lines()
+        .filter_map(|line| line.split_once('/').map(|(_, rest)| format!("/{rest}")))
+    {
+        let path = PathBuf::from(path.trim_end_matches(" (deleted)"));
+        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        if !name.starts_with("libLLVM") || !name.contains(".so") || found.contains(&path) {
+            continue;
+        }
+        let version = llvm_version(name, path.parent());
+        if version == 0 || version >= 15 {
+            found.push(path);
+        }
+    }
+    found
+}
+
+/// The libLLVM to try, best first (15 or newer: opaque pointers): one the process already maps,
+/// then the newest of the usual places.
 fn llvm_candidates() -> Vec<PathBuf> {
     if let Some(path) = std::env::var_os("MACOBLOX_METAL_LIBLLVM") {
         return vec![path.into()];
     }
+    let mapped = std::fs::read_to_string("/proc/self/maps")
+        .map(|maps| mapped_llvm(&maps))
+        .unwrap_or_default();
     let mut found: Vec<(u32, PathBuf)> = Vec::new();
     let mut directories: Vec<PathBuf> = [
         "/usr/lib",
@@ -80,36 +134,21 @@ fn llvm_candidates() -> Vec<PathBuf> {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().into_owned();
             // libLLVM.so.23.1, libLLVM-19.so, libLLVM.so.18.1 (Debian: libLLVM.so.1 in llvm-N/lib).
-            let Some(rest) = name.strip_prefix("libLLVM") else {
-                continue;
-            };
-            if !rest.contains(".so") {
+            if !name.starts_with("libLLVM") || !name.contains(".so") {
                 continue;
             }
-            let version: u32 = rest
-                .trim_start_matches(['-', '.'])
-                .trim_start_matches("so.")
-                .split(|c: char| !c.is_ascii_digit())
-                .next()
-                .and_then(|digits| digits.parse().ok())
-                .or_else(|| {
-                    directory
-                        .parent()?
-                        .file_name()?
-                        .to_str()?
-                        .strip_prefix("llvm-")?
-                        .parse()
-                        .ok()
-                })
-                .unwrap_or(0);
-            found.push((version, entry.path()));
+            found.push((llvm_version(&name, Some(&directory)), entry.path()));
         }
     }
     found.sort_by_key(|entry| std::cmp::Reverse(entry.0));
-    found
+    mapped
         .into_iter()
-        .filter(|(version, _)| *version == 0 || *version >= 15)
-        .map(|(_, path)| path)
+        .chain(
+            found
+                .into_iter()
+                .filter(|(version, _)| *version == 0 || *version >= 15)
+                .map(|(_, path)| path),
+        )
         .collect()
 }
 
