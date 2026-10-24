@@ -168,6 +168,8 @@ DEFAULT_SETTINGS = {
     "cider_trace": False,
     "cider_verbose_server_log": False,
     "cider_thread_kicks": False,
+    # Milliseconds between looks at an idle kqueue loop (MACOBLOX_KEVENT_POLL_MS in net_trace.c); 0 is off.
+    "kevent_poll_ms": 0,
 }
 
 # Settings -> environment variables understood by the shim.
@@ -2564,6 +2566,9 @@ class RobloxSession:
             if self.settings.get(key) or (key in TRACE_ENV_INHERITED and
                                          os.environ.get(name) == "1"):
                 variables.append(f"{name}=1")
+        poll = self.settings.get("kevent_poll_ms", 0)
+        if isinstance(poll, int) and not isinstance(poll, bool) and poll > 0:
+            variables.append(f"MACOBLOX_KEVENT_POLL_MS={min(poll, 1000)}")
         variables.extend(self.ciderdarling_variables())
         # Selection diagnostics record lengths/ranges only and are enabled
         # explicitly for a reported typing issue, without changing settings.

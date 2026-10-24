@@ -754,14 +754,50 @@ static int queue_has_watched(int queue) {
     return found;
 }
 
+/* MACOBLOX_KEVENT_POLL_MS=N (a number of milliseconds; off unless set): a kevent() wait on a kqueue
+ * without watched UDP sockets that would last longer than N ms returns after N ms with no events, which
+ * is what a timeout looks like, so Roblox's I/O loops (RBX IoEvLoop, up to 10 s per wait) look at their
+ * queues every N ms instead of trusting to be woken. Without it, a loop that is not woken for work posted
+ * to it sleeps out its timeout: after leaving a game the menu waits about 18 s for such a loop, and
+ * waking the loops by hand 9 s after the leave ended the wait at once (quadrahq --watch-stalls captures). */
+static long kevent_poll_ms(void) {
+    static long cap = -1;
+    if (cap < 0) {
+        const char *value = getenv("MACOBLOX_KEVENT_POLL_MS");
+        long parsed = 0;
+        for (; value && *value >= '0' && *value <= '9'; value++)
+            parsed = parsed * 10 + (*value - '0');
+        cap = parsed > 1000000 ? 1000000 : parsed;
+        if (cap > 0) {
+            char line[120];
+            int length = snprintf(line, sizeof line,
+                                  "[Quadra] kevent waits without UDP watches poll every %ld ms\n", cap);
+            if (length > 0)
+                write(2, line, (size_t)length);
+        }
+    }
+    return cap;
+}
+
 static int traced_kevent(int queue, const void *changes, int change_count, void *events,
                          int event_count, const void *timeout) {
     if (trace_enabled())
         __sync_add_and_fetch(&kevent_calls, 1);
     if (change_count > 0 && changes)
         record_changes(queue, (const struct darwin_kevent *)changes, change_count);
-    if (event_count <= 0 || !events || !queue_has_watched(queue))
+    if (event_count <= 0 || !events || !queue_has_watched(queue)) {
+        long cap = kevent_poll_ms();
+        const struct darwin_timespec *wait = (const struct darwin_timespec *)timeout;
+        struct darwin_timespec capped;
+        if (cap > 0 && event_count > 0 && events && wait &&
+            (wait->tv_sec > cap / 1000 ||
+             (wait->tv_sec == cap / 1000 && wait->tv_nsec > (cap % 1000) * 1000000L))) {
+            capped.tv_sec = cap / 1000;
+            capped.tv_nsec = (cap % 1000) * 1000000L;
+            timeout = &capped;
+        }
         return kevent(queue, changes, change_count, events, event_count, timeout);
+    }
 
     const struct darwin_timespec *limit = (const struct darwin_timespec *)timeout;
     unsigned long long start = mach_absolute_time();

@@ -162,6 +162,17 @@ class SessionHousekeepingTests(unittest.TestCase):
                 variables = session.shim_variables()
             self.assertEqual("MACOBLOX_ALLOW_DEBUGGER=1" in variables, expected)
 
+    def test_kevent_poll_setting_reaches_the_game_only_when_it_is_a_positive_number(self):
+        for value, expected in ((0, None), (100, "MACOBLOX_KEVENT_POLL_MS=100"), (5000, "MACOBLOX_KEVENT_POLL_MS=1000"),
+                                (-5, None), ("100", None), (True, None)):
+            session = bare_session(dict(core.DEFAULT_SETTINGS, kevent_poll_ms=value))
+            with self.subTest(value=value), patch.dict(os.environ, {}, clear=True), \
+                    patch.object(core, "host_vram_bytes", return_value=0), \
+                    patch.object(core, "icon_argb_file", side_effect=OSError):
+                variables = session.shim_variables()
+            found = [variable for variable in variables if variable.startswith("MACOBLOX_KEVENT_POLL_MS=")]
+            self.assertEqual(found, [expected] if expected else [])
+
     def test_trace_file_is_private_and_reaches_the_guest(self):
         log = self.base / "launch-20261012-120000.log"
         session, _variables = self.ciderdarling(cider_trace=True)
