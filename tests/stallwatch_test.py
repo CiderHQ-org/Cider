@@ -338,6 +338,9 @@ CHILD = textwrap.dedent("""
     import ctypes, threading, time
     libc = ctypes.CDLL(None)
     libc.prctl(0x59616d61, ctypes.c_ulong(-1))  # PR_SET_PTRACER, PR_SET_PTRACER_ANY
+    # A timerfd like the game's: a one-shot timer, so its interval is zero.
+    timer = libc.timerfd_create(1, 0)
+    libc.timerfd_settime(timer, 0, (ctypes.c_long * 4)(0, 0, 600, 0), None)
 
     def spin_here():
         while True:
@@ -380,6 +383,20 @@ class CaptureTests(unittest.TestCase):
             self.assertIn("samples", text)
             self.assertIn("process", text)
         self.assertIsNone(child.poll(), "the watched process must keep running")
+
+    def test_a_timerfd_in_the_watched_process_does_not_change_the_sampling_rate(self):
+        # The timerfd's own interval once overwrote the loop's: it became zero and the loop spun.
+        child = self.start_child()
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "capture.jsonl"
+            deadline = time.monotonic() + 2.0
+            stallwatch.capture(child.pid, path, interval=0.1, stop=lambda: time.monotonic() > deadline)
+            records = stallwatch.load(path)
+            self.assertTrue(any(record["k"] == "tfd" for record in records), "the timerfd was not seen")
+            runs = sum(1 for record in records if record["k"] == "run")
+            cpu_records = sum(1 for record in records if record["k"] == "cpu")
+            self.assertLess(runs, 120)  # at most four stacks per tenth of a second
+            self.assertLess(cpu_records, 40)
 
     def test_without_ptrace_permission_the_cpu_timeline_is_still_recorded(self):
         child = self.start_child()

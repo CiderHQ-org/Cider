@@ -496,12 +496,12 @@ def capture(pid, path, *, interval=INTERVAL, trace=True, stop=lambda: False, ser
                 for fd, count in wakes["efd"].items():
                     if wake_before["efd"].get(fd) != count:
                         recorder.write({"k": "efd", "t": round(now, 3), "fd": fd, "n": count})
-                for fd, (remaining, interval) in wakes["tfd"].items():
+                for fd, (remaining, repeat) in wakes["tfd"].items():
                     previous = wake_before["tfd"].get(fd)  # (recorded at, remaining then)
                     if previous is None or abs((previous[1] - (now - previous[0])) - remaining) > 0.25:
                         wake_before["tfd"][fd] = (now, remaining)
                         recorder.write({"k": "tfd", "t": round(now, 3), "fd": fd, "v": round(remaining, 3),
-                                        "i": round(interval, 3)})
+                                        "i": round(repeat, 3)})
                 for fd, watched in wakes["ep"].items():
                     if wake_before["ep"].get(fd) != watched:
                         recorder.write({"k": "ep", "t": round(now, 3), "fd": fd, "w": watched})
