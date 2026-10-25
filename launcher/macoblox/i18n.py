@@ -1065,6 +1065,10 @@ ZH_CN = {
     "Applies on next launch.": "下次启动时生效。",
     "Collect hardware report": "收集硬件报告",
     "Reset Quadra M2VK settings": "重置 Quadra M2VK 设置",
+    "These settings apply while CiderDarling is the active runtime. The renderer and graphics card are shared with Environment → Game.":
+    "这些设置仅在 CiderDarling 为当前运行时生效。渲染器和显卡与 环境 → 游戏 中的设置共享。",
+    "Trace text input": "追踪文本输入",
+    "Records insertion counts and selection ranges to diagnose duplicate typing. No typed text is logged. Applies on next launch.": "记录插入次数和选择范围以诊断重复输入。不会记录实际输入的文本。下次启动时生效。",
 }
 
 
