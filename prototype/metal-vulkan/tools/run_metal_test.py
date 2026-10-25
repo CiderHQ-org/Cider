@@ -16,7 +16,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, GLib, Gtk  # noqa: E402
 
-from macoblox import core, web  # noqa: E402
+from quadra import core, web  # noqa: E402
 
 backend = sys.argv[1] if len(sys.argv) > 1 else "x11"
 seconds = float(sys.argv[2]) if len(sys.argv) > 2 else 60

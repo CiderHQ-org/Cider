@@ -6,7 +6,7 @@ pkgrel=1
 pkgdesc="Run the macOS Roblox client on Linux through Darling"
 arch=('x86_64')
 url="https://quadrahq.org"
-_repo="https://github.com/CiderHQ-org/Cider"
+_repo="https://github.com/QuadraHQ/Quadra"
 license=('GPL-3.0-only' 'MIT' 'ISC' 'OFL-1.1')
 depends=('unzip' 'python' 'python-gobject' 'python-cairo'
          'gtk4>=4.14' 'libadwaita>=1.5' 'webkitgtk-6.0' 'sdl2' 'wayland'
@@ -34,8 +34,8 @@ pkgver() {
 
 build() {
   cd "$_name"
-  MACOBLOX_BUILD_DIR="$srcdir/native-build" ./build_debug_shim.sh
-  MACOBLOX_BUILD_DIR="$srcdir/native-build" bash packaging/build-metal.sh
+  QUADRA_BUILD_DIR="$srcdir/native-build" ./build_debug_shim.sh
+  QUADRA_BUILD_DIR="$srcdir/native-build" bash packaging/build-metal.sh
 }
 
 package() {

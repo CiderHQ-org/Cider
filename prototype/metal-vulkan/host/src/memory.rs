@@ -23,7 +23,7 @@ pub struct Budget(Mutex<Option<Snapshot>>);
 
 impl Budget {
     pub fn value(&self, device: &Device) -> u64 {
-        let hint = std::env::var("MACOBLOX_VRAM_BYTES").ok();
+        let hint = std::env::var("QUADRA_VRAM_BYTES").ok();
         let mut cached = self
             .0
             .lock()

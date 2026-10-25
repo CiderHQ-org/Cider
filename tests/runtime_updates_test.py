@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import Mock
 import urllib.error
 
-from macoblox import runtime_install, runtime_updates
+from quadra import runtime_install, runtime_updates
 from runtime_update_fixture import release_fixture
 
 
@@ -36,6 +36,18 @@ class RuntimeUpdatesTests(unittest.TestCase):
             with self.assertRaises((OSError, ValueError)):
                 runtime_updates.check(self.cache, force=True, opener=opener)
             self.assertEqual(runtime_updates.cache_path(self.cache).read_bytes(), before)
+
+    def test_release_may_name_the_repository_by_its_old_or_new_owner_only(self):
+        revision = self.release['source_revision'][:12]
+        for owner in ('CiderHQ-org', 'QuadraHQ'):
+            with self.subTest(owner=owner):
+                data = copy.deepcopy(self.release)
+                data['release_url'] = f'https://github.com/{owner}/CiderDarling/releases/tag/bin-{revision}'
+                self.assertEqual(runtime_updates.validate(data), data)
+        data = copy.deepcopy(self.release)
+        data['release_url'] = f'https://github.com/someone-else/CiderDarling/releases/tag/bin-{revision}'
+        with self.assertRaises(ValueError):
+            runtime_updates.validate(data)
 
     def test_incomplete_wrong_origin_or_path_and_checksum_payloads_are_rejected(self):
         cases = []

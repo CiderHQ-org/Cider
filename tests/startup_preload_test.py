@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from macoblox import startup_preload
+from quadra import startup_preload
 
 
 def library(payload=b"authored"):

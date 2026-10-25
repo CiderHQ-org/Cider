@@ -1,8 +1,8 @@
 /* Darling calls EGL through Mach-O trampolines. Load MangoHud's host EGL
  * hooks directly, without its process-wide OpenGL dlsym/preload hooks. */
 #include "graphics_context.h"
-extern void macoblox_frame_presented(void *, void *, unsigned int);
-extern void macoblox_forget_gl_context(void *);
+extern void quadra_frame_presented(void *, void *, unsigned int);
+extern void quadra_forget_gl_context(void *);
 extern void *dlsym(void *, const char *);
 extern char *getenv(const char *);
 extern long write(int, const void *, unsigned long);
@@ -14,7 +14,7 @@ static unsigned int (*hud_swap)(void *, void *);
 static unsigned int (*hud_destroy)(void *, void *);
 
 static void initialize_overlay(void) {
-    const char *library = getenv("MACOBLOX_MANGOHUD_OPENGL");
+    const char *library = getenv("QUADRA_MANGOHUD_OPENGL");
     if (!library || !*library)
         return;
     struct elf_head {
@@ -37,7 +37,7 @@ static void initialize_overlay(void) {
     else write(2, missing, sizeof(missing) - 1);
 }
 
-static unsigned int macoblox_hud_swap(void *display, void *surface) {
+static unsigned int quadra_hud_swap(void *display, void *surface) {
     if (!__atomic_load_n(&initialized, __ATOMIC_ACQUIRE) &&
         __sync_bool_compare_and_swap(&initialized, 0, 1)) {
         initialize_overlay();
@@ -47,17 +47,17 @@ static unsigned int macoblox_hud_swap(void *display, void *surface) {
      * Publication only happens after all function pointers are initialized. */
     unsigned int result = __atomic_load_n(&initialized, __ATOMIC_ACQUIRE) == 2 && hud_swap
         ? hud_swap(display, surface) : eglSwapBuffers(display, surface);
-    macoblox_record_egl_swap(result);
-    macoblox_frame_presented(display, surface, result);
+    quadra_record_egl_swap(result);
+    quadra_frame_presented(display, surface, result);
     return result;
 }
 
-static unsigned int macoblox_hud_destroy(void *display, void *context) {
+static unsigned int quadra_hud_destroy(void *display, void *context) {
     unsigned int result = __atomic_load_n(&initialized, __ATOMIC_ACQUIRE) == 2 && hud_destroy
         ? hud_destroy(display, context) : eglDestroyContext(display, context);
     if (result) {
-        macoblox_forget_egl_context(context);
-        macoblox_forget_gl_context(context);
+        quadra_forget_egl_context(context);
+        quadra_forget_gl_context(context);
     }
     return result;
 }
@@ -65,5 +65,5 @@ static unsigned int macoblox_hud_destroy(void *display, void *context) {
 #define INTERPOSE(replacement, original) \
     __attribute__((used, section("__DATA,__interpose"))) \
     static const void *pair_##replacement[] = {(void *)replacement, (void *)original};
-INTERPOSE(macoblox_hud_swap, eglSwapBuffers)
-INTERPOSE(macoblox_hud_destroy, eglDestroyContext)
+INTERPOSE(quadra_hud_swap, eglSwapBuffers)
+INTERPOSE(quadra_hud_destroy, eglDestroyContext)

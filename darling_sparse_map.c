@@ -14,15 +14,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 typedef unsigned long sparse_size;
-struct macoblox_sparse_map {
+struct quadra_sparse_map {
     /* Darling getrlimit returns the highest valid descriptor, inclusively. */
     sparse_size last_index;
     void **data;
     sparse_size scan_end;
 };
-_Static_assert(sizeof(struct macoblox_sparse_map) == 24, "64-bit map allocation");
+_Static_assert(sizeof(struct quadra_sparse_map) == 24, "64-bit map allocation");
 
-int macoblox_sparse_map_insert(struct macoblox_sparse_map *map, int index, void *value) {
+int quadra_sparse_map_insert(struct quadra_sparse_map *map, int index, void *value) {
     if (index < 0 || map->last_index > 2147483647UL || (unsigned int)index > map->last_index)
         return -1;
     void *expected = 0;
@@ -35,7 +35,7 @@ int macoblox_sparse_map_insert(struct macoblox_sparse_map *map, int index, void 
     if (end > map->scan_end) map->scan_end = end;
     return 0;
 }
-void macoblox_sparse_map_foreach(struct macoblox_sparse_map *map,
+void quadra_sparse_map_foreach(struct quadra_sparse_map *map,
         void (*callback)(int, void *, void *), void *context) {
     for (sparse_size index=0; ; index++) {
         if (map->last_index > 2147483647UL) return;

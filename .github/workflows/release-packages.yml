@@ -78,14 +78,14 @@ jobs:
           sudo apt-get install -y clang binutils libvulkan1 mesa-vulkan-drivers libllvm18
           rustup toolchain install 1.98.1 --profile minimal
           export RUSTUP_TOOLCHAIN=1.98.1
-          export MACOBLOX_BUILD_DIR="$RUNNER_TEMP/metal-build"
+          export QUADRA_BUILD_DIR="$RUNNER_TEMP/metal-build"
           export CARGO_TARGET_DIR="$RUNNER_TEMP/metal-target"
           bash prototype/metal-vulkan/build.sh host
           cargo test --locked --release --manifest-path prototype/metal-vulkan/host/Cargo.toml --lib -- --include-ignored
           clang -O2 -Wall -Wextra tests/metal_host_test.c -ldl -o "$RUNNER_TEMP/metal-host-test"
-          "$RUNNER_TEMP/metal-host-test" "$MACOBLOX_BUILD_DIR/metal/libquadra_metal_host.so"
+          "$RUNNER_TEMP/metal-host-test" "$QUADRA_BUILD_DIR/metal/libquadra_metal_host.so"
           mkdir metal-host
-          cp "$MACOBLOX_BUILD_DIR/metal/libquadra_metal_host.so" metal-host/
+          cp "$QUADRA_BUILD_DIR/metal/libquadra_metal_host.so" metal-host/
       - uses: actions/upload-artifact@v4
         with:
           name: metal-host-internal

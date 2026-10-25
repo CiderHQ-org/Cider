@@ -9,4 +9,5 @@ def release_fixture(revision='a' * 40, previous='b' * 40):
     return {'schema_version': 1, 'name': 'CiderDarling', 'channel': 'stable', 'architecture': 'x86_64',
             'source_revision': revision, 'patch_manifest_sha256': 'e' * 64, 'source_date': 123,
             'minimum_cider': '0.23', 'supersedes': [previous], 'builds': builds,
+            # What the runtime's CI publishes today: it names the repository by its previous owner.
             'release_url': f'https://github.com/CiderHQ-org/CiderDarling/releases/tag/bin-{revision[:12]}'}

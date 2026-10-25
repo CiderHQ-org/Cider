@@ -83,7 +83,7 @@ the saved version, then other complete versions in `/opt/ciderdarling`.
 An incomplete version with missing metadata cannot appear as regular Darling.
 
 Only the existing workqueue trampoline workaround is bypassed automatically:
-the launcher supplies `MACOBLOX_NATIVE_WORKQUEUE=1` when the selected runtime's
+the launcher supplies `QUADRA_NATIVE_WORKQUEUE=1` when the selected runtime's
 metadata declares `workqueue_stack_reset_x86_64`. Other compatibility shims
 remain active. Changing the selected sysroot or runtime revision invalidates
 the launcher's shim build stamp. Restart the launcher after switching.
@@ -101,7 +101,7 @@ on the next launch; native packages need a package containing the new shim.
 
 Successful CiderDarling binary CI runs publish an immutable update manifest on
 their `bin-<revision>` release and promote it to
-`https://github.com/CiderHQ-org/CiderDarling/releases/download/runtime-updates/stable.json`.
+`https://github.com/QuadraHQ/CiderDarling/releases/download/runtime-updates/stable.json`.
 Both distribution archives must be complete. An older build finishing late
 cannot replace a newer channel, and builds preceding the exp10 repair are not
 promoted. The publisher uses CiderDarling's own workflow token.

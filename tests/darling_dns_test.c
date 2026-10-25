@@ -72,9 +72,9 @@ int main(void) {
     require(guarded.guard == 0x123456789abcdef0ULL, "resolver state size after init");
     res_9_ndestroy(&guarded.state);
     require(guarded.guard == 0x123456789abcdef0ULL, "resolver state size after destroy");
-    unsigned int (*maximum)(void) = dlsym((void *)-2, "macoblox_dns_fixture_maximum");
-    unsigned int (*queries)(void) = dlsym((void *)-2, "macoblox_dns_fixture_queries");
-    unsigned int (*destroys)(void) = dlsym((void *)-2, "macoblox_dns_fixture_destroys");
+    unsigned int (*maximum)(void) = dlsym((void *)-2, "quadra_dns_fixture_maximum");
+    unsigned int (*queries)(void) = dlsym((void *)-2, "quadra_dns_fixture_queries");
+    unsigned int (*destroys)(void) = dlsym((void *)-2, "quadra_dns_fixture_destroys");
     require(maximum && queries && destroys, "diagnostic transport loaded");
     void *threads[4];
     for (int i = 0; i < 4; i++) require(!pthread_create(&threads[i], 0, resolve, 0), "create resolver thread");

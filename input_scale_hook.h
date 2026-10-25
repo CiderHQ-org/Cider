@@ -1,5 +1,5 @@
-#ifndef MACOBLOX_INPUT_SCALE_HOOK_H
-#define MACOBLOX_INPUT_SCALE_HOOK_H
+#ifndef QUADRA_INPUT_SCALE_HOOK_H
+#define QUADRA_INPUT_SCALE_HOOK_H
 
 /* InputCapture caches physical, top-left points for AppKit cursor warps.
  * Its Mac engine wrappers are the first boundary where only the engine
@@ -11,42 +11,42 @@ extern const void *_dyld_get_image_header(unsigned int);
 extern int getpagesize(void);
 extern int mprotect(void *, unsigned long, int);
 
-static unsigned long long macoblox_input_scale_bits = 0x3ff0000000000000ULL;
-static const volatile unsigned char *macoblox_debug_dpi_override;
-static void *macoblox_mouse_source;
-static void (*macoblox_mouse_move_inner)(void *, const void *, int,
+static unsigned long long quadra_input_scale_bits = 0x3ff0000000000000ULL;
+static const volatile unsigned char *quadra_debug_dpi_override;
+static void *quadra_mouse_source;
+static void (*quadra_mouse_move_inner)(void *, const void *, int,
                                          float, float, float, float);
-static void (*macoblox_mouse_button_inner)(void *, const void *, int, int,
+static void (*quadra_mouse_button_inner)(void *, const void *, int, int,
                                            int, int, int);
-static void (*macoblox_mouse_scroll_inner)(void *, const void *, const void *);
-static void (*macoblox_mouse_position_override)(id, SEL, int, int);
+static void (*quadra_mouse_scroll_inner)(void *, const void *, const void *);
+static void (*quadra_mouse_position_override)(id, SEL, int, int);
 
-static void macoblox_input_scale_set(double scale) {
+static void quadra_input_scale_set(double scale) {
     union { double value; unsigned long long bits; } factor = { .value = scale };
-    __atomic_store_n(&macoblox_input_scale_bits, factor.bits, __ATOMIC_RELEASE);
+    __atomic_store_n(&quadra_input_scale_bits, factor.bits, __ATOMIC_RELEASE);
 }
 
-static double macoblox_input_scale_get(void) {
+static double quadra_input_scale_get(void) {
     union { double value; unsigned long long bits; } factor;
-    factor.bits = __atomic_load_n(&macoblox_input_scale_bits, __ATOMIC_ACQUIRE);
+    factor.bits = __atomic_load_n(&quadra_input_scale_bits, __ATOMIC_ACQUIRE);
     return factor.value;
 }
 
-static int macoblox_input_scale_allowed(void) {
-    return macoblox_debug_dpi_override && *macoblox_debug_dpi_override != 1;
+static int quadra_input_scale_allowed(void) {
+    return quadra_debug_dpi_override && *quadra_debug_dpi_override != 1;
 }
 
-static void macoblox_scaled_mouse_move(void *engine, int active,
+static void quadra_scaled_mouse_move(void *engine, int active,
                                        float x, float y, float dx, float dy) {
-    double factor = macoblox_input_scale_get();
-    macoblox_mouse_move_inner(engine, macoblox_mouse_source, active,
+    double factor = quadra_input_scale_get();
+    quadra_mouse_move_inner(engine, quadra_mouse_source, active,
                               (float)(x / factor), (float)(y / factor), dx, dy);
 }
 
-static void macoblox_scaled_mouse_button(void *engine, int x, int y,
+static void quadra_scaled_mouse_button(void *engine, int x, int y,
                                          int button, int pressed, int click_count_offset) {
-    double factor = macoblox_input_scale_get();
-    macoblox_mouse_button_inner(engine, macoblox_mouse_source,
+    double factor = quadra_input_scale_get();
+    quadra_mouse_button_inner(engine, quadra_mouse_source,
                                 (int)(x / factor), (int)(y / factor),
                                 button, pressed, click_count_offset);
 }
@@ -54,20 +54,20 @@ static void macoblox_scaled_mouse_button(void *engine, int x, int y,
 /* Scroll/magnification events cache the same physical position as clicks.
  * Their verified handoff is a 32-byte record. Transform only its X/Y;
  * wheel amounts, phases, buttons and other bytes retain their values. */
-static void macoblox_scaled_mouse_scroll(void *engine, const void *event) {
+static void quadra_scaled_mouse_scroll(void *engine, const void *event) {
     union { unsigned char bytes[32]; float components[8]; } copy;
     __builtin_memcpy(copy.bytes, event, sizeof(copy.bytes));
-    double factor = macoblox_input_scale_get();
+    double factor = quadra_input_scale_get();
     copy.components[0] = (float)(copy.components[0] / factor);
     copy.components[1] = (float)(copy.components[1] / factor);
-    macoblox_mouse_scroll_inner(engine, macoblox_mouse_source, copy.bytes);
+    quadra_mouse_scroll_inner(engine, quadra_mouse_source, copy.bytes);
 }
 
 /* Engine-originated position overrides are in the scaled coordinate space.
  * Keep InputCapture's cache physical, as for ordinary pointer events. Its
  * subsequent click/scroll handoffs then divide by the extra scale once. */
-static void macoblox_scaled_position_override(id self, SEL cmd, int x, int y) {
-    double factor = macoblox_input_scale_get();
+static void quadra_scaled_position_override(id self, SEL cmd, int x, int y) {
+    double factor = quadra_input_scale_get();
     double physical_x = x * factor, physical_y = y * factor;
     if (__builtin_isfinite(physical_x) && __builtin_isfinite(physical_y) &&
         physical_x >= -2147483648.0 && physical_x <= 2147483647.0 &&
@@ -75,16 +75,16 @@ static void macoblox_scaled_position_override(id self, SEL cmd, int x, int y) {
         x = (int)physical_x;
         y = (int)physical_y;
     }
-    macoblox_mouse_position_override(self, cmd, x, y);
+    quadra_mouse_position_override(self, cmd, x, y);
 }
 
-static int macoblox_input_string_equal(const char *left, const char *right) {
+static int quadra_input_string_equal(const char *left, const char *right) {
     if (!left || !right) return 0;
     while (*left && *left == *right) { ++left; ++right; }
     return *left == *right;
 }
 
-static Method macoblox_input_owned_method(Class cls, const char *name,
+static Method quadra_input_owned_method(Class cls, const char *name,
                                            const char *encoding) {
     unsigned int count = 0;
     Method *methods = class_copyMethodList(cls, &count);
@@ -93,7 +93,7 @@ static Method macoblox_input_owned_method(Class cls, const char *name,
     if (methods)
         for (unsigned int index = 0; index < count; ++index)
             if (method_getName(methods[index]) == selector &&
-                macoblox_input_string_equal(method_getTypeEncoding(methods[index]), encoding)) {
+                quadra_input_string_equal(method_getTypeEncoding(methods[index]), encoding)) {
                 found = methods[index];
                 break;
             }
@@ -110,36 +110,36 @@ static Method macoblox_input_owned_method(Class cls, const char *name,
 typedef struct {
     unsigned long begin, size, file_offset, file_size;
     unsigned int protection;
-} MacOBloxInputSegment;
+} QuadraInputSegment;
 typedef struct {
-    MacOBloxInputSegment segments[16];
+    QuadraInputSegment segments[16];
     unsigned int count;
     unsigned long text;
     const unsigned char *starts;
     unsigned long starts_size;
-} MacOBloxInputImage;
+} QuadraInputImage;
 
-static unsigned int macoblox_input_u32(const void *pointer) {
+static unsigned int quadra_input_u32(const void *pointer) {
     unsigned int value;
     __builtin_memcpy(&value, pointer, sizeof(value));
     return value;
 }
-static unsigned long macoblox_input_u64(const void *pointer) {
+static unsigned long quadra_input_u64(const void *pointer) {
     unsigned long value;
     __builtin_memcpy(&value, pointer, sizeof(value));
     return value;
 }
-static unsigned long macoblox_input_relative(const unsigned char *displacement) {
+static unsigned long quadra_input_relative(const unsigned char *displacement) {
     int value;
     __builtin_memcpy(&value, displacement, sizeof(value));
     return (unsigned long)(displacement + 4) + (long)value;
 }
 
-static int macoblox_input_range(const MacOBloxInputImage *image,
+static int quadra_input_range(const QuadraInputImage *image,
                                  unsigned long address, unsigned long length,
                                  unsigned int protection) {
     for (unsigned int index = 0; index < image->count; ++index) {
-        const MacOBloxInputSegment *segment = &image->segments[index];
+        const QuadraInputSegment *segment = &image->segments[index];
         if ((segment->protection & protection) == protection &&
             address >= segment->begin && address - segment->begin <= segment->size &&
             length <= segment->size - (address - segment->begin))
@@ -150,12 +150,12 @@ static int macoblox_input_range(const MacOBloxInputImage *image,
 
 /* Parse the loaded main Mach-O, never the installed client file. dyld owns
  * the header; segment permissions and LC_FUNCTION_STARTS bound every scan. */
-static int macoblox_input_image(MacOBloxInputImage *image) {
+static int quadra_input_image(QuadraInputImage *image) {
     const unsigned char *header = _dyld_get_image_header(0);
-    if (!header || macoblox_input_u32(header) != 0xfeedfacf ||
-        macoblox_input_u32(header + 4) != 0x01000007) return 0;
-    unsigned int count = macoblox_input_u32(header + 16);
-    unsigned int command_size = macoblox_input_u32(header + 20);
+    if (!header || quadra_input_u32(header) != 0xfeedfacf ||
+        quadra_input_u32(header + 4) != 0x01000007) return 0;
+    unsigned int count = quadra_input_u32(header + 16);
+    unsigned int command_size = quadra_input_u32(header + 20);
     if (count > 512 || command_size > 1048576) return 0;
     unsigned long slide = (unsigned long)_dyld_get_image_vmaddr_slide(0);
     unsigned int starts_offset = 0, starts_size = 0;
@@ -163,43 +163,43 @@ static int macoblox_input_image(MacOBloxInputImage *image) {
     for (unsigned int index = 0; index < count; ++index) {
         if (position - 32 > command_size || command_size - (position - 32) < 8) return 0;
         const unsigned char *command = header + position;
-        unsigned int type = macoblox_input_u32(command);
-        unsigned int size = macoblox_input_u32(command + 4);
+        unsigned int type = quadra_input_u32(command);
+        unsigned int size = quadra_input_u32(command + 4);
         if (size < 8 || size > command_size - (position - 32)) return 0;
         if (type == 0x19) { /* LC_SEGMENT_64 */
             if (size < 72 || image->count == 16) return 0;
-            MacOBloxInputSegment *segment = &image->segments[image->count++];
-            segment->begin = macoblox_input_u64(command + 24) + slide;
-            segment->size = macoblox_input_u64(command + 32);
-            segment->file_offset = macoblox_input_u64(command + 40);
-            segment->file_size = macoblox_input_u64(command + 48);
-            segment->protection = macoblox_input_u32(command + 60);
+            QuadraInputSegment *segment = &image->segments[image->count++];
+            segment->begin = quadra_input_u64(command + 24) + slide;
+            segment->size = quadra_input_u64(command + 32);
+            segment->file_offset = quadra_input_u64(command + 40);
+            segment->file_size = quadra_input_u64(command + 48);
+            segment->protection = quadra_input_u32(command + 60);
             if (segment->size > ~0UL - segment->begin) return 0;
             if ((segment->protection & 5) == 5 && !segment->file_offset)
                 image->text = segment->begin;
         } else if (type == 0x26) { /* LC_FUNCTION_STARTS */
             if (size != 16 || starts_size) return 0;
-            starts_offset = macoblox_input_u32(command + 8);
-            starts_size = macoblox_input_u32(command + 12);
+            starts_offset = quadra_input_u32(command + 8);
+            starts_size = quadra_input_u32(command + 12);
         }
         position += size;
     }
     if (image->text != (unsigned long)header || !starts_size || starts_size > 2097152) return 0;
     for (unsigned int index = 0; index < image->count; ++index) {
-        MacOBloxInputSegment *segment = &image->segments[index];
+        QuadraInputSegment *segment = &image->segments[index];
         if (starts_offset >= segment->file_offset &&
             starts_offset - segment->file_offset <= segment->file_size &&
             starts_size <= segment->file_size - (starts_offset - segment->file_offset)) {
             image->starts = (const unsigned char *)(segment->begin +
                 starts_offset - segment->file_offset);
             image->starts_size = starts_size;
-            return macoblox_input_range(image, (unsigned long)image->starts, starts_size, 1);
+            return quadra_input_range(image, (unsigned long)image->starts, starts_size, 1);
         }
     }
     return 0;
 }
 
-static int macoblox_input_next_function(const MacOBloxInputImage *image,
+static int quadra_input_next_function(const QuadraInputImage *image,
                                          unsigned long *position, unsigned long *address) {
     unsigned long delta = 0;
     unsigned int shift = 0;
@@ -217,12 +217,12 @@ static int macoblox_input_next_function(const MacOBloxInputImage *image,
     return 1;
 }
 
-static unsigned long macoblox_input_function_size(const MacOBloxInputImage *image,
+static unsigned long quadra_input_function_size(const QuadraInputImage *image,
                                                   const void *function) {
     unsigned long address = image->text, wanted = (unsigned long)function;
     unsigned long position = 0;
     int found = 0;
-    while (macoblox_input_next_function(image, &position, &address) > 0) {
+    while (quadra_input_next_function(image, &position, &address) > 0) {
         if (found) return address - wanted;
         if (address == wanted) found = 1;
         if (address > wanted && !found) return 0;
@@ -230,7 +230,7 @@ static unsigned long macoblox_input_function_size(const MacOBloxInputImage *imag
     return 0;
 }
 
-static int macoblox_input_bytes(const unsigned char *pointer,
+static int quadra_input_bytes(const unsigned char *pointer,
                                 const unsigned char *expected, unsigned long size) {
     for (unsigned long index = 0; index < size; ++index)
         if (pointer[index] != expected[index]) return 0;
@@ -240,7 +240,7 @@ static int macoblox_input_bytes(const unsigned char *pointer,
 /* A client debug override can reject a changed Settings.scale. Find its
  * setter predicate and named flag registration in the loaded image. Reading
  * this flag preserves client overrides without patching renderer code. */
-static int macoblox_input_find_dpi_override(const MacOBloxInputImage *image) {
+static int quadra_input_find_dpi_override(const QuadraInputImage *image) {
     static const unsigned char setter_head[] = {
         0x55,0x48,0x89,0xe5,0x41,0x57,0x41,0x56,0x53,0x50,0x48,0x89,0xfb,0x80,0x3d};
     static const unsigned char predicate[] = {0x01,0x75,0x17,0xf3,0x0f,0x2a,0x0d};
@@ -256,57 +256,57 @@ static int macoblox_input_find_dpi_override(const MacOBloxInputImage *image) {
     unsigned long position = 0, address = image->text;
     unsigned long setter_flag = 0, named_flag = 0;
     int next;
-    while ((next = macoblox_input_next_function(image, &position, &address)) > 0) {
+    while ((next = quadra_input_next_function(image, &position, &address)) > 0) {
         const unsigned char *function = (const unsigned char *)address;
-        if (!macoblox_input_range(image, address, 29, 5)) continue;
-        if (macoblox_input_bytes(function, setter_head, sizeof(setter_head)) &&
-            macoblox_input_range(image, address, 344, 5) &&
-            macoblox_input_bytes(function + 19, predicate, sizeof(predicate)) &&
-            macoblox_input_bytes(function + 30, comparison, sizeof(comparison)) &&
-            macoblox_input_bytes(function + 45, previous_dpi, sizeof(previous_dpi)) &&
-            macoblox_input_bytes(function + 132, store_dpi, sizeof(store_dpi))) {
+        if (!quadra_input_range(image, address, 29, 5)) continue;
+        if (quadra_input_bytes(function, setter_head, sizeof(setter_head)) &&
+            quadra_input_range(image, address, 344, 5) &&
+            quadra_input_bytes(function + 19, predicate, sizeof(predicate)) &&
+            quadra_input_bytes(function + 30, comparison, sizeof(comparison)) &&
+            quadra_input_bytes(function + 45, previous_dpi, sizeof(previous_dpi)) &&
+            quadra_input_bytes(function + 132, store_dpi, sizeof(store_dpi))) {
             if (setter_flag ||
-                macoblox_input_function_size(image, function) < 344 ||
+                quadra_input_function_size(image, function) < 344 ||
                 function[39] != 0x0f || function[40] != 0x8a ||
-                macoblox_input_relative(function + 35) != address + 333 ||
-                macoblox_input_relative(function + 41) != address + 333 ||
-                !macoblox_input_bytes(function + 333, setter_return, sizeof(setter_return)) ||
+                quadra_input_relative(function + 35) != address + 333 ||
+                quadra_input_relative(function + 41) != address + 333 ||
+                !quadra_input_bytes(function + 333, setter_return, sizeof(setter_return)) ||
                 function[113] != 0x48 || function[114] != 0x8d || function[115] != 0x15)
                 return 0;
-            unsigned long log = macoblox_input_relative(function + 116);
-            unsigned long override_value = macoblox_input_relative(function + 26);
+            unsigned long log = quadra_input_relative(function + 116);
+            unsigned long override_value = quadra_input_relative(function + 26);
             /* cmpb has a trailing immediate after its RIP displacement. */
-            setter_flag = macoblox_input_relative(function + 15) + 1;
-            if (!macoblox_input_range(image, log, sizeof(setter_log), 1) ||
-                !macoblox_input_bytes((const unsigned char *)log,
+            setter_flag = quadra_input_relative(function + 15) + 1;
+            if (!quadra_input_range(image, log, sizeof(setter_log), 1) ||
+                !quadra_input_bytes((const unsigned char *)log,
                                        (const unsigned char *)setter_log, sizeof(setter_log)) ||
                 (override_value & 3) ||
-                !macoblox_input_range(image, override_value, 4, 3) ||
-                macoblox_input_range(image, override_value, 4, 4) ||
-                !macoblox_input_range(image, setter_flag, 1, 3) ||
-                macoblox_input_range(image, setter_flag, 1, 4)) return 0;
+                !quadra_input_range(image, override_value, 4, 3) ||
+                quadra_input_range(image, override_value, 4, 4) ||
+                !quadra_input_range(image, setter_flag, 1, 3) ||
+                quadra_input_range(image, setter_flag, 1, 4)) return 0;
         }
-        if (macoblox_input_bytes(function, registration_head, sizeof(registration_head)) &&
-            macoblox_input_bytes(function + 11, registration_flag, sizeof(registration_flag)) &&
-            macoblox_input_bytes(function + 18, registration_tail, sizeof(registration_tail))) {
-            unsigned long name = macoblox_input_relative(function + 7);
-            if (!macoblox_input_range(image, name, sizeof(flag_name), 1) ||
-                !macoblox_input_bytes((const unsigned char *)name,
+        if (quadra_input_bytes(function, registration_head, sizeof(registration_head)) &&
+            quadra_input_bytes(function + 11, registration_flag, sizeof(registration_flag)) &&
+            quadra_input_bytes(function + 18, registration_tail, sizeof(registration_tail))) {
+            unsigned long name = quadra_input_relative(function + 7);
+            if (!quadra_input_range(image, name, sizeof(flag_name), 1) ||
+                !quadra_input_bytes((const unsigned char *)name,
                                        (const unsigned char *)flag_name, sizeof(flag_name))) continue;
-            if (named_flag || macoblox_input_function_size(image, function) < 29 ||
-                !macoblox_input_range(image, macoblox_input_relative(function + 25), 16, 5))
+            if (named_flag || quadra_input_function_size(image, function) < 29 ||
+                !quadra_input_range(image, quadra_input_relative(function + 25), 16, 5))
                 return 0;
-            named_flag = macoblox_input_relative(function + 14);
+            named_flag = quadra_input_relative(function + 14);
         }
     }
     if (next < 0 || !setter_flag || setter_flag != named_flag) return 0;
-    macoblox_debug_dpi_override = (const volatile unsigned char *)setter_flag;
+    quadra_debug_dpi_override = (const volatile unsigned char *)setter_flag;
     return 1;
 }
 
 /* Exact wrapper contracts with only RIP-relative displacements decoded.
  * Layout changes in wrappers or inner ABIs disable the paired DPI hook. */
-static int macoblox_input_wrapper(const MacOBloxInputImage *image,
+static int quadra_input_wrapper(const QuadraInputImage *image,
                                   const unsigned char *wrapper, int button,
                                   void **source, void **inner) {
     static const unsigned char move_head[] = {0x55,0x48,0x89,0xe5,0x89,0xf2,0x48,0x8d,0x35};
@@ -317,42 +317,42 @@ static int macoblox_input_wrapper(const MacOBloxInputImage *image,
     static const unsigned char button_call[] = {0x41,0x89,0xc1,0xe8};
     static const unsigned char button_tail[] = {0x48,0x83,0xc4,0x10,0x5d,0xc3};
     unsigned long length = button ? 43 : 19;
-    if (macoblox_input_function_size(image, wrapper) < length ||
-        !macoblox_input_range(image, (unsigned long)wrapper, length, 5)) return 0;
+    if (quadra_input_function_size(image, wrapper) < length ||
+        !quadra_input_range(image, (unsigned long)wrapper, length, 5)) return 0;
     if (button) {
-        if (!macoblox_input_bytes(wrapper, button_head, sizeof(button_head)) ||
-            !macoblox_input_bytes(wrapper + 29, button_call, sizeof(button_call)) ||
-            !macoblox_input_bytes(wrapper + 37, button_tail, sizeof(button_tail))) return 0;
-        *source = (void *)macoblox_input_relative(wrapper + 25);
-        *inner = (void *)macoblox_input_relative(wrapper + 33);
+        if (!quadra_input_bytes(wrapper, button_head, sizeof(button_head)) ||
+            !quadra_input_bytes(wrapper + 29, button_call, sizeof(button_call)) ||
+            !quadra_input_bytes(wrapper + 37, button_tail, sizeof(button_tail))) return 0;
+        *source = (void *)quadra_input_relative(wrapper + 25);
+        *inner = (void *)quadra_input_relative(wrapper + 33);
     } else {
-        if (!macoblox_input_bytes(wrapper, move_head, sizeof(move_head)) ||
-            !macoblox_input_bytes(wrapper + 13, move_tail, sizeof(move_tail))) return 0;
-        *source = (void *)macoblox_input_relative(wrapper + 9);
-        *inner = (void *)macoblox_input_relative(wrapper + 15);
+        if (!quadra_input_bytes(wrapper, move_head, sizeof(move_head)) ||
+            !quadra_input_bytes(wrapper + 13, move_tail, sizeof(move_tail))) return 0;
+        *source = (void *)quadra_input_relative(wrapper + 9);
+        *inner = (void *)quadra_input_relative(wrapper + 15);
     }
-    return macoblox_input_range(image, (unsigned long)*source, 24, 1) &&
-           !macoblox_input_range(image, (unsigned long)*source, 24, 4) &&
-           macoblox_input_range(image, (unsigned long)*inner, 96, 5);
+    return quadra_input_range(image, (unsigned long)*source, 24, 1) &&
+           !quadra_input_range(image, (unsigned long)*source, 24, 4) &&
+           quadra_input_range(image, (unsigned long)*inner, 96, 5);
 }
 
-static const unsigned char *macoblox_input_find_wrapper(const MacOBloxInputImage *image,
+static const unsigned char *quadra_input_find_wrapper(const QuadraInputImage *image,
                                                         Method method, const char *name, int button) {
     const unsigned char *function = (const unsigned char *)method_getImplementation(method);
-    unsigned long length = macoblox_input_function_size(image, function);
+    unsigned long length = quadra_input_function_size(image, function);
     if (length < 5 || length > 4096 ||
-        !macoblox_input_range(image, (unsigned long)function, length, 5)) goto unsupported;
+        !quadra_input_range(image, (unsigned long)function, length, 5)) goto unsupported;
     const unsigned char *found = 0;
     for (unsigned long index = 0; index + 5 <= length; ++index) {
         if (function[index] != 0xe8) continue;
-        const unsigned char *target = (const unsigned char *)macoblox_input_relative(function + index + 1);
+        const unsigned char *target = (const unsigned char *)quadra_input_relative(function + index + 1);
         void *source, *inner;
-        if (!macoblox_input_wrapper(image, target, button, &source, &inner)) continue;
+        if (!quadra_input_wrapper(image, target, button, &source, &inner)) continue;
         /* Check the direct call's argument setup as well as its target. */
         static const unsigned char move_args[] = {0x48,0x89,0xc7,0xbe,0x01,0x00,0x00,0x00};
         static const unsigned char button_args[] = {0x0f,0xb6,0x4d,0xd0,0x48,0x89,0xc7};
         unsigned long args_size = button ? sizeof(button_args) : sizeof(move_args);
-        if (index < args_size || !macoblox_input_bytes(function + index - args_size,
+        if (index < args_size || !quadra_input_bytes(function + index - args_size,
             button ? button_args : move_args, args_size) || found) goto unsupported;
         found = target;
     }
@@ -364,7 +364,7 @@ unsupported:
     return 0;
 }
 
-static int macoblox_input_inner_abi(const MacOBloxInputImage *image,
+static int quadra_input_inner_abi(const QuadraInputImage *image,
                                    const unsigned char *move, const unsigned char *button) {
     static const unsigned char move_prefix[] = {
         0x55,0x48,0x89,0xe5,0x41,0x57,0x41,0x56,0x53,0x48,0x83,0xec,0x78,
@@ -384,90 +384,90 @@ static int macoblox_input_inner_abi(const MacOBloxInputImage *image,
         0x48,0x85,0xc0,0x74,0x67,0xf3,0x0f,0x10,0x88,0xb0,0x04,0x00,0x00};
     static const unsigned char helper_scale[] = {
         0x48,0x85,0xc0,0x74,0x53,0xf3,0x0f,0x10,0x88,0xb0,0x04,0x00,0x00};
-    if (macoblox_input_function_size(image, move) < 80 ||
-        macoblox_input_function_size(image, button) < 80 ||
-        !macoblox_input_bytes(move, move_prefix, sizeof(move_prefix)) ||
-        !macoblox_input_bytes(button, button_prefix, sizeof(button_prefix)) ||
-        !macoblox_input_bytes(move + 67, move_scale, sizeof(move_scale))) return 0;
-    const unsigned char *helper = (const unsigned char *)macoblox_input_relative(button + 50);
-    unsigned long service = macoblox_input_relative(move + 63);
-    return macoblox_input_range(image, service, 16, 5) &&
-        macoblox_input_range(image, (unsigned long)helper, 32, 5) &&
-        macoblox_input_function_size(image, helper) >= 32 &&
-        macoblox_input_bytes(helper, helper_prefix, sizeof(helper_prefix)) &&
-        macoblox_input_bytes(helper + 18, helper_scale, sizeof(helper_scale)) &&
-        macoblox_input_relative(helper + 14) == service;
+    if (quadra_input_function_size(image, move) < 80 ||
+        quadra_input_function_size(image, button) < 80 ||
+        !quadra_input_bytes(move, move_prefix, sizeof(move_prefix)) ||
+        !quadra_input_bytes(button, button_prefix, sizeof(button_prefix)) ||
+        !quadra_input_bytes(move + 67, move_scale, sizeof(move_scale))) return 0;
+    const unsigned char *helper = (const unsigned char *)quadra_input_relative(button + 50);
+    unsigned long service = quadra_input_relative(move + 63);
+    return quadra_input_range(image, service, 16, 5) &&
+        quadra_input_range(image, (unsigned long)helper, 32, 5) &&
+        quadra_input_function_size(image, helper) >= 32 &&
+        quadra_input_bytes(helper, helper_prefix, sizeof(helper_prefix)) &&
+        quadra_input_bytes(helper + 18, helper_scale, sizeof(helper_scale)) &&
+        quadra_input_relative(helper + 14) == service;
 }
 
-static int macoblox_input_scroll_wrapper(const MacOBloxInputImage *image,
+static int quadra_input_scroll_wrapper(const QuadraInputImage *image,
                                          const unsigned char *wrapper,
                                          void **source, void **inner) {
     static const unsigned char head[] = {0x55,0x48,0x89,0xe5,0x48,0x89,0xf2,0x48,0x8d,0x35};
     static const unsigned char tail[] = {0x5d,0xe9};
-    if (!macoblox_input_range(image, (unsigned long)wrapper, 20, 5) ||
-        macoblox_input_function_size(image, wrapper) < 20 ||
-        !macoblox_input_bytes(wrapper, head, sizeof(head)) ||
-        !macoblox_input_bytes(wrapper + 14, tail, sizeof(tail))) return 0;
-    *source = (void *)macoblox_input_relative(wrapper + 10);
-    *inner = (void *)macoblox_input_relative(wrapper + 16);
+    if (!quadra_input_range(image, (unsigned long)wrapper, 20, 5) ||
+        quadra_input_function_size(image, wrapper) < 20 ||
+        !quadra_input_bytes(wrapper, head, sizeof(head)) ||
+        !quadra_input_bytes(wrapper + 14, tail, sizeof(tail))) return 0;
+    *source = (void *)quadra_input_relative(wrapper + 10);
+    *inner = (void *)quadra_input_relative(wrapper + 16);
     static const unsigned char inner_head[] = {
         0x55,0x48,0x89,0xe5,0x41,0x57,0x41,0x56,0x53,0x48,0x83,0xec,0x38,
         0x49,0x89,0xf7,0x48,0x89,0xfb,0x0f,0x10,0x02,0x0f,0x10,0x4a,0x10,
         0x4c,0x8d,0x75,0xb0,0x41,0x0f,0x29,0x4e,0x10,0x41,0x0f,0x29,0x06,
         0x4c,0x89,0xf6,0xe8};
     const unsigned char *function = *inner;
-    if (!macoblox_input_range(image, (unsigned long)*source, 24, 1) ||
-        macoblox_input_range(image, (unsigned long)*source, 24, 4) ||
-        !macoblox_input_range(image, (unsigned long)function, 47, 5) ||
-        macoblox_input_function_size(image, function) < 47 ||
-        !macoblox_input_bytes(function, inner_head, sizeof(inner_head))) return 0;
-    const unsigned char *helper = (const unsigned char *)macoblox_input_relative(function + 43);
+    if (!quadra_input_range(image, (unsigned long)*source, 24, 1) ||
+        quadra_input_range(image, (unsigned long)*source, 24, 4) ||
+        !quadra_input_range(image, (unsigned long)function, 47, 5) ||
+        quadra_input_function_size(image, function) < 47 ||
+        !quadra_input_bytes(function, inner_head, sizeof(inner_head))) return 0;
+    const unsigned char *helper = (const unsigned char *)quadra_input_relative(function + 43);
     static const unsigned char helper_head[] = {0x55,0x48,0x89,0xe5,0x53,0x50,0x48,0x89,0xf3,0xe8};
     static const unsigned char helper_scale[] = {0xf3,0x0f,0x10,0x88,0xb0,0x04,0x00,0x00};
-    return macoblox_input_range(image, (unsigned long)helper, 27, 5) &&
-        macoblox_input_function_size(image, helper) >= 27 &&
-        macoblox_input_bytes(helper, helper_head, sizeof(helper_head)) &&
-        macoblox_input_bytes(helper + 19, helper_scale, sizeof(helper_scale)) &&
-        macoblox_input_relative(helper + 10) ==
-            macoblox_input_relative((const unsigned char *)macoblox_mouse_move_inner + 63);
+    return quadra_input_range(image, (unsigned long)helper, 27, 5) &&
+        quadra_input_function_size(image, helper) >= 27 &&
+        quadra_input_bytes(helper, helper_head, sizeof(helper_head)) &&
+        quadra_input_bytes(helper + 19, helper_scale, sizeof(helper_scale)) &&
+        quadra_input_relative(helper + 10) ==
+            quadra_input_relative((const unsigned char *)quadra_mouse_move_inner + 63);
 }
 
-static unsigned char *macoblox_input_find_scroll_wrapper(const MacOBloxInputImage *image,
+static unsigned char *quadra_input_find_scroll_wrapper(const QuadraInputImage *image,
                                                          Method method) {
     const unsigned char *function = (const unsigned char *)method_getImplementation(method);
-    unsigned long length = macoblox_input_function_size(image, function);
+    unsigned long length = quadra_input_function_size(image, function);
     if (length < 12 || length > 4096 ||
-        !macoblox_input_range(image, (unsigned long)function, length, 5)) return 0;
+        !quadra_input_range(image, (unsigned long)function, length, 5)) return 0;
     unsigned char *found = 0;
     for (unsigned long index = 7; index + 5 <= length; index++) {
         if (function[index] != 0xe8 || function[index-7] != 0x48 ||
             function[index-6] != 0x8d || function[index-5] != 0x75 ||
             function[index-3] != 0x48 || function[index-2] != 0x89 || function[index-1] != 0xc7)
             continue;
-        unsigned char *target = (unsigned char *)macoblox_input_relative(function + index + 1);
+        unsigned char *target = (unsigned char *)quadra_input_relative(function + index + 1);
         void *source, *inner;
-        if (!macoblox_input_scroll_wrapper(image, target, &source, &inner)) continue;
+        if (!quadra_input_scroll_wrapper(image, target, &source, &inner)) continue;
         if (found) return 0;
         found = target;
     }
     return found;
 }
 
-static int macoblox_input_override_abi(const MacOBloxInputImage *image, Method method) {
+static int quadra_input_override_abi(const QuadraInputImage *image, Method method) {
     const unsigned char *function = (const unsigned char *)method_getImplementation(method);
     static const unsigned char head[] = {
         0x55,0x48,0x89,0xe5,0xf2,0x0f,0x2a,0xc2,0xf2,0x0f,0x2a,0xc9,0x48,0x8b,0x05};
     static const unsigned char tail[] = {
         0xf2,0x0f,0x11,0x04,0x07,0xf2,0x0f,0x11,0x4c,0x07,0x08,0x5d,0xc3};
-    if (!macoblox_input_range(image, (unsigned long)function, 32, 5) ||
-        macoblox_input_function_size(image, function) != 32 ||
-        !macoblox_input_bytes(function, head, sizeof(head)) ||
-        !macoblox_input_bytes(function + 19, tail, sizeof(tail))) return 0;
-    unsigned long offset = macoblox_input_relative(function + 15);
-    return macoblox_input_range(image, offset, sizeof(unsigned long), 1);
+    if (!quadra_input_range(image, (unsigned long)function, 32, 5) ||
+        quadra_input_function_size(image, function) != 32 ||
+        !quadra_input_bytes(function, head, sizeof(head)) ||
+        !quadra_input_bytes(function + 19, tail, sizeof(tail))) return 0;
+    unsigned long offset = quadra_input_relative(function + 15);
+    return quadra_input_range(image, offset, sizeof(unsigned long), 1);
 }
 
-static void macoblox_input_jump(unsigned char *entry, const void *replacement) {
+static void quadra_input_jump(unsigned char *entry, const void *replacement) {
     static const unsigned char jump[] = {0xff,0x25,0x00,0x00,0x00,0x00};
     __builtin_memcpy(entry, jump, sizeof(jump));
     __builtin_memcpy(entry + sizeof(jump), &replacement, sizeof(replacement));
@@ -475,40 +475,40 @@ static void macoblox_input_jump(unsigned char *entry, const void *replacement) {
 
 /* Called only during the injected constructor or before finishLaunching
  * enters client code. Entry writes must never run during event dispatch. */
-static int macoblox_install_input_scale_hooks(void) {
+static int quadra_install_input_scale_hooks(void) {
     Class cls = objc_getClass("InputCapture");
     if (!cls) return 0; /* Its image may not have loaded yet. */
-    Method move = macoblox_input_owned_method(cls, "handleMouseMoveEvent:", "v24@0:8@16");
-    Method entered = macoblox_input_owned_method(cls, "handleMouseEntered:", "v24@0:8@16");
-    Method button = macoblox_input_owned_method(cls, "handleMouseButtonEvent:isPressed:", "v28@0:8@16c24");
-    Method software = macoblox_input_owned_method(cls, "transitionToSoftwareIconCursor", "i16@0:8");
-    Method scroll = macoblox_input_owned_method(cls, "handleScroll:", "v24@0:8@16");
-    Method magnify = macoblox_input_owned_method(cls, "handleMagnification:", "v24@0:8@16");
-    Method override = macoblox_input_owned_method(cls, "mousePositionOverridePosX:Y:", "v24@0:8i16i20");
+    Method move = quadra_input_owned_method(cls, "handleMouseMoveEvent:", "v24@0:8@16");
+    Method entered = quadra_input_owned_method(cls, "handleMouseEntered:", "v24@0:8@16");
+    Method button = quadra_input_owned_method(cls, "handleMouseButtonEvent:isPressed:", "v28@0:8@16c24");
+    Method software = quadra_input_owned_method(cls, "transitionToSoftwareIconCursor", "i16@0:8");
+    Method scroll = quadra_input_owned_method(cls, "handleScroll:", "v24@0:8@16");
+    Method magnify = quadra_input_owned_method(cls, "handleMagnification:", "v24@0:8@16");
+    Method override = quadra_input_owned_method(cls, "mousePositionOverridePosX:Y:", "v24@0:8i16i20");
     if (!move || !entered || !button || !software || !scroll || !magnify || !override) return -1;
-    MacOBloxInputImage image = {0};
-    if (!macoblox_input_image(&image) || !macoblox_input_find_dpi_override(&image)) return -1;
-    unsigned char *move_wrapper = (unsigned char *)macoblox_input_find_wrapper(
+    QuadraInputImage image = {0};
+    if (!quadra_input_image(&image) || !quadra_input_find_dpi_override(&image)) return -1;
+    unsigned char *move_wrapper = (unsigned char *)quadra_input_find_wrapper(
         &image, move, "handleMouseMoveEvent:", 0);
-    unsigned char *button_wrapper = (unsigned char *)macoblox_input_find_wrapper(
+    unsigned char *button_wrapper = (unsigned char *)quadra_input_find_wrapper(
         &image, button, "handleMouseButtonEvent:isPressed:", 1);
     if (!move_wrapper || !button_wrapper || move_wrapper == button_wrapper ||
-        macoblox_input_find_wrapper(&image, entered, "handleMouseEntered:", 0) != move_wrapper ||
-        macoblox_input_find_wrapper(&image, software, "transitionToSoftwareIconCursor", 0) != move_wrapper)
+        quadra_input_find_wrapper(&image, entered, "handleMouseEntered:", 0) != move_wrapper ||
+        quadra_input_find_wrapper(&image, software, "transitionToSoftwareIconCursor", 0) != move_wrapper)
         return -1;
     void *move_source, *button_source, *move_inner, *button_inner;
-    if (!macoblox_input_wrapper(&image, move_wrapper, 0, &move_source, &move_inner) ||
-        !macoblox_input_wrapper(&image, button_wrapper, 1, &button_source, &button_inner) ||
+    if (!quadra_input_wrapper(&image, move_wrapper, 0, &move_source, &move_inner) ||
+        !quadra_input_wrapper(&image, button_wrapper, 1, &button_source, &button_inner) ||
         move_source != button_source ||
-        !macoblox_input_inner_abi(&image, move_inner, button_inner)) return -1;
+        !quadra_input_inner_abi(&image, move_inner, button_inner)) return -1;
     /* Used only by the validation of the shared effective-UI-scale helper. */
-    macoblox_mouse_move_inner = (void (*)(void *, const void *, int, float, float, float, float))move_inner;
-    unsigned char *scroll_wrapper = macoblox_input_find_scroll_wrapper(&image, scroll);
+    quadra_mouse_move_inner = (void (*)(void *, const void *, int, float, float, float, float))move_inner;
+    unsigned char *scroll_wrapper = quadra_input_find_scroll_wrapper(&image, scroll);
     void *scroll_source, *scroll_inner;
     if (!scroll_wrapper || scroll_wrapper == move_wrapper || scroll_wrapper == button_wrapper ||
-        macoblox_input_find_scroll_wrapper(&image, magnify) != scroll_wrapper ||
-        !macoblox_input_scroll_wrapper(&image, scroll_wrapper, &scroll_source, &scroll_inner) ||
-        scroll_source != move_source || !macoblox_input_override_abi(&image, override)) {
+        quadra_input_find_scroll_wrapper(&image, magnify) != scroll_wrapper ||
+        !quadra_input_scroll_wrapper(&image, scroll_wrapper, &scroll_source, &scroll_inner) ||
+        scroll_source != move_source || !quadra_input_override_abi(&image, override)) {
         write_str("[Quadra] UI scale skipped: unsupported scroll or locked mouse position handoff\n");
         return -1;
     }
@@ -521,9 +521,9 @@ static int macoblox_install_input_scale_hooks(void) {
     if (((unsigned long)move_wrapper & mask) > mask - 13 ||
         ((unsigned long)button_wrapper & mask) > mask - 13 ||
         ((unsigned long)scroll_wrapper & mask) > mask - 13 ||
-        !macoblox_input_range(&image, pages[0], page_size, 5) ||
-        !macoblox_input_range(&image, pages[1], page_size, 5) ||
-        !macoblox_input_range(&image, pages[2], page_size, 5)) return -1;
+        !quadra_input_range(&image, pages[0], page_size, 5) ||
+        !quadra_input_range(&image, pages[1], page_size, 5) ||
+        !quadra_input_range(&image, pages[2], page_size, 5)) return -1;
     unsigned int page_count = pages[0] == pages[1] ? 1 : 2;
     if (pages[2] != pages[0] && pages[2] != pages[1]) pages[page_count++] = pages[2];
     for (unsigned int index = 0; index < page_count; ++index)
@@ -533,15 +533,15 @@ static int macoblox_install_input_scale_hooks(void) {
                     write_str("[Quadra] UI scale: client text protection restore failed\n");
             return -2;
         }
-    macoblox_mouse_source = move_source;
-    macoblox_mouse_move_inner = (void (*)(void *, const void *, int, float, float, float, float))move_inner;
-    macoblox_mouse_button_inner = (void (*)(void *, const void *, int, int, int, int, int))button_inner;
-    macoblox_mouse_scroll_inner = (void (*)(void *, const void *, const void *))scroll_inner;
-    macoblox_mouse_position_override = (void (*)(id, SEL, int, int))method_getImplementation(override);
+    quadra_mouse_source = move_source;
+    quadra_mouse_move_inner = (void (*)(void *, const void *, int, float, float, float, float))move_inner;
+    quadra_mouse_button_inner = (void (*)(void *, const void *, int, int, int, int, int))button_inner;
+    quadra_mouse_scroll_inner = (void (*)(void *, const void *, const void *))scroll_inner;
+    quadra_mouse_position_override = (void (*)(id, SEL, int, int))method_getImplementation(override);
     __atomic_thread_fence(__ATOMIC_RELEASE);
-    macoblox_input_jump(move_wrapper, (const void *)macoblox_scaled_mouse_move);
-    macoblox_input_jump(button_wrapper, (const void *)macoblox_scaled_mouse_button);
-    macoblox_input_jump(scroll_wrapper, (const void *)macoblox_scaled_mouse_scroll);
+    quadra_input_jump(move_wrapper, (const void *)quadra_scaled_mouse_move);
+    quadra_input_jump(button_wrapper, (const void *)quadra_scaled_mouse_button);
+    quadra_input_jump(scroll_wrapper, (const void *)quadra_scaled_mouse_scroll);
     __builtin___clear_cache((char *)move_wrapper, (char *)move_wrapper + 14);
     __builtin___clear_cache((char *)button_wrapper, (char *)button_wrapper + 14);
     __builtin___clear_cache((char *)scroll_wrapper, (char *)scroll_wrapper + 14);
@@ -553,10 +553,10 @@ static int macoblox_install_input_scale_hooks(void) {
     if (!restored)
         write_str("[Quadra] UI scale disabled: client text protection restore failed; mouse adapters remain 1x\n");
     if (restored)
-        method_setImplementation(override, (IMP)macoblox_scaled_position_override);
+        method_setImplementation(override, (IMP)quadra_scaled_position_override);
     return restored ? 1 : -2;
 }
 #else
-static int macoblox_install_input_scale_hooks(void) { return -1; }
+static int quadra_install_input_scale_hooks(void) { return -1; }
 #endif
 #endif

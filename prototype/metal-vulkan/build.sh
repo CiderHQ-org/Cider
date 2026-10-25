@@ -2,11 +2,11 @@
 # Metal on Vulkan: the guest Metal.framework (Darwin, needs clang + lld and
 # Darling's runtime sysroot) and the host library (Linux, needs Rust 1.98+).
 #   prototype/metal-vulkan/build.sh [framework|host|all]   (default: all)
-# Output: $MACOBLOX_BUILD_DIR/metal (default build/metal).
+# Output: $QUADRA_BUILD_DIR/metal (default build/metal).
 set -euo pipefail
 here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 project_dir=$(dirname -- "$(dirname -- "$here")")
-build_dir=${MACOBLOX_BUILD_DIR:-$project_dir/build}/metal
+build_dir=${QUADRA_BUILD_DIR:-$project_dir/build}/metal
 what=${1:-all}
 mkdir -p "$build_dir"
 
@@ -16,7 +16,7 @@ build_framework() {
     sysroot=$(python3 - "$project_dir/launcher" <<'PY'
 import sys
 sys.path.insert(0, sys.argv[1])
-from macoblox.runtime import resolve_runtime
+from quadra.runtime import resolve_runtime
 print(resolve_runtime()['sysroot'])
 PY
     )

@@ -42,47 +42,47 @@ extern long _dyld_get_image_vmaddr_slide(unsigned int image_index);
 static void write_str(const char* s);
 static void print_hex(unsigned long long val);
 static void print_num(long long val);
-extern int macoblox_wayland_enabled(void);
-extern int macoblox_wayland_captured(void);
-extern id macoblox_wayland_display(void);
-extern int macoblox_wayland_associate(unsigned int);
+extern int quadra_wayland_enabled(void);
+extern int quadra_wayland_captured(void);
+extern id quadra_wayland_display(void);
+extern int quadra_wayland_associate(unsigned int);
 
-// A MACOBLOX_* switch: on when set to anything but "" or "0".
-static int macoblox_env_on(const char* name) {
+// A QUADRA_* switch: on when set to anything but "" or "0".
+static int quadra_env_on(const char* name) {
     const char* value = getenv(name);
     return value && value[0] && !(value[0] == '0' && !value[1]);
 }
 
 // The same, read once: `*cache` starts at -1.
-static int macoblox_env_cached(const char* name, volatile int* cache) {
+static int quadra_env_cached(const char* name, volatile int* cache) {
     int value = *cache;
     if (value < 0)
-        *cache = value = macoblox_env_on(name);
+        *cache = value = quadra_env_on(name);
     return value;
 }
 
 // dlsym(RTLD_NEXT, name), looked up once per call site: Darling's dlsym
 // walks every loaded image, far too slow for per-frame or per-throw paths.
-#define MACOBLOX_NEXT(type, name) ({ \
-    static void* volatile macoblox_next_cache; \
-    void* macoblox_next_symbol = macoblox_next_cache; \
-    if (!macoblox_next_symbol) \
-        macoblox_next_cache = macoblox_next_symbol = dlsym(RTLD_NEXT, name); \
-    (type)macoblox_next_symbol; })
+#define QUADRA_NEXT(type, name) ({ \
+    static void* volatile quadra_next_cache; \
+    void* quadra_next_symbol = quadra_next_cache; \
+    if (!quadra_next_symbol) \
+        quadra_next_cache = quadra_next_symbol = dlsym(RTLD_NEXT, name); \
+    (type)quadra_next_symbol; })
 
 // Darling can create an IONotificationPort but currently returns an error when
 // Roblox registers HID matching notifications.  Roblox then destroys the port
 // and attempts a second registration with the cleared pointer, which crashes
 // inside IOKit.  Report a valid empty registration: controller hot-plugging is
 // unavailable, while AppKit keyboard and mouse input remain unaffected.
-typedef void (*MacOBloxIOServiceMatchingCallback)(void*, unsigned int);
+typedef void (*QuadraIOServiceMatchingCallback)(void*, unsigned int);
 extern int IOServiceAddMatchingNotification(
-    void*, const char*, void*, MacOBloxIOServiceMatchingCallback, void*, unsigned int*);
-static int macoblox_IOServiceAddMatchingNotification(
+    void*, const char*, void*, QuadraIOServiceMatchingCallback, void*, unsigned int*);
+static int quadra_IOServiceAddMatchingNotification(
     void* notification_port,
     const char* notification_type,
     void* matching,
-    MacOBloxIOServiceMatchingCallback callback,
+    QuadraIOServiceMatchingCallback callback,
     void* context,
     unsigned int* iterator) {
     (void)notification_port;
@@ -98,7 +98,7 @@ static int macoblox_IOServiceAddMatchingNotification(
     write_str("[Quadra] IOKit HID notification registered with empty iterator\n");
     return 0;
 }
-DYLD_INTERPOSE(macoblox_IOServiceAddMatchingNotification,
+DYLD_INTERPOSE(quadra_IOServiceAddMatchingNotification,
                IOServiceAddMatchingNotification);
 
 // Rewrite invalid GLSL 1.50 array-index arithmetic and capture the first
@@ -110,43 +110,43 @@ extern void glShaderSource(unsigned int, int, const char* const*, const int*);
 extern void glCompileShader(unsigned int);
 extern void* malloc(unsigned long);
 extern void free(void*);
-typedef struct MacOBloxFILE MacOBloxFILE;
-extern MacOBloxFILE* fopen(const char*, const char*);
-extern unsigned long fwrite(const void*, unsigned long, unsigned long, MacOBloxFILE*);
-extern int fclose(MacOBloxFILE*);
+typedef struct QuadraFILE QuadraFILE;
+extern QuadraFILE* fopen(const char*, const char*);
+extern unsigned long fwrite(const void*, unsigned long, unsigned long, QuadraFILE*);
+extern int fclose(QuadraFILE*);
 
-static volatile int macoblox_dumped_failed_shader;
-static volatile int macoblox_dumped_final_program;
+static volatile int quadra_dumped_failed_shader;
+static volatile int quadra_dumped_final_program;
 
-static int macoblox_gl_trace_enabled(void);
-static int macoblox_gl_test_ui_color(void) {
+static int quadra_gl_trace_enabled(void);
+static int quadra_gl_test_ui_color(void) {
     static volatile int enabled = -1;
-    return macoblox_env_cached("MACOBLOX_GL_TEST_UI_COLOR", &enabled);
+    return quadra_env_cached("QUADRA_GL_TEST_UI_COLOR", &enabled);
 }
 
-static int macoblox_shader_is_vertex(unsigned int shader) {
+static int quadra_shader_is_vertex(unsigned int shader) {
     // Only the optional UI-color experiment needs a type query. GL names
     // belong to a context/share group, so a process-global GLuint table is
     // neither a safe lifetime model nor reliable type evidence.
     void (*query)(unsigned int, unsigned int, int*) =
-        MACOBLOX_NEXT(void (*)(unsigned int, unsigned int, int*), "glGetShaderiv");
+        QUADRA_NEXT(void (*)(unsigned int, unsigned int, int*), "glGetShaderiv");
     int type = 0;
     if (query) query(shader, 0x8B4FU /* GL_SHADER_TYPE */, &type);
     return type == 0x8B31U;
 }
 
-static unsigned long macoblox_cstr_length(const char* text) {
+static unsigned long quadra_cstr_length(const char* text) {
     unsigned long length = 0;
     if (text)
         while (text[length]) length++;
     return length;
 }
 
-extern char* macoblox_fix_shader_indices(char*, unsigned long*);
+extern char* quadra_fix_shader_indices(char*, unsigned long*);
 
-static void macoblox_apply_ui_color_test(char* source,
+static void quadra_apply_ui_color_test(char* source,
                                          unsigned long source_length) {
-    if (!macoblox_gl_test_ui_color())
+    if (!quadra_gl_test_ui_color())
         return;
     static const char needle[] =
         "_entryPointOutput = VARYING1 * _676;";
@@ -167,10 +167,10 @@ static void macoblox_apply_ui_color_test(char* source,
     }
 }
 
-static int macoblox_source_contains(const char* source,
+static int quadra_source_contains(const char* source,
                                     unsigned long source_length,
                                     const char* needle) {
-    unsigned long needle_length = macoblox_cstr_length(needle);
+    unsigned long needle_length = quadra_cstr_length(needle);
     for (unsigned long position = 0;
          position + needle_length <= source_length; position++) {
         unsigned long index = 0;
@@ -183,11 +183,11 @@ static int macoblox_source_contains(const char* source,
     return 0;
 }
 
-static void macoblox_glShaderSource(unsigned int shader, int count,
+static void quadra_glShaderSource(unsigned int shader, int count,
                                     const char* const* strings,
                                     const int* lengths) {
     void (*real_function)(unsigned int, int, const char* const*, const int*) =
-        MACOBLOX_NEXT(void (*)(unsigned int, int, const char* const*, const int*), "glShaderSource");
+        QUADRA_NEXT(void (*)(unsigned int, int, const char* const*, const int*), "glShaderSource");
 
     const char* fixed_string = 0;
     int fixed_length = 0;
@@ -197,7 +197,7 @@ static void macoblox_glShaderSource(unsigned int shader, int count,
         for (int index = 0; index < count; index++) {
             unsigned long part = (lengths && lengths[index] >= 0)
                 ? (unsigned long)lengths[index]
-                : macoblox_cstr_length(strings[index]);
+                : quadra_cstr_length(strings[index]);
             if (part > 1024UL * 1024UL - total) {
                 total = 0;
                 break;
@@ -211,15 +211,15 @@ static void macoblox_glShaderSource(unsigned int shader, int count,
                 for (int index = 0; index < count; index++) {
                     unsigned long part = (lengths && lengths[index] >= 0)
                         ? (unsigned long)lengths[index]
-                        : macoblox_cstr_length(strings[index]);
+                        : quadra_cstr_length(strings[index]);
                     for (unsigned long offset = 0; offset < part; offset++)
                         copy[position++] = strings[index][offset];
                 }
                 copy[position] = 0;
-                copy = macoblox_fix_shader_indices(copy, &total);
-                macoblox_apply_ui_color_test(copy, total);
-                if (macoblox_gl_test_ui_color() && macoblox_shader_is_vertex(shader) &&
-                    macoblox_source_contains(copy, total,
+                copy = quadra_fix_shader_indices(copy, &total);
+                quadra_apply_ui_color_test(copy, total);
+                if (quadra_gl_test_ui_color() && quadra_shader_is_vertex(shader) &&
+                    quadra_source_contains(copy, total,
                                              "out vec2 VARYING2;")) {
                     static const char forced_vertex[] =
                         "#version 150\n"
@@ -252,28 +252,28 @@ static void macoblox_glShaderSource(unsigned int shader, int count,
     }
     free(owned);
 }
-DYLD_INTERPOSE(macoblox_glShaderSource, glShaderSource);
+DYLD_INTERPOSE(quadra_glShaderSource, glShaderSource);
 
-static void macoblox_glCompileShader(unsigned int shader) {
+static void quadra_glCompileShader(unsigned int shader) {
     void (*real_compile)(unsigned int) =
-        MACOBLOX_NEXT(void (*)(unsigned int), "glCompileShader");
+        QUADRA_NEXT(void (*)(unsigned int), "glCompileShader");
     void (*real_get_shader_iv)(unsigned int, unsigned int, int*) =
-        MACOBLOX_NEXT(void (*)(unsigned int, unsigned int, int*), "glGetShaderiv");
+        QUADRA_NEXT(void (*)(unsigned int, unsigned int, int*), "glGetShaderiv");
     if (real_compile)
         real_compile(shader);
 
     // A status query can wait for asynchronous driver compilation. Roblox
     // checks its own shaders; the extra query is only for source diagnostics.
-    if (!macoblox_gl_trace_enabled())
+    if (!quadra_gl_trace_enabled())
         return;
     int succeeded = 1;
     if (real_get_shader_iv)
         real_get_shader_iv(shader, 0x8B81U, &succeeded); // GL_COMPILE_STATUS
-    if (succeeded || macoblox_dumped_failed_shader)
+    if (succeeded || quadra_dumped_failed_shader)
         return;
     // The source as GL has it (after the fixes above).
     void (*real_get_source)(unsigned int, int, int*, char*) =
-        MACOBLOX_NEXT(void (*)(unsigned int, int, int*, char*), "glGetShaderSource");
+        QUADRA_NEXT(void (*)(unsigned int, int, int*, char*), "glGetShaderSource");
     int size = 0;
     if (real_get_shader_iv)
         real_get_shader_iv(shader, 0x8B88U, &size); // GL_SHADER_SOURCE_LENGTH
@@ -283,9 +283,9 @@ static void macoblox_glCompileShader(unsigned int shader) {
     if (source)
         real_get_source(shader, size, &length, source);
     if (source && length > 0 && length < size &&
-        __sync_bool_compare_and_swap(&macoblox_dumped_failed_shader, 0, 1)) {
-        MacOBloxFILE* output = fopen(
-            "/private/tmp/macoblox-first-failed-shader.glsl", "w");
+        __sync_bool_compare_and_swap(&quadra_dumped_failed_shader, 0, 1)) {
+        QuadraFILE* output = fopen(
+            "/private/tmp/quadra-first-failed-shader.glsl", "w");
         if (output) {
             fwrite(source, 1, (unsigned long)length, output);
             fclose(output);
@@ -294,12 +294,12 @@ static void macoblox_glCompileShader(unsigned int shader) {
     }
     free(source);
 }
-DYLD_INTERPOSE(macoblox_glCompileShader, glCompileShader);
+DYLD_INTERPOSE(quadra_glCompileShader, glCompileShader);
 
 // Trace every CGL/EGL binding change with its thread. Roblox renders on a
 // worker thread; EGL allows a surface to be current in only one thread, so a
 // failed eglMakeCurrent there leaves the renderer without a window surface.
-// Enabled with MACOBLOX_TRACE_CGL=1; the output is bounded per function.
+// Enabled with QUADRA_TRACE_CGL=1; the output is bounded per function.
 extern void* pthread_self(void);
 extern unsigned int pthread_mach_thread_np(void*);
 extern int CGLCreateContext(void*, void*, void**);
@@ -309,17 +309,17 @@ extern int CGLContextMakeCurrentAndAttachToWindow(void*, void*);
 extern int CGLFlushDrawable(void*);
 extern unsigned int eglMakeCurrent(void*, void*, void*, void*);
 
-static int macoblox_trace_cgl_enabled(void) {
+static int quadra_trace_cgl_enabled(void) {
     static volatile int enabled = -1;
-    return macoblox_env_cached("MACOBLOX_TRACE_CGL", &enabled);
+    return quadra_env_cached("QUADRA_TRACE_CGL", &enabled);
 }
 
-static int macoblox_trace_cgl_should_log(volatile long* counter) {
+static int quadra_trace_cgl_should_log(volatile long* counter) {
     long count = __sync_add_and_fetch(counter, 1);
     return count <= 40 || count % 1000 == 0;
 }
 
-static void macoblox_trace_cgl_prefix(const char* name, volatile long* counter) {
+static void quadra_trace_cgl_prefix(const char* name, volatile long* counter) {
     write_str("[Quadra CGL] ");
     write_str(name);
     write_str(" #");
@@ -328,19 +328,19 @@ static void macoblox_trace_cgl_prefix(const char* name, volatile long* counter) 
     print_num(pthread_mach_thread_np(pthread_self()));
 }
 
-static void* macoblox_cgl_egl_context(void* cgl) {
+static void* quadra_cgl_egl_context(void* cgl) {
     // struct _CGLContextObj: retain_count, pthread_mutex_t (64 bytes on
     // Darwin x86_64), egl_context, egl_surface.
     return cgl ? ((void**)cgl)[9] : 0;
 }
 
-static void* macoblox_cgl_egl_surface(void* cgl) {
+static void* quadra_cgl_egl_surface(void* cgl) {
     return cgl ? ((void**)cgl)[10] : 0;
 }
 
-static volatile long macoblox_cgl_create_count;
-static int macoblox_CGLChoosePixelFormat(const int* attributes, void** result, int* count) {
-    int* terminated = macoblox_copy_pixel_attributes(attributes);
+static volatile long quadra_cgl_create_count;
+static int quadra_CGLChoosePixelFormat(const int* attributes, void** result, int* count) {
+    int* terminated = quadra_copy_pixel_attributes(attributes);
     if (!terminated) {
         if (result) *result = 0;
         if (count) *count = 0;
@@ -358,12 +358,12 @@ static int macoblox_CGLChoosePixelFormat(const int* attributes, void** result, i
     }
     return error;
 }
-DYLD_INTERPOSE(macoblox_CGLChoosePixelFormat, CGLChoosePixelFormat);
+DYLD_INTERPOSE(quadra_CGLChoosePixelFormat, CGLChoosePixelFormat);
 
-static int macoblox_CGLCreateContext(void* format, void* share, void** result) {
+static int quadra_CGLCreateContext(void* format, void* share, void** result) {
     // Darling initializes its EGL display inside this call. The EGL context
     // wrapper binds desktop GL after that initialization, on this thread.
-    if (macoblox_trace_cgl_enabled() && format) {
+    if (quadra_trace_cgl_enabled() && format) {
         // struct _CGLPixelFormatObj { GLuint retain_count; CGLPixelFormatAttribute* attributes; }
         int* attributes = ((int**)format)[1];
         write_str("[Quadra CGL] pixel format:");
@@ -374,113 +374,113 @@ static int macoblox_CGLCreateContext(void* format, void* share, void** result) {
         write_str("\n");
     }
     int error = CGLCreateContext(format, share, result);
-    if (macoblox_trace_cgl_enabled() &&
-        macoblox_trace_cgl_should_log(&macoblox_cgl_create_count)) {
-        macoblox_trace_cgl_prefix("CGLCreateContext", &macoblox_cgl_create_count);
+    if (quadra_trace_cgl_enabled() &&
+        quadra_trace_cgl_should_log(&quadra_cgl_create_count)) {
+        quadra_trace_cgl_prefix("CGLCreateContext", &quadra_cgl_create_count);
         write_str(" share=");
         print_hex((unsigned long long)share);
         write_str(" share-egl=");
-        print_hex((unsigned long long)macoblox_cgl_egl_context(share));
+        print_hex((unsigned long long)quadra_cgl_egl_context(share));
         write_str(" result=");
         print_hex((unsigned long long)(result ? *result : 0));
         write_str(" egl=");
-        print_hex((unsigned long long)macoblox_cgl_egl_context(result ? *result : 0));
+        print_hex((unsigned long long)quadra_cgl_egl_context(result ? *result : 0));
         write_str(" error=");
         print_num(error);
         write_str("\n");
     }
     return error;
 }
-DYLD_INTERPOSE(macoblox_CGLCreateContext, CGLCreateContext);
+DYLD_INTERPOSE(quadra_CGLCreateContext, CGLCreateContext);
 
-static volatile long macoblox_cgl_set_current_count;
-static int macoblox_CGLSetCurrentContext(void* context) {
-    macoblox_context_change change;
-    if (!macoblox_begin_context_change(&change))
+static volatile long quadra_cgl_set_current_count;
+static int quadra_CGLSetCurrentContext(void* context) {
+    quadra_context_change change;
+    if (!quadra_begin_context_change(&change))
         return 10004;
     int error = CGLSetCurrentContext(context);
-    error = macoblox_finish_context_change(&change, error);
-    if (macoblox_trace_cgl_enabled() &&
-        macoblox_trace_cgl_should_log(&macoblox_cgl_set_current_count)) {
-        macoblox_trace_cgl_prefix("CGLSetCurrentContext",
-                                  &macoblox_cgl_set_current_count);
+    error = quadra_finish_context_change(&change, error);
+    if (quadra_trace_cgl_enabled() &&
+        quadra_trace_cgl_should_log(&quadra_cgl_set_current_count)) {
+        quadra_trace_cgl_prefix("CGLSetCurrentContext",
+                                  &quadra_cgl_set_current_count);
         write_str(" cgl=");
         print_hex((unsigned long long)context);
         write_str(" egl=");
-        print_hex((unsigned long long)macoblox_cgl_egl_context(context));
+        print_hex((unsigned long long)quadra_cgl_egl_context(context));
         write_str(" surface=");
-        print_hex((unsigned long long)macoblox_cgl_egl_surface(context));
+        print_hex((unsigned long long)quadra_cgl_egl_surface(context));
         write_str("\n");
     }
     return error;
 }
-DYLD_INTERPOSE(macoblox_CGLSetCurrentContext, CGLSetCurrentContext);
+DYLD_INTERPOSE(quadra_CGLSetCurrentContext, CGLSetCurrentContext);
 
-static volatile long macoblox_cgl_attach_count;
-static int macoblox_CGLContextMakeCurrentAndAttachToWindow(void* context,
+static volatile long quadra_cgl_attach_count;
+static int quadra_CGLContextMakeCurrentAndAttachToWindow(void* context,
                                                           void* window) {
     if (!context)
         return 10004;
-    macoblox_context_change change;
-    if (!macoblox_begin_context_change(&change))
+    quadra_context_change change;
+    if (!quadra_begin_context_change(&change))
         return 10004;
     change.surface_slot = &((void**)context)[10];
     change.previous_surface = *change.surface_slot;
     int error = CGLContextMakeCurrentAndAttachToWindow(context, window);
-    error = macoblox_finish_context_change(&change, error);
-    if (macoblox_trace_cgl_enabled() &&
-        macoblox_trace_cgl_should_log(&macoblox_cgl_attach_count)) {
-        macoblox_trace_cgl_prefix("CGLContextMakeCurrentAndAttachToWindow",
-                                  &macoblox_cgl_attach_count);
+    error = quadra_finish_context_change(&change, error);
+    if (quadra_trace_cgl_enabled() &&
+        quadra_trace_cgl_should_log(&quadra_cgl_attach_count)) {
+        quadra_trace_cgl_prefix("CGLContextMakeCurrentAndAttachToWindow",
+                                  &quadra_cgl_attach_count);
         write_str(" cgl=");
         print_hex((unsigned long long)context);
         write_str(" egl=");
-        print_hex((unsigned long long)macoblox_cgl_egl_context(context));
+        print_hex((unsigned long long)quadra_cgl_egl_context(context));
         write_str(" window=");
         print_hex((unsigned long long)window);
         write_str("\n");
     }
     return error;
 }
-DYLD_INTERPOSE(macoblox_CGLContextMakeCurrentAndAttachToWindow,
+DYLD_INTERPOSE(quadra_CGLContextMakeCurrentAndAttachToWindow,
                CGLContextMakeCurrentAndAttachToWindow);
 
-// Frame presentation (gl_profile.c): vsync off unless MACOBLOX_VSYNC=1,
-// and an FPS line every 5 s with MACOBLOX_FPS_LOG=1.
-extern void macoblox_frame_presenting(void* cgl_context);
-static volatile long macoblox_cgl_flush_drawable_count;
-static void macoblox_attach_recovered_gl_drawable(void* context);
-static int macoblox_CGLFlushDrawable(void* context) {
+// Frame presentation (gl_profile.c): vsync off unless QUADRA_VSYNC=1,
+// and an FPS line every 5 s with QUADRA_FPS_LOG=1.
+extern void quadra_frame_presenting(void* cgl_context);
+static volatile long quadra_cgl_flush_drawable_count;
+static void quadra_attach_recovered_gl_drawable(void* context);
+static int quadra_CGLFlushDrawable(void* context) {
     if (!context)
         return 10004;
-    macoblox_attach_recovered_gl_drawable(context);
-    if (macoblox_trace_cgl_enabled() &&
-        macoblox_trace_cgl_should_log(&macoblox_cgl_flush_drawable_count)) {
-        macoblox_trace_cgl_prefix("CGLFlushDrawable",
-                                  &macoblox_cgl_flush_drawable_count);
+    quadra_attach_recovered_gl_drawable(context);
+    if (quadra_trace_cgl_enabled() &&
+        quadra_trace_cgl_should_log(&quadra_cgl_flush_drawable_count)) {
+        quadra_trace_cgl_prefix("CGLFlushDrawable",
+                                  &quadra_cgl_flush_drawable_count);
         write_str(" cgl=");
         print_hex((unsigned long long)context);
         write_str(" egl=");
-        print_hex((unsigned long long)macoblox_cgl_egl_context(context));
+        print_hex((unsigned long long)quadra_cgl_egl_context(context));
         write_str(" surface=");
-        print_hex((unsigned long long)macoblox_cgl_egl_surface(context));
+        print_hex((unsigned long long)quadra_cgl_egl_surface(context));
         write_str("\n");
     }
-    macoblox_frame_presenting(context);
-    unsigned long serial = macoblox_egl_swap_serial();
-    return macoblox_finish_cgl_swap(serial, CGLFlushDrawable(context));
+    quadra_frame_presenting(context);
+    unsigned long serial = quadra_egl_swap_serial();
+    return quadra_finish_cgl_swap(serial, CGLFlushDrawable(context));
 }
-DYLD_INTERPOSE(macoblox_CGLFlushDrawable, CGLFlushDrawable);
+DYLD_INTERPOSE(quadra_CGLFlushDrawable, CGLFlushDrawable);
 
-static volatile long macoblox_egl_make_current_count;
-static unsigned int macoblox_eglMakeCurrent(void* display, void* draw,
+static volatile long quadra_egl_make_current_count;
+static unsigned int quadra_eglMakeCurrent(void* display, void* draw,
                                             void* read, void* context) {
     unsigned int result = eglMakeCurrent(display, draw, read, context);
-    macoblox_record_egl_binding(result, context);
-    if (macoblox_trace_cgl_enabled() &&
-        macoblox_trace_cgl_should_log(&macoblox_egl_make_current_count)) {
-        macoblox_trace_cgl_prefix("eglMakeCurrent",
-                                  &macoblox_egl_make_current_count);
+    quadra_record_egl_binding(result, context);
+    if (quadra_trace_cgl_enabled() &&
+        quadra_trace_cgl_should_log(&quadra_egl_make_current_count)) {
+        quadra_trace_cgl_prefix("eglMakeCurrent",
+                                  &quadra_egl_make_current_count);
         write_str(" display=");
         print_hex((unsigned long long)display);
         write_str(" draw=");
@@ -490,12 +490,12 @@ static unsigned int macoblox_eglMakeCurrent(void* display, void* draw,
         write_str(" result=");
         print_num(result);
         write_str(" error=");
-        print_hex((unsigned int)macoblox_egl_binding_error());
+        print_hex((unsigned int)quadra_egl_binding_error());
         write_str("\n");
     }
     return result;
 }
-DYLD_INTERPOSE(macoblox_eglMakeCurrent, eglMakeCurrent);
+DYLD_INTERPOSE(quadra_eglMakeCurrent, eglMakeCurrent);
 
 // Count the commands that can actually produce or resolve pixels. A steady
 // stream of NSOpenGLContext flushes only proves that Darling swaps the X11
@@ -517,28 +517,28 @@ extern void glBlitFramebuffer(int, int, int, int, int, int, int, int,
 extern void glBindFramebuffer(unsigned int, unsigned int);
 extern void glClear(unsigned int);
 
-static volatile long macoblox_gl_draw_count;
-static volatile long macoblox_gl_blit_count;
-static volatile long macoblox_gl_clear_count;
-static volatile long macoblox_gl_default_framebuffer_bind_count;
-static void* macoblox_gl_window_surface;
-static void* macoblox_gl_window_egl_context;
-static void* macoblox_gl_render_egl_context;
-static volatile long macoblox_gl_surface_repair_attempts;
-static volatile long macoblox_gl_traced_window_draws;
-static volatile long macoblox_gl_skipped_foreign_draws;
-static volatile int macoblox_dumped_uniform_blocks;
-static volatile int macoblox_dumped_actual_program;
+static volatile long quadra_gl_draw_count;
+static volatile long quadra_gl_blit_count;
+static volatile long quadra_gl_clear_count;
+static volatile long quadra_gl_default_framebuffer_bind_count;
+static void* quadra_gl_window_surface;
+static void* quadra_gl_window_egl_context;
+static void* quadra_gl_render_egl_context;
+static volatile long quadra_gl_surface_repair_attempts;
+static volatile long quadra_gl_traced_window_draws;
+static volatile long quadra_gl_skipped_foreign_draws;
+static volatile int quadra_dumped_uniform_blocks;
+static volatile int quadra_dumped_actual_program;
 
-static void macoblox_dump_program_sources(unsigned int program, volatile int* once, int actual) {
+static void quadra_dump_program_sources(unsigned int program, volatile int* once, int actual) {
     if (!program)
         return;
     void (*attached_shaders)(unsigned int, int, int*, unsigned int*) =
-        MACOBLOX_NEXT(void (*)(unsigned int, int, int*, unsigned int*), "glGetAttachedShaders");
+        QUADRA_NEXT(void (*)(unsigned int, int, int*, unsigned int*), "glGetAttachedShaders");
     void (*shader_iv)(unsigned int, unsigned int, int*) =
-        MACOBLOX_NEXT(void (*)(unsigned int, unsigned int, int*), "glGetShaderiv");
+        QUADRA_NEXT(void (*)(unsigned int, unsigned int, int*), "glGetShaderiv");
     void (*shader_source)(unsigned int, int, int*, char*) =
-        MACOBLOX_NEXT(void (*)(unsigned int, int, int*, char*), "glGetShaderSource");
+        QUADRA_NEXT(void (*)(unsigned int, int, int*, char*), "glGetShaderSource");
     if (!attached_shaders || !shader_iv || !shader_source ||
         !__sync_bool_compare_and_swap(once, 0, 1))
         return;
@@ -561,12 +561,12 @@ static void macoblox_dump_program_sources(unsigned int program, volatile int* on
         if (!source) continue;
         int written = 0;
         shader_source(shaders[index], source_length, &written, source);
-        char actual_path[] = "/Volumes/SystemRoot/tmp/macoblox-actual-program-shader-0.glsl";
-        char final_path[] = "/Volumes/SystemRoot/tmp/macoblox-final-shader-0.glsl";
+        char actual_path[] = "/Volumes/SystemRoot/tmp/quadra-actual-program-shader-0.glsl";
+        char final_path[] = "/Volumes/SystemRoot/tmp/quadra-final-shader-0.glsl";
         actual_path[sizeof(actual_path) - sizeof("0.glsl")] = (char)('0' + index);
         final_path[sizeof(final_path) - sizeof("0.glsl")] = (char)('0' + index);
         if (written > 0 && written <= source_length) {
-            MacOBloxFILE* output = fopen(actual ? actual_path : final_path, "w");
+            QuadraFILE* output = fopen(actual ? actual_path : final_path, "w");
             if (output) {
                 fwrite(source, 1, (unsigned long)written, output);
                 fclose(output);
@@ -577,24 +577,24 @@ static void macoblox_dump_program_sources(unsigned int program, volatile int* on
     write_str("\n");
 }
 
-static void macoblox_dump_actual_program_sources(unsigned int program) {
+static void quadra_dump_actual_program_sources(unsigned int program) {
     if (program >= 700)
-        macoblox_dump_program_sources(program, &macoblox_dumped_actual_program, 1);
+        quadra_dump_program_sources(program, &quadra_dumped_actual_program, 1);
 }
 
 // The EGL surface repair and foreign-draw filtering below were workarounds
 // for Roblox drawing into the wrong context, which restoring the context
 // after CALayerContext renders fixed properly. They stay available for
-// debugging with MACOBLOX_GL_HACKS=1.
-static int macoblox_gl_hacks_disabled(void) {
+// debugging with QUADRA_GL_HACKS=1.
+static int quadra_gl_hacks_disabled(void) {
     static volatile int enabled = -1;
-    return !macoblox_env_cached("MACOBLOX_GL_HACKS", &enabled);
+    return !quadra_env_cached("QUADRA_GL_HACKS", &enabled);
 }
 
-static void macoblox_ensure_gl_window_surface(void) {
-    if (macoblox_gl_hacks_disabled())
+static void quadra_ensure_gl_window_surface(void) {
+    if (quadra_gl_hacks_disabled())
         return;
-    void* surface = macoblox_gl_window_surface;
+    void* surface = quadra_gl_window_surface;
     void* (*current_surface)(int) =
         (void* (*)(int))dlsym(RTLD_NEXT, "eglGetCurrentSurface");
     if (!surface || !current_surface || current_surface(0x3059)) // EGL_DRAW
@@ -622,7 +622,7 @@ static void macoblox_ensure_gl_window_surface(void) {
 
     int attached = make_current(current_display(), surface, surface,
                                 context);
-    long attempt = __sync_add_and_fetch(&macoblox_gl_surface_repair_attempts, 1);
+    long attempt = __sync_add_and_fetch(&quadra_gl_surface_repair_attempts, 1);
     if (attempt <= 5) {
         write_str("[Quadra GL] draw-time EGL surface repair #");
         print_num(attempt);
@@ -636,15 +636,15 @@ static void macoblox_ensure_gl_window_surface(void) {
     }
 }
 
-static int macoblox_should_skip_foreign_window_command(int learn_renderer) {
-    if (macoblox_gl_hacks_disabled())
+static int quadra_should_skip_foreign_window_command(int learn_renderer) {
+    if (quadra_gl_hacks_disabled())
         return 0;
     void* (*current_surface)(int) =
         (void* (*)(int))dlsym(RTLD_NEXT, "eglGetCurrentSurface");
     void* (*current_context)(void) =
         (void* (*)(void))dlsym(RTLD_NEXT, "eglGetCurrentContext");
     if (!current_surface || !current_context ||
-        current_surface(0x3059) != macoblox_gl_window_surface)
+        current_surface(0x3059) != quadra_gl_window_surface)
         return 0;
 
     void* context = current_context();
@@ -655,8 +655,8 @@ static int macoblox_should_skip_foreign_window_command(int learn_renderer) {
         if (get_integer)
             get_integer(0x8B8DU, &program); // GL_CURRENT_PROGRAM
         if (program > 0) {
-            macoblox_gl_render_egl_context = context;
-            if (macoblox_gl_test_ui_color() && program >= 700) {
+            quadra_gl_render_egl_context = context;
+            if (quadra_gl_test_ui_color() && program >= 700) {
                 void (*disable)(unsigned int) =
                     (void (*)(unsigned int))dlsym(RTLD_NEXT, "glDisable");
                 void (*color_mask)(unsigned char, unsigned char,
@@ -678,14 +678,14 @@ static int macoblox_should_skip_foreign_window_command(int learn_renderer) {
             }
         }
     }
-    return macoblox_gl_render_egl_context &&
-           context != macoblox_gl_render_egl_context;
+    return quadra_gl_render_egl_context &&
+           context != quadra_gl_render_egl_context;
 }
 
-static void macoblox_trace_window_draw(unsigned int mode, int count) {
+static void quadra_trace_window_draw(unsigned int mode, int count) {
     // Once the bounded capture is complete, avoid driver queries on every
     // later draw. Diagnostic logging must not keep synchronizing gameplay.
-    if (__atomic_load_n(&macoblox_gl_traced_window_draws, __ATOMIC_RELAXED) >= 16)
+    if (__atomic_load_n(&quadra_gl_traced_window_draws, __ATOMIC_RELAXED) >= 16)
         return;
     unsigned int (*get_error)(void) =
         (unsigned int (*)(void))dlsym(RTLD_NEXT, "glGetError");
@@ -704,7 +704,7 @@ static void macoblox_trace_window_draw(unsigned int mode, int count) {
     if (framebuffer)
         return;
 
-    long sequence = __sync_add_and_fetch(&macoblox_gl_traced_window_draws, 1);
+    long sequence = __sync_add_and_fetch(&quadra_gl_traced_window_draws, 1);
     if (sequence > 16)
         return;
 
@@ -752,7 +752,7 @@ static void macoblox_trace_window_draw(unsigned int mode, int count) {
             dlsym(RTLD_NEXT, "glGetIntegeri_v");
     int cb0_buffer = -1;
     int cb1_buffer = -1;
-    macoblox_dump_actual_program_sources((unsigned int)program);
+    quadra_dump_actual_program_sources((unsigned int)program);
     if (uniform_block_index && uniform_block_iv && get_integer_indexed &&
         program > 0) {
         const char* names[2] = {"block_CB0", "block_CB1"};
@@ -771,7 +771,7 @@ static void macoblox_trace_window_draw(unsigned int mode, int count) {
     }
 
     if (program >= 700 && uniform_block_iv && get_integer_indexed &&
-        __sync_bool_compare_and_swap(&macoblox_dumped_uniform_blocks, 0, 1)) {
+        __sync_bool_compare_and_swap(&quadra_dumped_uniform_blocks, 0, 1)) {
         void (*get_program)(unsigned int, unsigned int, int*) =
             (void (*)(unsigned int, unsigned int, int*))
                 dlsym(RTLD_NEXT, "glGetProgramiv");
@@ -858,22 +858,22 @@ static void macoblox_trace_window_draw(unsigned int mode, int count) {
     write_str("\n");
 }
 
-// GL call tracing is opt-in (MACOBLOX_TRACE_GL=1). Without it the wrappers
+// GL call tracing is opt-in (QUADRA_TRACE_GL=1). Without it the wrappers
 // below only forward: tracing costs dlsym, glGetError and several
 // glGetIntegerv per draw, which in game (thousands of draws per frame) was a
 // large part of the frame time.
-static int macoblox_gl_trace_enabled(void) {
+static int quadra_gl_trace_enabled(void) {
     static volatile int enabled = -1;
-    return macoblox_env_cached("MACOBLOX_TRACE_GL", &enabled);
+    return quadra_env_cached("QUADRA_TRACE_GL", &enabled);
 }
 
-static void macoblox_glBindFramebuffer(unsigned int target,
+static void quadra_glBindFramebuffer(unsigned int target,
                                        unsigned int framebuffer) {
     static void (*real_function)(unsigned int, unsigned int);
     if (!real_function)
         real_function = (void (*)(unsigned int, unsigned int))
             dlsym(RTLD_NEXT, "glBindFramebuffer");
-    if (!macoblox_gl_trace_enabled() && macoblox_gl_hacks_disabled()) {
+    if (!quadra_gl_trace_enabled() && quadra_gl_hacks_disabled()) {
         if (real_function)
             real_function(target, framebuffer);
         return;
@@ -881,82 +881,82 @@ static void macoblox_glBindFramebuffer(unsigned int target,
     // Binding framebuffer 0 selects the window drawable. Restore its EGL
     // surface before GL validates the following clear and draw commands.
     if (!framebuffer) {
-        macoblox_ensure_gl_window_surface();
-        __sync_add_and_fetch(&macoblox_gl_default_framebuffer_bind_count, 1);
+        quadra_ensure_gl_window_surface();
+        __sync_add_and_fetch(&quadra_gl_default_framebuffer_bind_count, 1);
     }
     if (real_function)
         real_function(target, framebuffer);
 }
-DYLD_INTERPOSE(macoblox_glBindFramebuffer, glBindFramebuffer);
+DYLD_INTERPOSE(quadra_glBindFramebuffer, glBindFramebuffer);
 
-static void macoblox_glClear(unsigned int mask) {
+static void quadra_glClear(unsigned int mask) {
     static void (*real_function)(unsigned int);
     if (!real_function)
         real_function = (void (*)(unsigned int))dlsym(RTLD_NEXT, "glClear");
-    if (!macoblox_gl_trace_enabled() && macoblox_gl_hacks_disabled()) {
+    if (!quadra_gl_trace_enabled() && quadra_gl_hacks_disabled()) {
         if (real_function)
             real_function(mask);
         return;
     }
-    macoblox_ensure_gl_window_surface();
-    __sync_add_and_fetch(&macoblox_gl_clear_count, 1);
+    quadra_ensure_gl_window_surface();
+    __sync_add_and_fetch(&quadra_gl_clear_count, 1);
     if (real_function &&
-        !macoblox_should_skip_foreign_window_command(0))
+        !quadra_should_skip_foreign_window_command(0))
         real_function(mask);
 }
-DYLD_INTERPOSE(macoblox_glClear, glClear);
+DYLD_INTERPOSE(quadra_glClear, glClear);
 
-static void macoblox_glDrawArrays(unsigned int mode, int first, int count) {
+static void quadra_glDrawArrays(unsigned int mode, int first, int count) {
     static void (*real_function)(unsigned int, int, int);
     if (!real_function)
         real_function = (void (*)(unsigned int, int, int))
             dlsym(RTLD_NEXT, "glDrawArrays");
-    if (!macoblox_gl_trace_enabled() && macoblox_gl_hacks_disabled()) {
+    if (!quadra_gl_trace_enabled() && quadra_gl_hacks_disabled()) {
         if (real_function)
             real_function(mode, first, count);
         // Keep the initial AppKit draw's error check without enabling tracing
         // on every draw. Removing this single query reproduces an early
         // NVIDIA worker abort under Darling, with both -O0 and -O2 builds.
-        if (macoblox_graphics_first_draw()) {
-            unsigned int (*error)(void) = MACOBLOX_NEXT(unsigned int (*)(void), "glGetError");
+        if (quadra_graphics_first_draw()) {
+            unsigned int (*error)(void) = QUADRA_NEXT(unsigned int (*)(void), "glGetError");
             if (error) error();
         }
         return;
     }
-    macoblox_ensure_gl_window_surface();
-    __sync_add_and_fetch(&macoblox_gl_draw_count, 1);
+    quadra_ensure_gl_window_surface();
+    __sync_add_and_fetch(&quadra_gl_draw_count, 1);
     if (real_function &&
-        !macoblox_should_skip_foreign_window_command(1))
+        !quadra_should_skip_foreign_window_command(1))
         real_function(mode, first, count);
     else
-        __sync_add_and_fetch(&macoblox_gl_skipped_foreign_draws, 1);
-    macoblox_trace_window_draw(mode, count);
+        __sync_add_and_fetch(&quadra_gl_skipped_foreign_draws, 1);
+    quadra_trace_window_draw(mode, count);
 }
-DYLD_INTERPOSE(macoblox_glDrawArrays, glDrawArrays);
+DYLD_INTERPOSE(quadra_glDrawArrays, glDrawArrays);
 
-static void macoblox_glDrawElements(unsigned int mode, int count,
+static void quadra_glDrawElements(unsigned int mode, int count,
                                     unsigned int type, const void* indices) {
     static void (*real_function)(unsigned int, int, unsigned int, const void*);
     if (!real_function)
         real_function = (void (*)(unsigned int, int, unsigned int, const void*))
             dlsym(RTLD_NEXT, "glDrawElements");
-    if (!macoblox_gl_trace_enabled() && macoblox_gl_hacks_disabled()) {
+    if (!quadra_gl_trace_enabled() && quadra_gl_hacks_disabled()) {
         if (real_function)
             real_function(mode, count, type, indices);
         return;
     }
-    macoblox_ensure_gl_window_surface();
-    __sync_add_and_fetch(&macoblox_gl_draw_count, 1);
+    quadra_ensure_gl_window_surface();
+    __sync_add_and_fetch(&quadra_gl_draw_count, 1);
     if (real_function &&
-        !macoblox_should_skip_foreign_window_command(1))
+        !quadra_should_skip_foreign_window_command(1))
         real_function(mode, count, type, indices);
     else
-        __sync_add_and_fetch(&macoblox_gl_skipped_foreign_draws, 1);
-    macoblox_trace_window_draw(mode, count);
+        __sync_add_and_fetch(&quadra_gl_skipped_foreign_draws, 1);
+    quadra_trace_window_draw(mode, count);
 }
-DYLD_INTERPOSE(macoblox_glDrawElements, glDrawElements);
+DYLD_INTERPOSE(quadra_glDrawElements, glDrawElements);
 
-static void macoblox_glDrawRangeElements(unsigned int mode, unsigned int start,
+static void quadra_glDrawRangeElements(unsigned int mode, unsigned int start,
                                          unsigned int end, int count,
                                          unsigned int type,
                                          const void* indices) {
@@ -966,23 +966,23 @@ static void macoblox_glDrawRangeElements(unsigned int mode, unsigned int start,
         real_function = (void (*)(unsigned int, unsigned int, unsigned int, int,
                                   unsigned int, const void*))
             dlsym(RTLD_NEXT, "glDrawRangeElements");
-    if (!macoblox_gl_trace_enabled() && macoblox_gl_hacks_disabled()) {
+    if (!quadra_gl_trace_enabled() && quadra_gl_hacks_disabled()) {
         if (real_function)
             real_function(mode, start, end, count, type, indices);
         return;
     }
-    macoblox_ensure_gl_window_surface();
-    __sync_add_and_fetch(&macoblox_gl_draw_count, 1);
+    quadra_ensure_gl_window_surface();
+    __sync_add_and_fetch(&quadra_gl_draw_count, 1);
     if (real_function &&
-        !macoblox_should_skip_foreign_window_command(1))
+        !quadra_should_skip_foreign_window_command(1))
         real_function(mode, start, end, count, type, indices);
     else
-        __sync_add_and_fetch(&macoblox_gl_skipped_foreign_draws, 1);
-    macoblox_trace_window_draw(mode, count);
+        __sync_add_and_fetch(&quadra_gl_skipped_foreign_draws, 1);
+    quadra_trace_window_draw(mode, count);
 }
-DYLD_INTERPOSE(macoblox_glDrawRangeElements, glDrawRangeElements);
+DYLD_INTERPOSE(quadra_glDrawRangeElements, glDrawRangeElements);
 
-static void macoblox_glDrawElementsBaseVertex(unsigned int mode, int count,
+static void quadra_glDrawElementsBaseVertex(unsigned int mode, int count,
                                               unsigned int type,
                                               const void* indices,
                                               int base_vertex) {
@@ -992,45 +992,45 @@ static void macoblox_glDrawElementsBaseVertex(unsigned int mode, int count,
         real_function = (void (*)(unsigned int, int, unsigned int, const void*,
                                   int))dlsym(RTLD_NEXT,
                                              "glDrawElementsBaseVertex");
-    if (!macoblox_gl_trace_enabled() && macoblox_gl_hacks_disabled()) {
+    if (!quadra_gl_trace_enabled() && quadra_gl_hacks_disabled()) {
         if (real_function)
             real_function(mode, count, type, indices, base_vertex);
         return;
     }
-    macoblox_ensure_gl_window_surface();
-    __sync_add_and_fetch(&macoblox_gl_draw_count, 1);
+    quadra_ensure_gl_window_surface();
+    __sync_add_and_fetch(&quadra_gl_draw_count, 1);
     if (real_function &&
-        !macoblox_should_skip_foreign_window_command(1))
+        !quadra_should_skip_foreign_window_command(1))
         real_function(mode, count, type, indices, base_vertex);
     else
-        __sync_add_and_fetch(&macoblox_gl_skipped_foreign_draws, 1);
-    macoblox_trace_window_draw(mode, count);
+        __sync_add_and_fetch(&quadra_gl_skipped_foreign_draws, 1);
+    quadra_trace_window_draw(mode, count);
 }
-DYLD_INTERPOSE(macoblox_glDrawElementsBaseVertex, glDrawElementsBaseVertex);
+DYLD_INTERPOSE(quadra_glDrawElementsBaseVertex, glDrawElementsBaseVertex);
 
-static void macoblox_glDrawArraysInstanced(unsigned int mode, int first,
+static void quadra_glDrawArraysInstanced(unsigned int mode, int first,
                                            int count, int instances) {
     static void (*real_function)(unsigned int, int, int, int);
     if (!real_function)
         real_function = (void (*)(unsigned int, int, int, int))
             dlsym(RTLD_NEXT, "glDrawArraysInstanced");
-    if (!macoblox_gl_trace_enabled() && macoblox_gl_hacks_disabled()) {
+    if (!quadra_gl_trace_enabled() && quadra_gl_hacks_disabled()) {
         if (real_function)
             real_function(mode, first, count, instances);
         return;
     }
-    macoblox_ensure_gl_window_surface();
-    __sync_add_and_fetch(&macoblox_gl_draw_count, 1);
+    quadra_ensure_gl_window_surface();
+    __sync_add_and_fetch(&quadra_gl_draw_count, 1);
     if (real_function &&
-        !macoblox_should_skip_foreign_window_command(1))
+        !quadra_should_skip_foreign_window_command(1))
         real_function(mode, first, count, instances);
     else
-        __sync_add_and_fetch(&macoblox_gl_skipped_foreign_draws, 1);
-    macoblox_trace_window_draw(mode, count);
+        __sync_add_and_fetch(&quadra_gl_skipped_foreign_draws, 1);
+    quadra_trace_window_draw(mode, count);
 }
-DYLD_INTERPOSE(macoblox_glDrawArraysInstanced, glDrawArraysInstanced);
+DYLD_INTERPOSE(quadra_glDrawArraysInstanced, glDrawArraysInstanced);
 
-static void macoblox_glDrawElementsInstanced(unsigned int mode, int count,
+static void quadra_glDrawElementsInstanced(unsigned int mode, int count,
                                              unsigned int type,
                                              const void* indices,
                                              int instances) {
@@ -1040,23 +1040,23 @@ static void macoblox_glDrawElementsInstanced(unsigned int mode, int count,
         real_function = (void (*)(unsigned int, int, unsigned int, const void*,
                                   int))dlsym(RTLD_NEXT,
                                              "glDrawElementsInstanced");
-    if (!macoblox_gl_trace_enabled() && macoblox_gl_hacks_disabled()) {
+    if (!quadra_gl_trace_enabled() && quadra_gl_hacks_disabled()) {
         if (real_function)
             real_function(mode, count, type, indices, instances);
         return;
     }
-    macoblox_ensure_gl_window_surface();
-    __sync_add_and_fetch(&macoblox_gl_draw_count, 1);
+    quadra_ensure_gl_window_surface();
+    __sync_add_and_fetch(&quadra_gl_draw_count, 1);
     if (real_function &&
-        !macoblox_should_skip_foreign_window_command(1))
+        !quadra_should_skip_foreign_window_command(1))
         real_function(mode, count, type, indices, instances);
     else
-        __sync_add_and_fetch(&macoblox_gl_skipped_foreign_draws, 1);
-    macoblox_trace_window_draw(mode, count);
+        __sync_add_and_fetch(&quadra_gl_skipped_foreign_draws, 1);
+    quadra_trace_window_draw(mode, count);
 }
-DYLD_INTERPOSE(macoblox_glDrawElementsInstanced, glDrawElementsInstanced);
+DYLD_INTERPOSE(quadra_glDrawElementsInstanced, glDrawElementsInstanced);
 
-static void macoblox_glDrawElementsInstancedBaseVertex(
+static void quadra_glDrawElementsInstancedBaseVertex(
     unsigned int mode, int count, unsigned int type, const void* indices,
     int instances, int base_vertex) {
     static void (*real_function)(unsigned int, int, unsigned int, const void*,
@@ -1065,24 +1065,24 @@ static void macoblox_glDrawElementsInstancedBaseVertex(
         real_function =
             (void (*)(unsigned int, int, unsigned int, const void*, int, int))
                 dlsym(RTLD_NEXT, "glDrawElementsInstancedBaseVertex");
-    if (!macoblox_gl_trace_enabled() && macoblox_gl_hacks_disabled()) {
+    if (!quadra_gl_trace_enabled() && quadra_gl_hacks_disabled()) {
         if (real_function)
             real_function(mode, count, type, indices, instances, base_vertex);
         return;
     }
-    macoblox_ensure_gl_window_surface();
-    __sync_add_and_fetch(&macoblox_gl_draw_count, 1);
+    quadra_ensure_gl_window_surface();
+    __sync_add_and_fetch(&quadra_gl_draw_count, 1);
     if (real_function &&
-        !macoblox_should_skip_foreign_window_command(1))
+        !quadra_should_skip_foreign_window_command(1))
         real_function(mode, count, type, indices, instances, base_vertex);
     else
-        __sync_add_and_fetch(&macoblox_gl_skipped_foreign_draws, 1);
-    macoblox_trace_window_draw(mode, count);
+        __sync_add_and_fetch(&quadra_gl_skipped_foreign_draws, 1);
+    quadra_trace_window_draw(mode, count);
 }
-DYLD_INTERPOSE(macoblox_glDrawElementsInstancedBaseVertex,
+DYLD_INTERPOSE(quadra_glDrawElementsInstancedBaseVertex,
                glDrawElementsInstancedBaseVertex);
 
-static void macoblox_glBlitFramebuffer(int sx0, int sy0, int sx1, int sy1,
+static void quadra_glBlitFramebuffer(int sx0, int sy0, int sx1, int sy1,
                                        int dx0, int dy0, int dx1, int dy1,
                                        unsigned int mask,
                                        unsigned int filter) {
@@ -1092,11 +1092,11 @@ static void macoblox_glBlitFramebuffer(int sx0, int sy0, int sx1, int sy1,
         real_function =
             (void (*)(int, int, int, int, int, int, int, int, unsigned int,
                       unsigned int))dlsym(RTLD_NEXT, "glBlitFramebuffer");
-    __sync_add_and_fetch(&macoblox_gl_blit_count, 1);
+    __sync_add_and_fetch(&quadra_gl_blit_count, 1);
     if (real_function)
         real_function(sx0, sy0, sx1, sy1, dx0, dy0, dx1, dy1, mask, filter);
 }
-DYLD_INTERPOSE(macoblox_glBlitFramebuffer, glBlitFramebuffer);
+DYLD_INTERPOSE(quadra_glBlitFramebuffer, glBlitFramebuffer);
 
 static void write_str(const char* s) {
     if (!s) return;
@@ -1151,7 +1151,7 @@ static void print_backtrace(void) {
 // Trace the exact resolver requests made by Roblox. A plain getaddrinfo probe
 // succeeds in Darling while Roblox reports DnsResolve, so the hints passed by
 // its networking layer are relevant to the failure.
-struct macoblox_addrinfo_head {
+struct quadra_addrinfo_head {
     int ai_flags;
     int ai_family;
     int ai_socktype;
@@ -1168,14 +1168,14 @@ struct macoblox_addrinfo_head {
 extern int getaddrinfo(const char*, const char*, const void*, void**);
 extern int res_9_query(const char*, int, int, unsigned char*, int);
 extern int *__error(void);
-extern void macoblox_sleep_us(unsigned int);
-extern int macoblox_dns_resolve(const char* node, const char* service,
+extern void quadra_sleep_us(unsigned int);
+extern int quadra_dns_resolve(const char* node, const char* service,
                                 const void* hints, void** result);
-static const struct macoblox_resolver_api *macoblox_resolver_functions(void) {
-    static struct macoblox_resolver_api api;
+static const struct quadra_resolver_api *quadra_resolver_functions(void) {
+    static struct quadra_resolver_api api;
     static volatile unsigned int ready, initialization_lock;
     if (!__atomic_load_n(&ready, __ATOMIC_ACQUIRE)) {
-        macoblox_lock(&initialization_lock);
+        quadra_lock(&initialization_lock);
         if (!ready) {
             api.initialize = (int (*)(void*))dlsym(RTLD_NEXT, "res_9_ninit");
             api.query = (int (*)(void*, const char*, int, int, unsigned char*, int))
@@ -1183,21 +1183,21 @@ static const struct macoblox_resolver_api *macoblox_resolver_functions(void) {
             api.destroy = (void (*)(void*))dlsym(RTLD_NEXT, "res_9_ndestroy");
             __atomic_store_n(&ready, 1, __ATOMIC_RELEASE);
         }
-        macoblox_unlock(&initialization_lock);
+        quadra_unlock(&initialization_lock);
     }
     return &api;
 }
-static int macoblox_res_9_query(const char *name, int dns_class, int type,
+static int quadra_res_9_query(const char *name, int dns_class, int type,
                                unsigned char *answer, int capacity) {
-    macoblox_query_function original = MACOBLOX_NEXT(macoblox_query_function, "res_9_query");
-    return macoblox_query_in_scope(original, name, dns_class, type, answer, capacity);
+    quadra_query_function original = QUADRA_NEXT(quadra_query_function, "res_9_query");
+    return quadra_query_in_scope(original, name, dns_class, type, answer, capacity);
 }
-DYLD_INTERPOSE(macoblox_res_9_query, res_9_query)
-// Milliseconds on the Linux CLOCK_MONOTONIC, like macoblox_sleep_us: the
+DYLD_INTERPOSE(quadra_res_9_query, res_9_query)
+// Milliseconds on the Linux CLOCK_MONOTONIC, like quadra_sleep_us: the
 // resolver work and its lock waits are what a startup stall is made of.
-struct macoblox_timespec { long sec; long nsec; };
-static long macoblox_millis(void) {
-    struct macoblox_timespec now = {0, 0};
+struct quadra_timespec { long sec; long nsec; };
+static long quadra_millis(void) {
+    struct quadra_timespec now = {0, 0};
     long result;
     __asm__ volatile("syscall"
                      : "=a"(result)
@@ -1209,7 +1209,7 @@ static long macoblox_millis(void) {
 // One line per lookup. Emitted for every failed lookup and for any lookup
 // slower than 200 ms. waited_ms is zero on the concurrent private-state path;
 // it remains useful when an older runtime needs the serialized fallback.
-static void macoblox_dns_trace(const char* node, const char* service,
+static void quadra_dns_trace(const char* node, const char* service,
                                const void* hints, int attempts, int status,
                                long waited_ms, long took_ms) {
     write_str("[Quadra DNS] node=");
@@ -1217,8 +1217,8 @@ static void macoblox_dns_trace(const char* node, const char* service,
     write_str(" service=");
     write_str(service ? service : "(null)");
     if (hints) {
-        const struct macoblox_addrinfo_head* head =
-            (const struct macoblox_addrinfo_head*)hints;
+        const struct quadra_addrinfo_head* head =
+            (const struct quadra_addrinfo_head*)hints;
         write_str(" flags="); print_num(head->ai_flags);
         write_str(" family="); print_num(head->ai_family);
         write_str(" socktype="); print_num(head->ai_socktype);
@@ -1233,43 +1233,43 @@ static void macoblox_dns_trace(const char* node, const char* service,
     write_str("\n");
 }
 static int ascii_strings_equal(const char* left, const char* right);
-static int macoblox_getaddrinfo(const char* node, const char* service,
+static int quadra_getaddrinfo(const char* node, const char* service,
                                 const void* hints, void** result) {
     // Preserve the existing optional-telemetry hostname policy. Regional
     // beacon timeouts were observed, but an isolated redirect comparison
     // did not eliminate the remaining leave-game rendering pause.
-    if (macoblox_is_blocked_telemetry(node)) {
+    if (quadra_is_blocked_telemetry(node)) {
         if (result)
             *result = 0;
         return 8; /* EAI_NONAME */
     }
-    long started = macoblox_millis();
+    long started = quadra_millis();
     // DNS chosen in the launcher, for Roblox only (dns_override.c).
-    int own = macoblox_dns_resolve(node, service, hints, result);
+    int own = quadra_dns_resolve(node, service, hints, result);
     if (own >= 0) {
-        long took = macoblox_millis() - started;
+        long took = quadra_millis() - started;
         if (took > 200)
-            macoblox_dns_trace(node, service, hints, 0, own, 0, took);
+            quadra_dns_trace(node, service, hints, 0, own, 0, took);
         return own;
     }
     int (*real_getaddrinfo)(const char*, const char*, const void*, void**) =
-        MACOBLOX_NEXT(int (*)(const char*, const char*, const void*, void**), "getaddrinfo");
+        QUADRA_NEXT(int (*)(const char*, const char*, const void*, void**), "getaddrinfo");
 
     int attempts = 0;
     long waited_ms = 0;
-    int status = macoblox_retry_addrinfo(real_getaddrinfo, macoblox_resolver_functions(),
-        node, service, hints, result, __error(), macoblox_millis, macoblox_sleep_us,
+    int status = quadra_retry_addrinfo(real_getaddrinfo, quadra_resolver_functions(),
+        node, service, hints, result, __error(), quadra_millis, quadra_sleep_us,
         &attempts, &waited_ms);
 
-    long took = macoblox_millis() - started;
+    long took = quadra_millis() - started;
     static volatile int trace = -1;
     if (status != 0 || waited_ms > 200 || took > 200 ||
-        macoblox_env_cached("MACOBLOX_TRACE_DNS", &trace)) {
-        macoblox_dns_trace(node, service, hints, attempts, status, waited_ms, took);
+        quadra_env_cached("QUADRA_TRACE_DNS", &trace)) {
+        quadra_dns_trace(node, service, hints, attempts, status, waited_ms, took);
     }
     return status;
 }
-DYLD_INTERPOSE(macoblox_getaddrinfo, getaddrinfo)
+DYLD_INTERPOSE(quadra_getaddrinfo, getaddrinfo)
 
 // Interposed functions
 extern void exit(int);
@@ -1286,12 +1286,12 @@ extern int NSApplicationMain(int argc, const char *argv[]);
 // functions are looked up once, not with getenv and dlsym every time.
 static int trace_exceptions_enabled(void) {
     static volatile int enabled = -1;
-    return macoblox_env_cached("MACOBLOX_TRACE_EXCEPTIONS", &enabled);
+    return quadra_env_cached("QUADRA_TRACE_EXCEPTIONS", &enabled);
 }
 
 void my_cxa_throw(void* thrown_exception, void* tinfo, void (*dest)(void*)) {
     void (*real_throw)(void*, void*, void(*)(void*)) =
-        MACOBLOX_NEXT(void (*)(void*, void*, void(*)(void*)), "__cxa_throw");
+        QUADRA_NEXT(void (*)(void*, void*, void(*)(void*)), "__cxa_throw");
     if (!trace_exceptions_enabled()) {
         if (real_throw) real_throw(thrown_exception, tinfo, dest);
         while (1);
@@ -1329,7 +1329,7 @@ void my_cxa_throw(void* thrown_exception, void* tinfo, void (*dest)(void*)) {
 DYLD_INTERPOSE(my_cxa_throw, __cxa_throw);
 
 void my_objc_exception_throw(id exception) {
-    void (*real_throw)(id) = MACOBLOX_NEXT(void (*)(id), "objc_exception_throw");
+    void (*real_throw)(id) = QUADRA_NEXT(void (*)(id), "objc_exception_throw");
     if (!trace_exceptions_enabled()) {
         if (real_throw) real_throw(exception);
         while (1);
@@ -1353,7 +1353,7 @@ DYLD_INTERPOSE(my_objc_exception_throw, objc_exception_throw);
 // Interpose _Unwind_Resume, __throw_system_error, __cxa_rethrow
 extern void _Unwind_Resume(void*);
 void my_Unwind_Resume(void* exc) {
-    void (*real_fn)(void*) = MACOBLOX_NEXT(void (*)(void*), "_Unwind_Resume");
+    void (*real_fn)(void*) = QUADRA_NEXT(void (*)(void*), "_Unwind_Resume");
     if (!trace_exceptions_enabled()) {
         if (real_fn) real_fn(exc);
         while (1);
@@ -1372,7 +1372,7 @@ DYLD_INTERPOSE(my_Unwind_Resume, _Unwind_Resume);
 extern void _ZNSt3__120__throw_system_errorEiPKc(int, const char*);
 void my_throw_system_error(int err, const char* msg) {
     void (*real_fn)(int, const char*) =
-        MACOBLOX_NEXT(void (*)(int, const char*), "_ZNSt3__120__throw_system_errorEiPKc");
+        QUADRA_NEXT(void (*)(int, const char*), "_ZNSt3__120__throw_system_errorEiPKc");
     if (!trace_exceptions_enabled()) {
         if (real_fn) real_fn(err, msg);
         while (1);
@@ -1392,7 +1392,7 @@ DYLD_INTERPOSE(my_throw_system_error, _ZNSt3__120__throw_system_errorEiPKc);
 
 extern void __cxa_rethrow(void);
 void my_cxa_rethrow(void) {
-    void (*real_fn)(void) = MACOBLOX_NEXT(void (*)(void), "__cxa_rethrow");
+    void (*real_fn)(void) = QUADRA_NEXT(void (*)(void), "__cxa_rethrow");
     if (!trace_exceptions_enabled()) {
         if (real_fn) real_fn();
         while (1);
@@ -1406,12 +1406,12 @@ void my_cxa_rethrow(void) {
 }
 DYLD_INTERPOSE(my_cxa_rethrow, __cxa_rethrow);
 
-static id macoblox_pending_uri(void);
+static id quadra_pending_uri(void);
 static int ascii_strings_equal(const char* left, const char* right);
-static volatile int macoblox_protocol_string_present;
-static volatile int macoblox_pending_uri_injection_logged;
+static volatile int quadra_protocol_string_present;
+static volatile int quadra_pending_uri_injection_logged;
 
-static int macoblox_has_protocol_string(int argc, const char *argv[]) {
+static int quadra_has_protocol_string(int argc, const char *argv[]) {
     if (!argv)
         return 0;
     for (int index = 0; index < argc; index++) {
@@ -1421,7 +1421,7 @@ static int macoblox_has_protocol_string(int argc, const char *argv[]) {
     return 0;
 }
 
-static void macoblox_log_startup_argv(int argc, const char *argv[]) {
+static void quadra_log_startup_argv(int argc, const char *argv[]) {
     write_str("[Quadra Argv] argc=");
     print_num(argc);
     write_str("\n");
@@ -1432,39 +1432,39 @@ static void macoblox_log_startup_argv(int argc, const char *argv[]) {
         write_str(argv && argv[index] ? argv[index] : "(null)");
         write_str("\n");
     }
-    macoblox_protocol_string_present = macoblox_has_protocol_string(argc, argv);
-    const char* pending = getenv("MACOBLOX_PENDING_URI");
+    quadra_protocol_string_present = quadra_has_protocol_string(argc, argv);
+    const char* pending = getenv("QUADRA_PENDING_URI");
     write_str("[Quadra URL] Startup sources: -protocolString=");
-    print_num(macoblox_protocol_string_present != 0);
-    write_str(" MACOBLOX_PENDING_URI=");
+    print_num(quadra_protocol_string_present != 0);
+    write_str(" QUADRA_PENDING_URI=");
     print_num(pending && pending[0] ? 1 : 0);
     write_str("\n");
-    if (macoblox_protocol_string_present && pending && pending[0])
+    if (quadra_protocol_string_present && pending && pending[0])
         write_str("[Quadra URL] Both protocolString and pending URI are present; protocolString wins\n");
 }
 
 int my_NSApplicationMain(int argc, const char *argv[]) {
     write_str("\n[Quadra Hook] NSApplicationMain entered!\n");
-    macoblox_log_startup_argv(argc, argv);
-    if (macoblox_protocol_string_present) {
+    quadra_log_startup_argv(argc, argv);
+    if (quadra_protocol_string_present) {
         write_str("[Quadra URL] Pending URI injection: disabled (native -protocolString present)\n");
     } else {
         write_str("[Quadra URL] Pending URI injection: enabled (no -protocolString)\n");
         // Capture the process-bound copy before the launcher can clear its
         // host-side pending file. The value remains opaque until it is turned
         // into the Cocoa URL object at delivery time.
-        (void)macoblox_pending_uri();
+        (void)quadra_pending_uri();
     }
 
     void* (*open_display)(const char*) = (void* (*)(const char*))dlsym(RTLD_DEFAULT, "XOpenDisplay");
     int (*close_display)(void*) = (int (*)(void*))dlsym(RTLD_DEFAULT, "XCloseDisplay");
-    if (open_display && !macoblox_wayland_enabled()) {
+    if (open_display && !quadra_wayland_enabled()) {
         void* test_dpy = open_display(0);
         if (!test_dpy) {
             write_str("[Quadra] FATAL: Cannot connect to X11 display! XOpenDisplay returned NULL.\n");
             write_str("[Quadra] Make sure an X server or Xwayland is running.\n");
-            extern void macoblox_immediate_exit(int);
-            macoblox_immediate_exit(1);
+            extern void quadra_immediate_exit(int);
+            quadra_immediate_exit(1);
         } else if (close_display) {
             close_display(test_dpy);
         }
@@ -1487,18 +1487,18 @@ struct darwin_sigaction {
 };
 extern int sigaction(int, const struct darwin_sigaction*, struct darwin_sigaction*);
 
-static int macoblox_crash_diagnostics_enabled(void) {
+static int quadra_crash_diagnostics_enabled(void) {
     static volatile int enabled = -1;
     int value = __atomic_load_n(&enabled, __ATOMIC_RELAXED);
     if (value < 0) {
-        const char* setting = getenv("MACOBLOX_DIAGNOSTIC_SIGNALS");
+        const char* setting = getenv("QUADRA_DIAGNOSTIC_SIGNALS");
         value = setting && setting[0] == '1' && !setting[1];
         __atomic_store_n(&enabled, value, __ATOMIC_RELAXED);
     }
     return value;
 }
 
-static int macoblox_diagnostic_fatal_signal(int sig) {
+static int quadra_diagnostic_fatal_signal(int sig) {
     // Darwin signal numbers, not the Linux host's numbering.
     return sig == 4 || sig == 5 || sig == 6 || sig == 10 || sig == 11;
 }
@@ -1571,9 +1571,9 @@ int my_sigaction(int sig, const struct darwin_sigaction *act, struct darwin_siga
     print_hex(act ? (unsigned long long)act->sa_sigaction : 0);
     write_str("\n");
     int (*real_sigaction)(int, const void*, void*) =
-        MACOBLOX_NEXT(int (*)(int, const void*, void*), "sigaction");
+        QUADRA_NEXT(int (*)(int, const void*, void*), "sigaction");
     // Opt-in crash diagnosis only: preserve the application's handlers normally.
-    if (macoblox_crash_diagnostics_enabled() && macoblox_diagnostic_fatal_signal(sig) && act && real_sigaction) {
+    if (quadra_crash_diagnostics_enabled() && quadra_diagnostic_fatal_signal(sig) && act && real_sigaction) {
         struct darwin_sigaction debug_action = {crash_handler, 0, 0x0040};
         return real_sigaction(sig, &debug_action, oact);
     }
@@ -1592,13 +1592,13 @@ static id hooked_concrete_initWithString(id self, SEL _cmd, id str) {
 
 // Swizzle NSApplication run
 static void (*orig_app_run)(id self, SEL _cmd) = 0;
-static void macoblox_queue_pending_uri(id app);
+static void quadra_queue_pending_uri(id app);
 static void hooked_app_run(id self, SEL _cmd) {
     write_str("\n[Quadra Hook] -[NSApplication run] entered!\n");
     // If Darling does not call finishLaunching through the swizzled entry
     // point, the main-queue turn below still runs after AppKit has started its
     // event loop and the delegate has been installed.
-    macoblox_queue_pending_uri(self);
+    quadra_queue_pending_uri(self);
     orig_app_run(self, _cmd);
     write_str("\n[Quadra Hook] -[NSApplication run] returned!\n");
 }
@@ -1619,31 +1619,31 @@ static void (*orig_app_finish_launching)(id self, SEL cmd) = 0;
 //
 // A direct executable launch has no LaunchServices/Apple Event envelope.  The
 // launcher therefore passes the original opaque browser value in
-// MACOBLOX_PENDING_URI and leaves the pending-uri file path available as a
+// QUADRA_PENDING_URI and leaves the pending-uri file path available as a
 // fallback.  Once AppKit has finished launching, deliver it through the
 // delegate's normal Cocoa URL entry point.  No URI fields are inspected or
 // rebuilt here.
-extern MacOBloxFILE* fopen(const char*, const char*);
-extern unsigned long fread(void*, unsigned long, unsigned long, MacOBloxFILE*);
-extern int fclose(MacOBloxFILE*);
+extern QuadraFILE* fopen(const char*, const char*);
+extern unsigned long fread(void*, unsigned long, unsigned long, QuadraFILE*);
+extern int fclose(QuadraFILE*);
 extern void dispatch_async(void*, void (^)(void));
 extern unsigned long long dispatch_time(unsigned long long, long long);
 extern void dispatch_after(unsigned long long, void*, void (^)(void));
 extern struct dispatch_queue_s _dispatch_main_q;
 
-static id macoblox_captured_delegate;
-static volatile int macoblox_pending_uri_checked;
-static volatile int macoblox_pending_uri_delivered;
-static id macoblox_pending_uri_string;
+static id quadra_captured_delegate;
+static volatile int quadra_pending_uri_checked;
+static volatile int quadra_pending_uri_delivered;
+static id quadra_pending_uri_string;
 
-static unsigned long macoblox_fourcc(char a, char b, char c, char d) {
+static unsigned long quadra_fourcc(char a, char b, char c, char d) {
     return ((unsigned long)(unsigned char)a << 24) |
            ((unsigned long)(unsigned char)b << 16) |
            ((unsigned long)(unsigned char)c << 8) |
            (unsigned long)(unsigned char)d;
 }
 
-static id macoblox_ns_string_from_bytes(const char* bytes, unsigned long length) {
+static id quadra_ns_string_from_bytes(const char* bytes, unsigned long length) {
     if (!bytes || !length)
         return 0;
     char* copy = (char*)malloc(length + 1);
@@ -1663,40 +1663,40 @@ static id macoblox_ns_string_from_bytes(const char* bytes, unsigned long length)
     return value;
 }
 
-static id macoblox_pending_uri(void) {
-    if (macoblox_pending_uri_checked)
-        return macoblox_pending_uri_string;
-    macoblox_pending_uri_checked = 1;
+static id quadra_pending_uri(void) {
+    if (quadra_pending_uri_checked)
+        return quadra_pending_uri_string;
+    quadra_pending_uri_checked = 1;
 
-    const char* value = getenv("MACOBLOX_PENDING_URI");
-    unsigned long length = value ? macoblox_cstr_length(value) : 0;
+    const char* value = getenv("QUADRA_PENDING_URI");
+    unsigned long length = value ? quadra_cstr_length(value) : 0;
     if (value && length)
-        macoblox_pending_uri_string = macoblox_ns_string_from_bytes(value, length);
+        quadra_pending_uri_string = quadra_ns_string_from_bytes(value, length);
 
     // A launch without the command-line copy can still consume the pending
     // file.  It is read through SystemRoot because Darling's /tmp and home are
     // private while the launcher cache is on the host filesystem.
-    if (!macoblox_pending_uri_string) {
-        const char* path = getenv("MACOBLOX_PENDING_URI_FILE");
-        MacOBloxFILE* file = path && path[0] ? fopen(path, "rb") : 0;
+    if (!quadra_pending_uri_string) {
+        const char* path = getenv("QUADRA_PENDING_URI_FILE");
+        QuadraFILE* file = path && path[0] ? fopen(path, "rb") : 0;
         if (file) {
             unsigned long capacity = 64 * 1024;
             char* bytes = (char*)malloc(capacity);
             unsigned long count = bytes ? fread(bytes, 1, capacity, file) : 0;
             fclose(file);
             if (count)
-                macoblox_pending_uri_string = macoblox_ns_string_from_bytes(bytes, count);
+                quadra_pending_uri_string = quadra_ns_string_from_bytes(bytes, count);
             free(bytes);
         }
     }
 
-    if (macoblox_pending_uri_string) {
+    if (quadra_pending_uri_string) {
         write_str("[Quadra URL] Pending URI detected\n");
     }
-    return macoblox_pending_uri_string;
+    return quadra_pending_uri_string;
 }
 
-static signed char macoblox_log_uri_selector(id delegate, const char* name) {
+static signed char quadra_log_uri_selector(id delegate, const char* name) {
     SEL selector = sel_registerName(name);
     Class delegate_class = object_getClass(delegate);
     Method method = delegate_class ? class_getInstanceMethod(delegate_class, selector) : 0;
@@ -1717,8 +1717,8 @@ static signed char macoblox_log_uri_selector(id delegate, const char* name) {
     return responds;
 }
 
-static unsigned long macoblox_uri_delay_ms(void) {
-    const char* value = getenv("MACOBLOX_URI_DELAY_MS");
+static unsigned long quadra_uri_delay_ms(void) {
+    const char* value = getenv("QUADRA_URI_DELAY_MS");
     if (!value || !value[0])
         return 0;
     unsigned long delay = 0;
@@ -1736,7 +1736,7 @@ static unsigned long macoblox_uri_delay_ms(void) {
     return delay;
 }
 
-static id macoblox_make_url_event(id url_string) {
+static id quadra_make_url_event(id url_string) {
     Class descriptor_class = objc_getClass("NSAppleEventDescriptor");
     if (!descriptor_class)
         return 0;
@@ -1750,38 +1750,38 @@ static id macoblox_make_url_event(id url_string) {
         (id)descriptor_class, descriptor_with_string, url_string);
     id event = ((id (*)(id, SEL, unsigned long, unsigned long, id, short, long))objc_msgSend)(
         (id)descriptor_class, apple_event,
-        macoblox_fourcc('G', 'U', 'R', 'L'), // kInternetEventClass
-        macoblox_fourcc('G', 'U', 'R', 'L'), // kAEGetURL
+        quadra_fourcc('G', 'U', 'R', 'L'), // kInternetEventClass
+        quadra_fourcc('G', 'U', 'R', 'L'), // kAEGetURL
         0, -1, 0);                            // auto return ID, any transaction
     SEL set_parameter = sel_registerName("setParamDescriptor:forKeyword:");
     if (!event || !url_descriptor || !class_getInstanceMethod(descriptor_class, set_parameter))
         return 0;
     ((void (*)(id, SEL, id, unsigned long))objc_msgSend)(
-        event, set_parameter, url_descriptor, macoblox_fourcc('-', '-', '-', '-'));
+        event, set_parameter, url_descriptor, quadra_fourcc('-', '-', '-', '-'));
     return event;
 }
 
-static void macoblox_deliver_pending_uri(id app) {
-    if (macoblox_protocol_string_present) {
-        if (!macoblox_pending_uri_injection_logged) {
-            macoblox_pending_uri_injection_logged = 1;
+static void quadra_deliver_pending_uri(id app) {
+    if (quadra_protocol_string_present) {
+        if (!quadra_pending_uri_injection_logged) {
+            quadra_pending_uri_injection_logged = 1;
             write_str("[Quadra URL] Pending URI injection skipped; -protocolString already supplied the URI\n");
         }
         return;
     }
-    if (macoblox_pending_uri_delivered)
+    if (quadra_pending_uri_delivered)
         return;
-    id value = macoblox_pending_uri();
+    id value = quadra_pending_uri();
     if (!value)
         return;
-    id delegate = macoblox_captured_delegate;
+    id delegate = quadra_captured_delegate;
     if (!delegate && app)
         delegate = ((id (*)(id, SEL))objc_msgSend)(app, sel_registerName("delegate"));
     if (!delegate) {
         write_str("[Quadra URL] Delegate not available yet\n");
         return;
     }
-    macoblox_captured_delegate = delegate;
+    quadra_captured_delegate = delegate;
     write_str("[Quadra URL] Delegate: ");
     write_str(object_getClassName(delegate));
     write_str("\n");
@@ -1789,9 +1789,9 @@ static void macoblox_deliver_pending_uri(id app) {
     const char* open_urls_name = "application:openURLs:";
     const char* open_file_name = "application:openFile:";
     const char* handle_get_url_name = "application:handleGetURLEvent:withReplyEvent:";
-    signed char has_open_urls = macoblox_log_uri_selector(delegate, open_urls_name);
-    signed char has_open_file = macoblox_log_uri_selector(delegate, open_file_name);
-    signed char has_get_url = macoblox_log_uri_selector(delegate, handle_get_url_name);
+    signed char has_open_urls = quadra_log_uri_selector(delegate, open_urls_name);
+    signed char has_open_file = quadra_log_uri_selector(delegate, open_file_name);
+    signed char has_get_url = quadra_log_uri_selector(delegate, handle_get_url_name);
     id url = ((id (*)(id, SEL, id))objc_msgSend)(
         (id)objc_getClass("NSURL"), sel_registerName("URLWithString:"), value);
     if (!url) {
@@ -1805,7 +1805,7 @@ static void macoblox_deliver_pending_uri(id app) {
         write_str("\n");
     }
 
-    const char* order = getenv("MACOBLOX_URI_SELECTOR_ORDER");
+    const char* order = getenv("QUADRA_URI_SELECTOR_ORDER");
     int apple_first = ascii_strings_equal(order, "B");
     write_str(apple_first ? "[Quadra URL] Selector order=B\n" :
                             "[Quadra URL] Selector order=A\n");
@@ -1826,7 +1826,7 @@ static void macoblox_deliver_pending_uri(id app) {
             // NSApplication* and NSArray<NSURL*>* object arguments.
             ((void (*)(id, SEL, id, id))objc_msgSend)(delegate, open_urls, app, urls);
             write_str("[Quadra URL] After application:openURLs:\n");
-            macoblox_pending_uri_delivered = 1;
+            quadra_pending_uri_delivered = 1;
             write_str("[Quadra URL] Delivered successfully\n");
         } @catch (id exception) {
             (void)exception;
@@ -1851,7 +1851,7 @@ static void macoblox_deliver_pending_uri(id app) {
             return;
         }
         if (accepted) {
-            macoblox_pending_uri_delivered = 1;
+            quadra_pending_uri_delivered = 1;
             write_str("[Quadra URL] Delivered successfully\n");
         } else {
             write_str("[Quadra URL] Delivered failed\n");
@@ -1862,7 +1862,7 @@ static void macoblox_deliver_pending_uri(id app) {
         if (kind == 2 && has_get_url) {
         SEL handle_get_url = sel_registerName(handle_get_url_name);
         write_str("[Quadra URL] Using: application:handleGetURLEvent:withReplyEvent:\n");
-        id event = macoblox_make_url_event(value);
+        id event = quadra_make_url_event(value);
         if (!event) {
             write_str("[Quadra URL] Delivered failed\n");
             return;
@@ -1871,7 +1871,7 @@ static void macoblox_deliver_pending_uri(id app) {
         @try {
             ((void (*)(id, SEL, id, id, id))objc_msgSend)(delegate, handle_get_url, app, event, 0);
             write_str("[Quadra URL] After application:handleGetURLEvent:withReplyEvent:\n");
-            macoblox_pending_uri_delivered = 1;
+            quadra_pending_uri_delivered = 1;
             write_str("[Quadra URL] Delivered successfully\n");
         } @catch (id exception) {
             (void)exception;
@@ -1884,43 +1884,43 @@ static void macoblox_deliver_pending_uri(id app) {
     write_str("[Quadra URL] Delivered failed\n");
 }
 
-static void macoblox_queue_pending_uri(id app) {
-    if (macoblox_protocol_string_present) {
-        if (!macoblox_pending_uri_injection_logged) {
-            macoblox_pending_uri_injection_logged = 1;
+static void quadra_queue_pending_uri(id app) {
+    if (quadra_protocol_string_present) {
+        if (!quadra_pending_uri_injection_logged) {
+            quadra_pending_uri_injection_logged = 1;
             write_str("[Quadra URL] Pending URI injection skipped; -protocolString already supplied the URI\n");
         }
         return;
     }
-    if (!macoblox_pending_uri())
+    if (!quadra_pending_uri())
         return;
     write_str("[Quadra URL] Pending URI injection running\n");
-    unsigned long delay_ms = macoblox_uri_delay_ms();
+    unsigned long delay_ms = quadra_uri_delay_ms();
     write_str("[Quadra URL] Queued delivery after ");
     print_num(delay_ms);
     write_str(" ms\n");
     if (delay_ms) {
         dispatch_after(dispatch_time(0, (long long)delay_ms * 1000000LL),
-                       &_dispatch_main_q, ^{ macoblox_deliver_pending_uri(app); });
+                       &_dispatch_main_q, ^{ quadra_deliver_pending_uri(app); });
     } else {
-        dispatch_async(&_dispatch_main_q, ^{ macoblox_deliver_pending_uri(app); });
+        dispatch_async(&_dispatch_main_q, ^{ quadra_deliver_pending_uri(app); });
     }
 }
 
-// Window icon: MACOBLOX_ICON_ARGB names a file of 32-bit little-endian words
+// Window icon: QUADRA_ICON_ARGB names a file of 32-bit little-endian words
 // in _NET_WM_ICON layout (width, height, ARGB pixels, repeated per size),
 // written by the launcher. It is set on the Roblox X window from a separate
 // X connection, so docks and window switchers show the Mac O Blox logo.
 extern void* malloc(unsigned long);
 extern void free(void*);
-static unsigned long macoblox_icon_window;
-static void* macoblox_set_window_icon_thread(void* unused) {
+static unsigned long quadra_icon_window;
+static void* quadra_set_window_icon_thread(void* unused) {
     (void)unused;
-    const char* path = getenv("MACOBLOX_ICON_ARGB");
-    MacOBloxFILE* file = path ? fopen(path, "rb") : 0;
+    const char* path = getenv("QUADRA_ICON_ARGB");
+    QuadraFILE* file = path ? fopen(path, "rb") : 0;
     if (!file)
         return 0;
-    extern unsigned long fread(void*, unsigned long, unsigned long, MacOBloxFILE*);
+    extern unsigned long fread(void*, unsigned long, unsigned long, QuadraFILE*);
     unsigned int* words = (unsigned int*)malloc(1 << 22);
     unsigned long count = words ? fread(words, 4, (1 << 22) / 4, file) : 0;
     fclose(file);
@@ -1944,7 +1944,7 @@ static void* macoblox_set_window_icon_thread(void* unused) {
     void* display = open_display && longs ? open_display(0) : 0;
     if (display && intern && change) {
         unsigned long atom = intern(display, "_NET_WM_ICON", 0);
-        change(display, macoblox_icon_window, atom, 6 /* XA_CARDINAL */, 32,
+        change(display, quadra_icon_window, atom, 6 /* XA_CARDINAL */, 32,
                0 /* PropModeReplace */, longs, (int)count);
         if (sync)
             sync(display, 0);
@@ -1956,7 +1956,7 @@ static void* macoblox_set_window_icon_thread(void* unused) {
     return 0;
 }
 
-static unsigned long macoblox_native_window_handle(id window) {
+static unsigned long quadra_native_window_handle(id window) {
     /* NSWindow/RBXWindow is the Cocoa object. Only its platformWindow has
      * Darling's X11 windowHandle; sending it to RBXWindow raises an exception
      * on every attempted camera lock, before the lock can become active. */
@@ -1973,27 +1973,27 @@ static unsigned long macoblox_native_window_handle(id window) {
         platform, sel_registerName("windowHandle"));
 }
 
-static void macoblox_set_window_icon(id window) {
-    if (macoblox_wayland_enabled())
+static void quadra_set_window_icon(id window) {
+    if (quadra_wayland_enabled())
         return;
-    if (!getenv("MACOBLOX_ICON_ARGB") || macoblox_icon_window)
+    if (!getenv("QUADRA_ICON_ARGB") || quadra_icon_window)
         return;
-    macoblox_icon_window = macoblox_native_window_handle(window);
-    if (!macoblox_icon_window)
+    quadra_icon_window = quadra_native_window_handle(window);
+    if (!quadra_icon_window)
         return;
     extern int pthread_create(void**, const void*, void* (*)(void*), void*);
     extern int pthread_detach(void*);
     void* thread;
-    if (pthread_create(&thread, 0, macoblox_set_window_icon_thread, 0) == 0)
+    if (pthread_create(&thread, 0, quadra_set_window_icon_thread, 0) == 0)
         pthread_detach(thread);
 }
 
 // Darling draws the macOS menu bar (Roblox, Edit, Window...) inside each
-// window. With MACOBLOX_HIDE_MENU_BAR=1 its height is 0: cocotron uses
+// window. With QUADRA_HIDE_MENU_BAR=1 its height is 0: cocotron uses
 // +[NSMainMenuView menuHeight] for the bar itself and for converting between
 // window frame and content rect, so the game fills the whole window, also
 // after Roblox rebuilds its menu (which re-showed a strip after sign-in).
-static double macoblox_zero_menu_height(id cls, SEL cmd) {
+static double quadra_zero_menu_height(id cls, SEL cmd) {
     (void)cls; (void)cmd;
     return 0.0;
 }
@@ -2029,14 +2029,14 @@ static id keyed_unarchiver_unarchived_object(id cls, SEL cmd, Class expected, id
     return object;
 }
 
-static void macoblox_install_late_hooks(void);
-static void macoblox_start_xfixes_worker(void);
+static void quadra_install_late_hooks(void);
+static void quadra_start_xfixes_worker(void);
 static void hooked_app_finish_launching(id self, SEL cmd) {
-    macoblox_install_late_hooks();
-    macoblox_start_xfixes_worker(); // ready before the first mouse lock
+    quadra_install_late_hooks();
+    quadra_start_xfixes_worker(); // ready before the first mouse lock
     orig_app_finish_launching(self, cmd);
     write_str("[Quadra Hook] -[NSApplication finishLaunching] returned\n");
-    macoblox_queue_pending_uri(self);
+    quadra_queue_pending_uri(self);
 
     id windows = ((id (*)(id, SEL))objc_msgSend)(self, sel_registerName("windows"));
     unsigned long count = windows
@@ -2047,7 +2047,7 @@ static void hooked_app_finish_launching(id self, SEL cmd) {
         const char* class_name = window ? object_getClassName(window) : 0;
         if (!ascii_strings_equal(class_name, "RBXWindow"))
             continue;
-        macoblox_set_window_icon(window);
+        quadra_set_window_icon(window);
         signed char visible = ((signed char (*)(id, SEL))objc_msgSend)(
             window, sel_registerName("isVisible"));
         if (!visible) {
@@ -2059,14 +2059,14 @@ static void hooked_app_finish_launching(id self, SEL cmd) {
 }
 
 // Swizzle NSApplication terminate:
-// The launcher watches MACOBLOX_QUIT_SENTINEL: the file's existence means the
+// The launcher watches QUADRA_QUIT_SENTINEL: the file's existence means the
 // user asked to quit, so the session can end without waiting for Roblox's
 // whole teardown (network closes, telemetry) to finish.
-static void macoblox_write_quit_sentinel(void) {
-    const char* path = getenv("MACOBLOX_QUIT_SENTINEL");
+static void quadra_write_quit_sentinel(void) {
+    const char* path = getenv("QUADRA_QUIT_SENTINEL");
     if (!path || !path[0])
         return;
-    MacOBloxFILE* file = fopen(path, "w");
+    QuadraFILE* file = fopen(path, "w");
     if (!file)
         return;
     fclose(file);
@@ -2081,7 +2081,7 @@ static void hooked_app_terminate(id self, SEL _cmd, id sender) {
     write_str("\n[Quadra Hook] -[NSApplication terminate:] called!\nBacktrace:\n");
     print_backtrace();
     if (sender != self)
-        macoblox_write_quit_sentinel();
+        quadra_write_quit_sentinel();
     orig_app_terminate(self, _cmd, sender);
 }
 
@@ -2092,7 +2092,7 @@ static void hooked_app_setDelegate(id self, SEL _cmd, id del) {
     write_str(del ? object_getClassName(del) : "(nil)");
     write_str("\n");
     orig_app_setDelegate(self, _cmd, del);
-    macoblox_captured_delegate = del;
+    quadra_captured_delegate = del;
 }
 
 // Swizzle NSBundle loadNibNamed:owner:
@@ -2127,7 +2127,7 @@ static id hooked_wt_initWithCoder(id self, SEL _cmd, id coder) {
     @try {
         res = orig_wt_initWithCoder(self, _cmd, coder);
     } @catch (id exception) {
-        if (macoblox_crash_diagnostics_enabled()) {
+        if (quadra_crash_diagnostics_enabled()) {
             write_str("[Quadra Startup] Window template exception class: ");
             write_str(object_getClassName(exception));
             write_str("\n");
@@ -2193,14 +2193,14 @@ static void hooked_conn_establish(id self, SEL _cmd) {
 }
 
 // Cocoa x86_64 ABI: NSRect is four doubles passed by value; BOOL is signed char.
-typedef struct { double x, y; } MacOBloxPoint;
-typedef struct { double width, height; } MacOBloxSize;
-typedef struct { MacOBloxPoint origin; MacOBloxSize size; } MacOBloxRect;
-typedef signed char MacOBloxBool;
+typedef struct { double x, y; } QuadraPoint;
+typedef struct { double width, height; } QuadraSize;
+typedef struct { QuadraPoint origin; QuadraSize size; } QuadraRect;
+typedef signed char QuadraBool;
 
 // Swizzle NSWindow initWithContentRect:styleMask:backing:defer:
-static id (*orig_win_init)(id self, SEL _cmd, MacOBloxRect r, unsigned long sm, unsigned long bs, MacOBloxBool def) = 0;
-static id hooked_win_init(id self, SEL _cmd, MacOBloxRect r, unsigned long sm, unsigned long bs, MacOBloxBool def) {
+static id (*orig_win_init)(id self, SEL _cmd, QuadraRect r, unsigned long sm, unsigned long bs, QuadraBool def) = 0;
+static id hooked_win_init(id self, SEL _cmd, QuadraRect r, unsigned long sm, unsigned long bs, QuadraBool def) {
     write_str("\n[Quadra Hook] -[NSWindow initWithContentRect:...] START, class: ");
     write_str(object_getClassName(self));
     write_str("\n");
@@ -2214,7 +2214,7 @@ static id hooked_win_init(id self, SEL _cmd, MacOBloxRect r, unsigned long sm, u
 // Experimental 1x backing-size fallback for Darling's non-Retina NSView.
 // Only add it when AppKit does not implement the method.
 extern signed char class_addMethod(Class, SEL, IMP, const char*);
-static MacOBloxSize backing_size_1x(id self, SEL cmd, MacOBloxSize size) {
+static QuadraSize backing_size_1x(id self, SEL cmd, QuadraSize size) {
     (void)self; (void)cmd;
     return size;
 }
@@ -2229,23 +2229,23 @@ static MacOBloxSize backing_size_1x(id self, SEL cmd, MacOBloxSize size) {
 // not, and the game died at start with "unrecognized selector". Darling draws
 // no such title bar anyway, so where they are missing they only remember the
 // value. Per window state is not needed: Roblox has one window.
-static signed char macoblox_titlebar_transparent;
-static long macoblox_title_visibility;
+static signed char quadra_titlebar_transparent;
+static long quadra_title_visibility;
 static void window_set_titlebar_appears_transparent(id self, SEL cmd, signed char flag) {
     (void)self; (void)cmd;
-    macoblox_titlebar_transparent = flag;
+    quadra_titlebar_transparent = flag;
 }
 static signed char window_titlebar_appears_transparent(id self, SEL cmd) {
     (void)self; (void)cmd;
-    return macoblox_titlebar_transparent;
+    return quadra_titlebar_transparent;
 }
 static void window_set_title_visibility(id self, SEL cmd, long visibility) {
     (void)self; (void)cmd;
-    macoblox_title_visibility = visibility;
+    quadra_title_visibility = visibility;
 }
 static long window_title_visibility(id self, SEL cmd) {
     (void)self; (void)cmd;
-    return macoblox_title_visibility;
+    return quadra_title_visibility;
 }
 
 // NSWindow gained rectangle variants of its screen conversion API after the
@@ -2253,21 +2253,21 @@ static long window_title_visibility(id self, SEL cmd) {
 // handling mouse movement.  Falling through Objective-C forwarding is unsafe
 // for a CGRect return on x86_64, so implement the methods in terms of the older
 // point conversion calls which Darling does provide.
-static MacOBloxRect window_convert_rect_from_screen(id self, SEL cmd, MacOBloxRect rect) {
+static QuadraRect window_convert_rect_from_screen(id self, SEL cmd, QuadraRect rect) {
     (void)cmd;
-    rect.origin = ((MacOBloxPoint (*)(id, SEL, MacOBloxPoint))objc_msgSend)(
+    rect.origin = ((QuadraPoint (*)(id, SEL, QuadraPoint))objc_msgSend)(
         self, sel_registerName("convertScreenToBase:"), rect.origin);
     return rect;
 }
 
-static MacOBloxRect window_convert_rect_to_screen(id self, SEL cmd, MacOBloxRect rect) {
+static QuadraRect window_convert_rect_to_screen(id self, SEL cmd, QuadraRect rect) {
     (void)cmd;
-    rect.origin = ((MacOBloxPoint (*)(id, SEL, MacOBloxPoint))objc_msgSend)(
+    rect.origin = ((QuadraPoint (*)(id, SEL, QuadraPoint))objc_msgSend)(
         self, sel_registerName("convertBaseToScreen:"), rect.origin);
     return rect;
 }
 
-static long window_number_at_point(id cls, SEL cmd, MacOBloxPoint point, long belowWindowNumber) {
+static long window_number_at_point(id cls, SEL cmd, QuadraPoint point, long belowWindowNumber) {
     (void)cls; (void)cmd; (void)point; (void)belowWindowNumber;
     id app = ((id (*)(id, SEL))objc_msgSend)((id)objc_getClass("NSApplication"), sel_registerName("sharedApplication"));
     id win = app ? ((id (*)(id, SEL))objc_msgSend)(app, sel_registerName("keyWindow")) : 0;
@@ -2279,7 +2279,7 @@ static long window_number_at_point(id cls, SEL cmd, MacOBloxPoint point, long be
             win = ((id (*)(id, SEL, unsigned long))objc_msgSend)(windows, sel_registerName("objectAtIndex:"), 0);
     }
     if (win) {
-        if (!((MacOBloxBool (*)(id, SEL))objc_msgSend)(win, sel_registerName("isKeyWindow"))) {
+        if (!((QuadraBool (*)(id, SEL))objc_msgSend)(win, sel_registerName("isKeyWindow"))) {
             ((void (*)(id, SEL, id))objc_msgSend)(win, sel_registerName("makeKeyAndOrderFront:"), (id)0);
         }
         return ((long (*)(id, SEL))objc_msgSend)(win, sel_registerName("windowNumber"));
@@ -2290,41 +2290,41 @@ static long window_number_at_point(id cls, SEL cmd, MacOBloxPoint point, long be
 // Darling exposes a deliberately small WebPreferences forwarding stub, but
 // omits this legacy singleton constructor.  Roblox asks for the singleton while
 // creating its experience coordinator, before any preference setters are sent.
-static id macoblox_standard_web_preferences;
-static volatile int macoblox_web_preferences_lock;
+static id quadra_standard_web_preferences;
+static volatile int quadra_web_preferences_lock;
 static id web_preferences_standard_preferences(id cls, SEL cmd) {
     (void)cmd;
-    if (macoblox_standard_web_preferences)
-        return macoblox_standard_web_preferences;
-    while (__sync_lock_test_and_set(&macoblox_web_preferences_lock, 1))
-        macoblox_sleep_us(1000);
-    if (!macoblox_standard_web_preferences) {
+    if (quadra_standard_web_preferences)
+        return quadra_standard_web_preferences;
+    while (__sync_lock_test_and_set(&quadra_web_preferences_lock, 1))
+        quadra_sleep_us(1000);
+    if (!quadra_standard_web_preferences) {
         id preferences = ((id (*)(id, SEL))objc_msgSend)(
             cls, sel_registerName("alloc"));
         preferences = preferences
             ? ((id (*)(id, SEL))objc_msgSend)(preferences, sel_registerName("init"))
             : 0;
-        macoblox_standard_web_preferences = preferences;
+        quadra_standard_web_preferences = preferences;
     }
-    __sync_lock_release(&macoblox_web_preferences_lock);
-    return macoblox_standard_web_preferences;
+    __sync_lock_release(&quadra_web_preferences_lock);
+    return quadra_standard_web_preferences;
 }
 
 /* The generic WebKit forwarding stub advertises a zero-argument signature
  * for this BOOL setter, which raises NSForwardSignatureError in Roblox. */
 static char web_plugins_enabled_key;
-static void web_preferences_set_plugins_enabled(id self, SEL cmd, MacOBloxBool enabled) {
+static void web_preferences_set_plugins_enabled(id self, SEL cmd, QuadraBool enabled) {
     (void)cmd;
     extern void objc_setAssociatedObject(id, const void*, id, unsigned long);
-    id value = ((id (*)(id, SEL, MacOBloxBool))objc_msgSend)(
+    id value = ((id (*)(id, SEL, QuadraBool))objc_msgSend)(
         (id)objc_getClass("NSNumber"), sel_registerName("numberWithBool:"), enabled);
     objc_setAssociatedObject(self, &web_plugins_enabled_key, value, 1);
 }
-static MacOBloxBool web_preferences_plugins_enabled(id self, SEL cmd) {
+static QuadraBool web_preferences_plugins_enabled(id self, SEL cmd) {
     (void)cmd;
     extern id objc_getAssociatedObject(id, const void*);
     id value = objc_getAssociatedObject(self, &web_plugins_enabled_key);
-    return value ? ((MacOBloxBool (*)(id, SEL))objc_msgSend)(value, sel_registerName("boolValue")) : 0;
+    return value ? ((QuadraBool (*)(id, SEL))objc_msgSend)(value, sel_registerName("boolValue")) : 0;
 }
 
 // Darling's AVFoundation class shell does not implement device discovery.
@@ -2344,8 +2344,8 @@ static long capture_authorization_status(id cls, SEL cmd, id media_type) {
     (void)cls; (void)cmd; (void)media_type;
     return 3; // AVAuthorizationStatusAuthorized
 }
-struct MacOBloxBoolBlock { void* isa; int flags; int reserved; void (*invoke)(void*, signed char); };
-static void capture_request_access(id cls, SEL cmd, id media_type, struct MacOBloxBoolBlock* handler) {
+struct QuadraBoolBlock { void* isa; int flags; int reserved; void (*invoke)(void*, signed char); };
+static void capture_request_access(id cls, SEL cmd, id media_type, struct QuadraBoolBlock* handler) {
     (void)cls; (void)cmd; (void)media_type;
     if (handler && handler->invoke)
         handler->invoke(handler, 1);
@@ -2410,7 +2410,7 @@ static long process_info_thermal_state_nominal(id self, SEL cmd) {
     return 0;
 }
 
-static MacOBloxBool process_info_low_power_mode_disabled(id self, SEL cmd) {
+static QuadraBool process_info_low_power_mode_disabled(id self, SEL cmd) {
     (void)self; (void)cmd;
     return 0;
 }
@@ -2422,8 +2422,8 @@ static id (*orig_gl_context_init)(id, SEL, id, id) = 0;
 static void (*orig_gl_context_set_view)(id, SEL, id) = 0;
 static void (*orig_gl_context_make_current)(id, SEL) = 0;
 static void (*orig_gl_context_flush)(id, SEL) = 0;
-static volatile long macoblox_gl_make_current_count;
-static volatile long macoblox_gl_flush_count;
+static volatile long quadra_gl_make_current_count;
+static volatile long quadra_gl_flush_count;
 
 static void trace_gl_context(const char* action, id self, long count) {
     void** slots = (void**)self;
@@ -2450,13 +2450,13 @@ static void trace_gl_context(const char* action, id self, long count) {
     write_str("\n");
 }
 
-extern void macoblox_prepare_context(void* format);
-extern void macoblox_finish_context(void);
-extern void macoblox_note_pixel_format(void* format, const unsigned int* attributes);
+extern void quadra_prepare_context(void* format);
+extern void quadra_finish_context(void);
+extern void quadra_note_pixel_format(void* format, const unsigned int* attributes);
 static id hooked_gl_context_init(id self, SEL cmd, id format, id shared) {
-    macoblox_prepare_context(format); // Core Profile if Roblox asked for it (gl_profile.c)
+    quadra_prepare_context(format); // Core Profile if Roblox asked for it (gl_profile.c)
     id result = orig_gl_context_init(self, cmd, format, shared);
-    macoblox_finish_context();
+    quadra_finish_context();
     trace_gl_context("init", result, -1);
     return result;
 }
@@ -2468,23 +2468,23 @@ static void hooked_gl_context_set_view(id self, SEL cmd, id view) {
 
 static void hooked_gl_context_make_current(id self, SEL cmd) {
     orig_gl_context_make_current(self, cmd);
-    long count = __sync_add_and_fetch(&macoblox_gl_make_current_count, 1);
+    long count = __sync_add_and_fetch(&quadra_gl_make_current_count, 1);
     void** slots = (void**)self;
     if (self && slots[3] && slots[5]) {
         void** cgl_slots = (void**)slots[3];
-        macoblox_gl_window_surface = slots[5];
-        macoblox_gl_window_egl_context = cgl_slots[9];
+        quadra_gl_window_surface = slots[5];
+        quadra_gl_window_egl_context = cgl_slots[9];
     }
     if (count <= 5 || count == 60 || count == 600)
         trace_gl_context("makeCurrentContext", self, count);
-    if (macoblox_gl_hacks_disabled()) // runs every frame: no lookups
+    if (quadra_gl_hacks_disabled()) // runs every frame: no lookups
         return;
-    void* (*current_display)(void) = MACOBLOX_NEXT(void* (*)(void), "eglGetCurrentDisplay");
-    void* (*current_context)(void) = MACOBLOX_NEXT(void* (*)(void), "eglGetCurrentContext");
-    void* (*current_surface)(int) = MACOBLOX_NEXT(void* (*)(int), "eglGetCurrentSurface");
+    void* (*current_display)(void) = QUADRA_NEXT(void* (*)(void), "eglGetCurrentDisplay");
+    void* (*current_context)(void) = QUADRA_NEXT(void* (*)(void), "eglGetCurrentContext");
+    void* (*current_surface)(int) = QUADRA_NEXT(void* (*)(int), "eglGetCurrentSurface");
     int (*make_current)(void*, void*, void*, void*) =
-        MACOBLOX_NEXT(int (*)(void*, void*, void*, void*), "eglMakeCurrent");
-    unsigned int (*egl_error)(void) = MACOBLOX_NEXT(unsigned int (*)(void), "eglGetError");
+        QUADRA_NEXT(int (*)(void*, void*, void*, void*), "eglMakeCurrent");
+    unsigned int (*egl_error)(void) = QUADRA_NEXT(unsigned int (*)(void), "eglGetError");
     if (self && slots[5] && current_display && current_context &&
         current_surface && make_current && !current_surface(0x3059)) {
         void* display = current_display();
@@ -2502,7 +2502,7 @@ static void hooked_gl_context_make_current(id self, SEL cmd) {
 
 static void dump_final_program_shaders(int program) {
     if (program > 0)
-        macoblox_dump_program_sources((unsigned int)program, &macoblox_dumped_final_program, 0);
+        quadra_dump_program_sources((unsigned int)program, &quadra_dumped_final_program, 0);
 }
 
 static void trace_gl_frame_state(long count) {
@@ -2540,13 +2540,13 @@ static void trace_gl_frame_state(long count) {
     write_str("[Quadra GL] frame-state #");
     print_num(count);
     write_str(" draws=");
-    print_num(macoblox_gl_draw_count);
+    print_num(quadra_gl_draw_count);
     write_str(" blits=");
-    print_num(macoblox_gl_blit_count);
+    print_num(quadra_gl_blit_count);
     write_str(" clears=");
-    print_num(macoblox_gl_clear_count);
+    print_num(quadra_gl_clear_count);
     write_str(" default-binds=");
-    print_num(macoblox_gl_default_framebuffer_bind_count);
+    print_num(quadra_gl_default_framebuffer_bind_count);
     write_str(" draw-fbo=");
     print_num(draw_framebuffer);
     write_str(" read-fbo=");
@@ -2606,9 +2606,9 @@ static void trace_gl_frame_state(long count) {
 }
 
 static void hooked_gl_context_flush(id self, SEL cmd) {
-    long count = __sync_add_and_fetch(&macoblox_gl_flush_count, 1);
+    long count = __sync_add_and_fetch(&quadra_gl_flush_count, 1);
     static volatile int test_clear = -1;
-    if (macoblox_env_cached("MACOBLOX_GL_TEST_CLEAR", &test_clear)) {
+    if (quadra_env_cached("QUADRA_GL_TEST_CLEAR", &test_clear)) {
         void (*disable)(unsigned int) =
             (void (*)(unsigned int))dlsym(RTLD_NEXT, "glDisable");
         void (*color_mask)(unsigned char, unsigned char, unsigned char,
@@ -2647,7 +2647,7 @@ static void hooked_gl_context_flush(id self, SEL cmd) {
             }
         }
     }
-    if (macoblox_gl_trace_enabled() && (count <= 5 || count == 60 || count == 600)) {
+    if (quadra_gl_trace_enabled() && (count <= 5 || count == 60 || count == 600)) {
         trace_gl_frame_state(count);
         trace_gl_context("flushBuffer", self, count);
     }
@@ -2661,13 +2661,13 @@ static void hooked_gl_context_flush(id self, SEL cmd) {
 // surfaceless layer context, where Roblox's shaders and buffers do not exist.
 extern void* CGLGetCurrentContext(void);
 static void (*orig_layer_context_render_layer)(id, SEL, id) = 0;
-static volatile long macoblox_layer_context_restores;
+static volatile long quadra_layer_context_restores;
 static void hooked_layer_context_render_layer(id self, SEL cmd, id layer) {
     void* previous = CGLGetCurrentContext();
     orig_layer_context_render_layer(self, cmd, layer);
     if (CGLGetCurrentContext() != previous) {
-        int error = macoblox_CGLSetCurrentContext(previous);
-        if (!error && __sync_add_and_fetch(&macoblox_layer_context_restores, 1) == 1)
+        int error = quadra_CGLSetCurrentContext(previous);
+        if (!error && __sync_add_and_fetch(&quadra_layer_context_restores, 1) == 1)
             write_str("[Quadra GL] Restored app GL context after CALayerContext render\n");
     }
 }
@@ -2675,7 +2675,7 @@ static void hooked_layer_context_render_layer(id self, SEL cmd, id layer) {
 /* CARenderer calls its image uploader directly, so dyld interposition cannot
  * replace that call. Populate a new texture before entering its recursive
  * renderer; the original then preserves its animation and child transforms. */
-extern void macoblox_CATexImage2DCGImage(void*);
+extern void quadra_CATexImage2DCGImage(void*);
 extern void glGenTextures(int, unsigned int*);
 extern unsigned char glIsTexture(unsigned int);
 extern void glBindTexture(unsigned int, unsigned int);
@@ -2704,7 +2704,7 @@ static void hooked_ca_renderer_render_layer(id self, SEL cmd, id layer,
         }
         glBindTexture(0x0DE1 /* GL_TEXTURE_2D */, texture);
         id contents = ((id (*)(id, SEL))objc_msgSend)(layer, sel_registerName("contents"));
-        macoblox_CATexImage2DCGImage(contents);
+        quadra_CATexImage2DCGImage(contents);
         const char* filter_names[] = {"minificationFilter", "magnificationFilter"};
         const unsigned int parameters[] = {0x2801, 0x2800};
         for (int i = 0; i < 2; ++i) {
@@ -2735,47 +2735,47 @@ static void hooked_ca_renderer_render_layer(id self, SEL cmd, id layer,
 // events cannot overshoot by applying a stale relative correction. Roblox's
 // per-frame warp requests during capture are ignored.
 extern int CGAssociateMouseAndMouseCursorPosition(unsigned int connected);
-extern int CGWarpMouseCursorPosition(MacOBloxPoint position);
-#define MACOBLOX_LOCK_RADIUS 100.0
+extern int CGWarpMouseCursorPosition(QuadraPoint position);
+#define QUADRA_LOCK_RADIUS 100.0
 #include "pointer_motion.h"
 #include "mouse_motion.h"
 #include "drag_cursor.h"
-static MacOBloxPointerMotion macoblox_pointer_motion;
-static volatile int macoblox_native_motion_active;
-static volatile int macoblox_pointer_grabbed;
-static volatile int macoblox_mouse_lock_requested;
-static volatile int macoblox_drop_next_motion; // first motion after re-entering mid-lock
-static volatile int macoblox_drop_warp_motion;
-static int macoblox_warp_wait_events; // motion events seen since the warp
-static MacOBloxPoint macoblox_expected_warp_delta;
-static volatile long macoblox_associate_mouse_count;
-static MacOBloxPoint macoblox_lock_anchor;
-static volatile int macoblox_lock_anchor_pending;
-static void* macoblox_capture_display;
-static unsigned long macoblox_capture_window;
-static int macoblox_capture_attempted, macoblox_capture_error;
-static int macoblox_capture_start_x, macoblox_capture_start_y;
-static int macoblox_capture_anchor_x, macoblox_capture_anchor_y;
-static volatile int macoblox_cursor_hidden_applied;
-static volatile unsigned long macoblox_cursor_hidden_generation;
-static unsigned long macoblox_capture_generation;
+static QuadraPointerMotion quadra_pointer_motion;
+static volatile int quadra_native_motion_active;
+static volatile int quadra_pointer_grabbed;
+static volatile int quadra_mouse_lock_requested;
+static volatile int quadra_drop_next_motion; // first motion after re-entering mid-lock
+static volatile int quadra_drop_warp_motion;
+static int quadra_warp_wait_events; // motion events seen since the warp
+static QuadraPoint quadra_expected_warp_delta;
+static volatile long quadra_associate_mouse_count;
+static QuadraPoint quadra_lock_anchor;
+static volatile int quadra_lock_anchor_pending;
+static void* quadra_capture_display;
+static unsigned long quadra_capture_window;
+static int quadra_capture_attempted, quadra_capture_error;
+static int quadra_capture_start_x, quadra_capture_start_y;
+static int quadra_capture_anchor_x, quadra_capture_anchor_y;
+static volatile int quadra_cursor_hidden_applied;
+static volatile unsigned long quadra_cursor_hidden_generation;
+static unsigned long quadra_capture_generation;
 // Only request publication and small numeric snapshots use this lock. Native
 // Xlib operations and AppKit callbacks run on the event owner's main thread.
-static volatile unsigned int macoblox_capture_request_lock;
-static unsigned long macoblox_capture_request_generation, macoblox_capture_processed_generation;
-static int macoblox_capture_request_ready = 1, macoblox_capture_request_has_snapshot;
-static unsigned int macoblox_capture_request_root;
-static int macoblox_capture_request_x, macoblox_capture_request_y;
-static int macoblox_capture_request_no_restore, macoblox_recenter_requested;
-static MacOBloxPoint macoblox_locked_cursor_position;
-static int macoblox_locked_cursor_position_valid, macoblox_locked_cursor_position_pending;
-static unsigned long macoblox_capture_root;
-static unsigned int macoblox_capture_root_height;
-static double macoblox_capture_quartz_y_offset;
+static volatile unsigned int quadra_capture_request_lock;
+static unsigned long quadra_capture_request_generation, quadra_capture_processed_generation;
+static int quadra_capture_request_ready = 1, quadra_capture_request_has_snapshot;
+static unsigned int quadra_capture_request_root;
+static int quadra_capture_request_x, quadra_capture_request_y;
+static int quadra_capture_request_no_restore, quadra_recenter_requested;
+static QuadraPoint quadra_locked_cursor_position;
+static int quadra_locked_cursor_position_valid, quadra_locked_cursor_position_pending;
+static unsigned long quadra_capture_root;
+static unsigned int quadra_capture_root_height;
+static double quadra_capture_quartz_y_offset;
 extern int pthread_main_np(void);
-extern int macoblox_raw_x_pointer_snapshot(unsigned int*, int*, int*);
-static void macoblox_wake_event_queue(void);
-static void macoblox_process_mouse_capture_requests(void);
+extern int quadra_raw_x_pointer_snapshot(unsigned int*, int*, int*);
+static void quadra_wake_event_queue(void);
+static void quadra_process_mouse_capture_requests(void);
 
 typedef struct objc_ivar* Ivar;
 extern Ivar class_getInstanceVariable(Class, const char*);
@@ -2784,14 +2784,14 @@ extern long ivar_getOffset(Ivar);
 // The platform window's connection owns its event selections. A display
 // opened by a worker or by NSDisplay currentDisplay on another thread cannot
 // own this grab: owner_events=False would route motion to the wrong queue.
-static void* macoblox_native_window_display(id window) {
+static void* quadra_native_window_display(id window) {
     if (!window) return 0;
     id platform = ((id (*)(id, SEL))objc_msgSend)(window, sel_registerName("platformWindow"));
     Ivar ivar = platform ? class_getInstanceVariable(object_getClass(platform), "_display") : 0;
     return ivar ? *(void**)((char*)platform + ivar_getOffset(ivar)) : 0;
 }
 
-static int macoblox_query_native_pointer(void* display, unsigned long window,
+static int quadra_query_native_pointer(void* display, unsigned long window,
                                          int* x, int* y) {
     static int (*query)(void*, unsigned long, unsigned long*, unsigned long*,
                         int*, int*, int*, int*, unsigned int*);
@@ -2806,7 +2806,7 @@ static int macoblox_query_native_pointer(void* display, unsigned long window,
         query(display, window, &root, &child, &root_x, &root_y, x, y, &state);
 }
 
-static int macoblox_warp_native_pointer(void* display, unsigned long window, int x, int y) {
+static int quadra_warp_native_pointer(void* display, unsigned long window, int x, int y) {
     static int (*warp)(void*, unsigned long, unsigned long, int, int,
                        unsigned int, unsigned int, int, int);
     static int (*flush)(void*);
@@ -2822,57 +2822,57 @@ static int macoblox_warp_native_pointer(void* display, unsigned long window, int
     return 1;
 }
 
-static unsigned long (*macoblox_x_next_request)(void*);
-static void (*macoblox_x_lock_display)(void*);
-static void (*macoblox_x_unlock_display)(void*);
+static unsigned long (*quadra_x_next_request)(void*);
+static void (*quadra_x_lock_display)(void*);
+static void (*quadra_x_unlock_display)(void*);
 
-static int macoblox_native_motion_supported(void) {
+static int quadra_native_motion_supported(void) {
     static int resolved;
     if (!resolved) {
-        macoblox_x_next_request = (unsigned long (*)(void*))dlsym(RTLD_DEFAULT, "XNextRequest");
-        macoblox_x_lock_display = (void (*)(void*))dlsym(RTLD_DEFAULT, "XLockDisplay");
-        macoblox_x_unlock_display = (void (*)(void*))dlsym(RTLD_DEFAULT, "XUnlockDisplay");
+        quadra_x_next_request = (unsigned long (*)(void*))dlsym(RTLD_DEFAULT, "XNextRequest");
+        quadra_x_lock_display = (void (*)(void*))dlsym(RTLD_DEFAULT, "XLockDisplay");
+        quadra_x_unlock_display = (void (*)(void*))dlsym(RTLD_DEFAULT, "XUnlockDisplay");
         resolved = 1;
     }
-    return macoblox_x_next_request && macoblox_x_lock_display && macoblox_x_unlock_display;
+    return quadra_x_next_request && quadra_x_lock_display && quadra_x_unlock_display;
 }
 
-static int macoblox_warp_capture_pointer(int x, int y) {
-    if (!macoblox_native_motion_supported() || macoblox_pointer_motion.warp_pending) return 0;
+static int quadra_warp_capture_pointer(int x, int y) {
+    if (!quadra_native_motion_supported() || quadra_pointer_motion.warp_pending) return 0;
     /* Cursor setters can share this connection. Keep the request sequence
      * query and the warp together so an unrelated request cannot take its
      * serial. Xlib permits public calls while XLockDisplay is held. */
-    macoblox_x_lock_display(macoblox_capture_display);
-    unsigned long serial = macoblox_x_next_request(macoblox_capture_display);
-    int warped = macoblox_warp_native_pointer(macoblox_capture_display, macoblox_capture_window, x, y);
-    macoblox_x_unlock_display(macoblox_capture_display);
+    quadra_x_lock_display(quadra_capture_display);
+    unsigned long serial = quadra_x_next_request(quadra_capture_display);
+    int warped = quadra_warp_native_pointer(quadra_capture_display, quadra_capture_window, x, y);
+    quadra_x_unlock_display(quadra_capture_display);
     if (!warped) return 0;
-    macoblox_pointer_motion_warp(&macoblox_pointer_motion, serial, x, y);
+    quadra_pointer_motion_warp(&quadra_pointer_motion, serial, x, y);
     return 1;
 }
 
 // The fallback's Cocoa motion filter requests a recenter. Query the actual
 // native position for the warp delta; its queued event location can be stale.
-static int macoblox_recenter_pointer_on_owner(void) {
+static int quadra_recenter_pointer_on_owner(void) {
     int x, y;
-    if (!__atomic_load_n(&macoblox_cursor_hidden_applied, __ATOMIC_ACQUIRE) ||
-        __atomic_load_n(&macoblox_cursor_hidden_generation, __ATOMIC_ACQUIRE) != macoblox_capture_generation ||
-        !macoblox_query_native_pointer(macoblox_capture_display, macoblox_capture_window, &x, &y))
+    if (!__atomic_load_n(&quadra_cursor_hidden_applied, __ATOMIC_ACQUIRE) ||
+        __atomic_load_n(&quadra_cursor_hidden_generation, __ATOMIC_ACQUIRE) != quadra_capture_generation ||
+        !quadra_query_native_pointer(quadra_capture_display, quadra_capture_window, &x, &y))
         return 0;
-    if (x == macoblox_capture_anchor_x && y == macoblox_capture_anchor_y) return 1;
-    if (!macoblox_warp_native_pointer(macoblox_capture_display, macoblox_capture_window,
-                                     macoblox_capture_anchor_x, macoblox_capture_anchor_y))
+    if (x == quadra_capture_anchor_x && y == quadra_capture_anchor_y) return 1;
+    if (!quadra_warp_native_pointer(quadra_capture_display, quadra_capture_window,
+                                     quadra_capture_anchor_x, quadra_capture_anchor_y))
         return 0;
-    macoblox_lock(&macoblox_capture_request_lock);
-    macoblox_expected_warp_delta.x = macoblox_capture_anchor_x - x;
-    macoblox_expected_warp_delta.y = y - macoblox_capture_anchor_y;
-    macoblox_warp_wait_events = 0;
-    macoblox_drop_warp_motion = 1;
-    macoblox_unlock(&macoblox_capture_request_lock);
+    quadra_lock(&quadra_capture_request_lock);
+    quadra_expected_warp_delta.x = quadra_capture_anchor_x - x;
+    quadra_expected_warp_delta.y = y - quadra_capture_anchor_y;
+    quadra_warp_wait_events = 0;
+    quadra_drop_warp_motion = 1;
+    quadra_unlock(&quadra_capture_request_lock);
     return 1;
 }
 
-static id macoblox_lock_window(void) {
+static id quadra_lock_window(void) {
     id app = ((id (*)(id, SEL))objc_msgSend)((id)objc_getClass("NSApplication"),
                                              sel_registerName("sharedApplication"));
     id window = ((id (*)(id, SEL))objc_msgSend)(app, sel_registerName("keyWindow"));
@@ -2885,46 +2885,46 @@ static id macoblox_lock_window(void) {
 // mouse location and +[NSEvent mouseLocation] all stay where the lock began,
 // and only the deltas change. Here the real pointer wanders around the window
 // center, so report the frozen positions to Roblox as macOS would.
-static MacOBloxPoint macoblox_frozen_window_location;
-static MacOBloxPoint macoblox_frozen_screen_location;
-static MacOBloxPoint (*orig_event_location_in_window)(id, SEL) = 0;
-static MacOBloxPoint (*orig_window_mouse_location)(id, SEL) = 0;
-static MacOBloxPoint (*orig_event_mouse_location)(id, SEL) = 0;
-static MacOBloxPoint hooked_event_location_in_window(id self, SEL cmd) {
-    if (__atomic_load_n(&macoblox_pointer_grabbed, __ATOMIC_ACQUIRE)) {
+static QuadraPoint quadra_frozen_window_location;
+static QuadraPoint quadra_frozen_screen_location;
+static QuadraPoint (*orig_event_location_in_window)(id, SEL) = 0;
+static QuadraPoint (*orig_window_mouse_location)(id, SEL) = 0;
+static QuadraPoint (*orig_event_mouse_location)(id, SEL) = 0;
+static QuadraPoint hooked_event_location_in_window(id self, SEL cmd) {
+    if (__atomic_load_n(&quadra_pointer_grabbed, __ATOMIC_ACQUIRE)) {
         unsigned long type = ((unsigned long (*)(id, SEL))objc_msgSend)(
             self, sel_registerName("type"));
         if ((type >= 1 && type <= 7) || type == 25 || type == 26 || type == 27) {
-            macoblox_lock(&macoblox_capture_request_lock);
-            MacOBloxPoint point = macoblox_frozen_window_location;
-            macoblox_unlock(&macoblox_capture_request_lock);
+            quadra_lock(&quadra_capture_request_lock);
+            QuadraPoint point = quadra_frozen_window_location;
+            quadra_unlock(&quadra_capture_request_lock);
             return point;
         }
     }
     return orig_event_location_in_window(self, cmd);
 }
-static MacOBloxPoint hooked_window_mouse_location(id self, SEL cmd) {
-    if (__atomic_load_n(&macoblox_pointer_grabbed, __ATOMIC_ACQUIRE)) {
-        macoblox_lock(&macoblox_capture_request_lock);
-        MacOBloxPoint point = macoblox_frozen_window_location;
-        macoblox_unlock(&macoblox_capture_request_lock);
+static QuadraPoint hooked_window_mouse_location(id self, SEL cmd) {
+    if (__atomic_load_n(&quadra_pointer_grabbed, __ATOMIC_ACQUIRE)) {
+        quadra_lock(&quadra_capture_request_lock);
+        QuadraPoint point = quadra_frozen_window_location;
+        quadra_unlock(&quadra_capture_request_lock);
         return point;
     }
     return orig_window_mouse_location(self, cmd);
 }
-static MacOBloxPoint hooked_event_mouse_location(id cls, SEL cmd) {
-    if (__atomic_load_n(&macoblox_pointer_grabbed, __ATOMIC_ACQUIRE)) {
-        macoblox_lock(&macoblox_capture_request_lock);
-        MacOBloxPoint point = macoblox_frozen_screen_location;
-        macoblox_unlock(&macoblox_capture_request_lock);
+static QuadraPoint hooked_event_mouse_location(id cls, SEL cmd) {
+    if (__atomic_load_n(&quadra_pointer_grabbed, __ATOMIC_ACQUIRE)) {
+        quadra_lock(&quadra_capture_request_lock);
+        QuadraPoint point = quadra_frozen_screen_location;
+        quadra_unlock(&quadra_capture_request_lock);
         return point;
     }
     return orig_event_mouse_location(cls, cmd);
 }
-static MacOBloxPoint macoblox_real_event_location(id event) {
+static QuadraPoint quadra_real_event_location(id event) {
     SEL selector = sel_registerName("locationInWindow");
     return orig_event_location_in_window ? orig_event_location_in_window(event, selector)
-        : ((MacOBloxPoint (*)(id, SEL))objc_msgSend)(event, selector);
+        : ((QuadraPoint (*)(id, SEL))objc_msgSend)(event, selector);
 }
 
 // Under Xwayland, XWarpPointer only moves the X server's idea of the pointer;
@@ -2939,32 +2939,32 @@ static MacOBloxPoint macoblox_real_event_location(id event) {
 // darlingserver requests each (400 a second for the whole session), and a
 // hide could lag 5 ms behind the lock. It starts, and opens its connection,
 // when the app finishes launching, not at the first lock.
-extern int macoblox_raw_xfixes_open(void);
-extern int macoblox_raw_xfixes_set_hidden(int hidden);
-extern int macoblox_wayland_enabled(void);
+extern int quadra_raw_xfixes_open(void);
+extern int quadra_raw_xfixes_set_hidden(int hidden);
+extern int quadra_wayland_enabled(void);
 extern int pthread_create(void**, const void*, void* (*)(void*), void*);
 extern int pthread_detach(void*);
 extern int pipe(int[2]);
 extern long read(int, void*, unsigned long);
-extern int macoblox_cursor_overlay_update_at(int, unsigned long, int, int, int, unsigned long);
-extern int macoblox_cursor_overlay_update_selected(int, unsigned long, int, int, int, unsigned long, unsigned long);
-extern int macoblox_cursor_overlay_update_drag(int,unsigned long,int,int,int,unsigned long,unsigned long,int);
-extern void macoblox_cursor_overlay_select_image(unsigned long, const unsigned int*, unsigned int, unsigned int,
+extern int quadra_cursor_overlay_update_at(int, unsigned long, int, int, int, unsigned long);
+extern int quadra_cursor_overlay_update_selected(int, unsigned long, int, int, int, unsigned long, unsigned long);
+extern int quadra_cursor_overlay_update_drag(int,unsigned long,int,int,int,unsigned long,unsigned long,int);
+extern void quadra_cursor_overlay_select_image(unsigned long, const unsigned int*, unsigned int, unsigned int,
                                                 unsigned int, unsigned int);
-static volatile int macoblox_cursor_wanted_hidden;
-static volatile unsigned long macoblox_cursor_lock_window;
-static int macoblox_cursor_lock_x, macoblox_cursor_lock_y;
-static unsigned long macoblox_cursor_lock_generation;
-static volatile int macoblox_cursor_hide_depth;
-static volatile int macoblox_cursor_worker_ready;
-static volatile int macoblox_cursor_worker_started;
-static volatile unsigned long long macoblox_cursor_retry_after;
-static volatile int macoblox_input_focused = 1;
-static int macoblox_cursor_wake[2] = {-1, -1};
-static MacOBloxCursorSelection macoblox_window_cursor_selection;
-static volatile unsigned int macoblox_window_cursor_lock;
-static MacOBloxDragCursor macoblox_drag_cursor;
-static unsigned long long macoblox_input_now_ns(void) {
+static volatile int quadra_cursor_wanted_hidden;
+static volatile unsigned long quadra_cursor_lock_window;
+static int quadra_cursor_lock_x, quadra_cursor_lock_y;
+static unsigned long quadra_cursor_lock_generation;
+static volatile int quadra_cursor_hide_depth;
+static volatile int quadra_cursor_worker_ready;
+static volatile int quadra_cursor_worker_started;
+static volatile unsigned long long quadra_cursor_retry_after;
+static volatile int quadra_input_focused = 1;
+static int quadra_cursor_wake[2] = {-1, -1};
+static QuadraCursorSelection quadra_window_cursor_selection;
+static volatile unsigned int quadra_window_cursor_lock;
+static QuadraDragCursor quadra_drag_cursor;
+static unsigned long long quadra_input_now_ns(void) {
     struct { long seconds, nanoseconds; } now = {0, 0};
     long result;
     __asm__ volatile("syscall" : "=a"(result)
@@ -2972,13 +2972,13 @@ static unsigned long long macoblox_input_now_ns(void) {
         : "rcx", "r11", "memory");
     return result == 0 ? (unsigned long long)now.seconds * 1000000000ULL + now.nanoseconds : 0;
 }
-static void* macoblox_xfixes_worker(void* unused) {
+static void* quadra_xfixes_worker(void* unused) {
     (void)unused;
-    if (!macoblox_raw_xfixes_open()) {
+    if (!quadra_raw_xfixes_open()) {
         write_str("[Quadra] XFixes unavailable, mouse lock may bounce\n");
-        __atomic_store_n(&macoblox_cursor_retry_after, macoblox_input_now_ns() + 1000000000ULL, __ATOMIC_RELEASE);
-        __atomic_store_n(&macoblox_cursor_worker_ready, 0, __ATOMIC_RELEASE);
-        __atomic_store_n(&macoblox_cursor_worker_started, 0, __ATOMIC_RELEASE);
+        __atomic_store_n(&quadra_cursor_retry_after, quadra_input_now_ns() + 1000000000ULL, __ATOMIC_RELEASE);
+        __atomic_store_n(&quadra_cursor_worker_ready, 0, __ATOMIC_RELEASE);
+        __atomic_store_n(&quadra_cursor_worker_started, 0, __ATOMIC_RELEASE);
         return 0;
     }
     write_str("[Quadra] XFixes ready for cursor hiding\n");
@@ -2994,33 +2994,33 @@ static void* macoblox_xfixes_worker(void* unused) {
     int (*free_data)(void*) = (int (*)(void*))dlsym(RTLD_DEFAULT, "XFree");
     int (*sync_display)(void*, int) = (int (*)(void*, int))dlsym(RTLD_DEFAULT, "XSync");
     void* xlib_display = open_display ? open_display(0) : 0;
-    MacOBloxCursorApplyAPI cursor_api = {undefine_cursor, query_tree, free_data, sync_display};
+    QuadraCursorApplyAPI cursor_api = {undefine_cursor, query_tree, free_data, sync_display};
     if (xlib_display && undefine_cursor && query_tree && free_data && sync_display)
         write_str("[Quadra] Window cursor worker ready\n");
-    __atomic_store_n(&macoblox_cursor_worker_ready, 1, __ATOMIC_RELEASE);
+    __atomic_store_n(&quadra_cursor_worker_ready, 1, __ATOMIC_RELEASE);
     int applied = 0;
     for (;;) {
-        MacOBloxCursorSelection selected = {0};
-        macoblox_lock(&macoblox_window_cursor_lock);
-        int wanted = __atomic_load_n(&macoblox_cursor_wanted_hidden, __ATOMIC_ACQUIRE);
-        unsigned long lock_window = __atomic_load_n(&macoblox_cursor_lock_window, __ATOMIC_ACQUIRE);
-        int lock_x = macoblox_cursor_lock_x, lock_y = macoblox_cursor_lock_y;
-        unsigned long lock_generation = macoblox_cursor_lock_generation;
-        unsigned long cursor_id = macoblox_window_cursor_selection.window == lock_window
-            ? macoblox_window_cursor_selection.cursor : 0;
-        int right_drag=macoblox_drag_cursor_visible(&macoblox_drag_cursor);
-        int changed = macoblox_cursor_selection_take(&macoblox_window_cursor_selection, &selected);
-        macoblox_unlock(&macoblox_window_cursor_lock);
+        QuadraCursorSelection selected = {0};
+        quadra_lock(&quadra_window_cursor_lock);
+        int wanted = __atomic_load_n(&quadra_cursor_wanted_hidden, __ATOMIC_ACQUIRE);
+        unsigned long lock_window = __atomic_load_n(&quadra_cursor_lock_window, __ATOMIC_ACQUIRE);
+        int lock_x = quadra_cursor_lock_x, lock_y = quadra_cursor_lock_y;
+        unsigned long lock_generation = quadra_cursor_lock_generation;
+        unsigned long cursor_id = quadra_window_cursor_selection.window == lock_window
+            ? quadra_window_cursor_selection.cursor : 0;
+        int right_drag=quadra_drag_cursor_visible(&quadra_drag_cursor);
+        int changed = quadra_cursor_selection_take(&quadra_window_cursor_selection, &selected);
+        quadra_unlock(&quadra_window_cursor_lock);
         if (changed) {
-            if (macoblox_cursor_selection_apply(&cursor_api, xlib_display, selected.window)) {
+            if (quadra_cursor_selection_apply(&cursor_api, xlib_display, selected.window)) {
                 static volatile long defined;
                 if (__sync_add_and_fetch(&defined, 1) <= 3) {
                     write_str("[Quadra Cursor] Applied selected cursor; rendering children inherit it\n");
                 }
             }
         }
-        if (!macoblox_cursor_overlay_update_drag(wanted, lock_window,
-                __atomic_load_n(&macoblox_cursor_hide_depth, __ATOMIC_ACQUIRE) == 0,
+        if (!quadra_cursor_overlay_update_drag(wanted, lock_window,
+                __atomic_load_n(&quadra_cursor_hide_depth, __ATOMIC_ACQUIRE) == 0,
                 lock_x, lock_y, lock_generation, cursor_id,right_drag)) {
             static int reported;
             if (!reported) {
@@ -3029,88 +3029,88 @@ static void* macoblox_xfixes_worker(void* unused) {
             }
         }
         if (wanted != applied) {
-            if (macoblox_raw_xfixes_set_hidden(wanted)) {
+            if (quadra_raw_xfixes_set_hidden(wanted)) {
                 applied = wanted;
             } else {
-                __atomic_store_n(&macoblox_cursor_hidden_generation, 0, __ATOMIC_RELEASE);
-                __atomic_store_n(&macoblox_cursor_hidden_applied, 0, __ATOMIC_RELEASE);
-                __atomic_store_n(&macoblox_cursor_worker_ready, 0, __ATOMIC_RELEASE);
-                macoblox_cursor_overlay_update_at(0, 0, 0, 0, 0, 0);
+                __atomic_store_n(&quadra_cursor_hidden_generation, 0, __ATOMIC_RELEASE);
+                __atomic_store_n(&quadra_cursor_hidden_applied, 0, __ATOMIC_RELEASE);
+                __atomic_store_n(&quadra_cursor_worker_ready, 0, __ATOMIC_RELEASE);
+                quadra_cursor_overlay_update_at(0, 0, 0, 0, 0, 0);
                 if (xlib_display && close_display) close_display(xlib_display);
-                __atomic_store_n(&macoblox_cursor_retry_after, macoblox_input_now_ns() + 1000000000ULL, __ATOMIC_RELEASE);
-                __atomic_store_n(&macoblox_cursor_worker_started, 0, __ATOMIC_RELEASE);
+                __atomic_store_n(&quadra_cursor_retry_after, quadra_input_now_ns() + 1000000000ULL, __ATOMIC_RELEASE);
+                __atomic_store_n(&quadra_cursor_worker_started, 0, __ATOMIC_RELEASE);
                 write_str("[Quadra Cursor] XFixes transition failed; cursor worker will retry\n");
-                macoblox_wake_event_queue();
+                quadra_wake_event_queue();
                 return 0;
             }
         }
         if (wanted == applied) {
             // A rapid relock may reuse an already hidden cursor. Acknowledge
             // the new epoch without sending another nested HideCursor.
-            __atomic_store_n(&macoblox_cursor_hidden_generation, wanted ? lock_generation : 0, __ATOMIC_RELEASE);
-            __atomic_store_n(&macoblox_cursor_hidden_applied, wanted, __ATOMIC_RELEASE);
-            macoblox_wake_event_queue();
+            __atomic_store_n(&quadra_cursor_hidden_generation, wanted ? lock_generation : 0, __ATOMIC_RELEASE);
+            __atomic_store_n(&quadra_cursor_hidden_applied, wanted, __ATOMIC_RELEASE);
+            quadra_wake_event_queue();
         }
         char bytes[64];
-        if (read(macoblox_cursor_wake[0], bytes, sizeof bytes) <= 0)
-            macoblox_sleep_us(5000); // no pipe: poll, but without darlingserver
+        if (read(quadra_cursor_wake[0], bytes, sizeof bytes) <= 0)
+            quadra_sleep_us(5000); // no pipe: poll, but without darlingserver
     }
     return 0;
 }
 
-static void macoblox_start_xfixes_worker(void) {
-    if (macoblox_wayland_enabled())
+static void quadra_start_xfixes_worker(void) {
+    if (quadra_wayland_enabled())
         return;
-    if (macoblox_input_now_ns() < __atomic_load_n(&macoblox_cursor_retry_after, __ATOMIC_ACQUIRE) ||
-        !__sync_bool_compare_and_swap(&macoblox_cursor_worker_started, 0, 1))
+    if (quadra_input_now_ns() < __atomic_load_n(&quadra_cursor_retry_after, __ATOMIC_ACQUIRE) ||
+        !__sync_bool_compare_and_swap(&quadra_cursor_worker_started, 0, 1))
         return;
-    if (macoblox_cursor_wake[0] < 0)
-        macoblox_wake_pipe(macoblox_cursor_wake);
+    if (quadra_cursor_wake[0] < 0)
+        quadra_wake_pipe(quadra_cursor_wake);
     void* thread;
-    if (pthread_create(&thread, 0, macoblox_xfixes_worker, 0) == 0) {
+    if (pthread_create(&thread, 0, quadra_xfixes_worker, 0) == 0) {
         pthread_detach(thread);
-        macoblox_wake_worker(macoblox_cursor_wake[1]);
+        quadra_wake_worker(quadra_cursor_wake[1]);
     } else {
-        __atomic_store_n(&macoblox_cursor_retry_after, macoblox_input_now_ns() + 1000000000ULL, __ATOMIC_RELEASE);
-        __atomic_store_n(&macoblox_cursor_worker_started, 0, __ATOMIC_RELEASE);
+        __atomic_store_n(&quadra_cursor_retry_after, quadra_input_now_ns() + 1000000000ULL, __ATOMIC_RELEASE);
+        __atomic_store_n(&quadra_cursor_worker_started, 0, __ATOMIC_RELEASE);
     }
 }
 
-static void macoblox_set_x_cursor_hidden(int hidden) {
-    macoblox_lock(&macoblox_window_cursor_lock);
-    __atomic_store_n(&macoblox_cursor_wanted_hidden, hidden, __ATOMIC_RELEASE);
-    macoblox_unlock(&macoblox_window_cursor_lock);
-    macoblox_start_xfixes_worker();
-    if (__atomic_load_n(&macoblox_cursor_worker_ready, __ATOMIC_ACQUIRE))
-        macoblox_wake_worker(macoblox_cursor_wake[1]);
+static void quadra_set_x_cursor_hidden(int hidden) {
+    quadra_lock(&quadra_window_cursor_lock);
+    __atomic_store_n(&quadra_cursor_wanted_hidden, hidden, __ATOMIC_RELEASE);
+    quadra_unlock(&quadra_window_cursor_lock);
+    quadra_start_xfixes_worker();
+    if (__atomic_load_n(&quadra_cursor_worker_ready, __ATOMIC_ACQUIRE))
+        quadra_wake_worker(quadra_cursor_wake[1]);
 }
 
 
-static void macoblox_cursor_changed(void) {
-    if (__atomic_load_n(&macoblox_cursor_worker_ready, __ATOMIC_ACQUIRE))
-        macoblox_wake_worker(macoblox_cursor_wake[1]);
+static void quadra_cursor_changed(void) {
+    if (__atomic_load_n(&quadra_cursor_worker_ready, __ATOMIC_ACQUIRE))
+        quadra_wake_worker(quadra_cursor_wake[1]);
 }
-static void macoblox_drag_cursor_update_buttons(unsigned buttons) {
-    macoblox_lock(&macoblox_window_cursor_lock);
-    int before=macoblox_drag_cursor_visible(&macoblox_drag_cursor);
-    macoblox_drag_cursor_buttons(&macoblox_drag_cursor,buttons);
-    int changed=before!=macoblox_drag_cursor_visible(&macoblox_drag_cursor);
-    macoblox_unlock(&macoblox_window_cursor_lock);
-    if(changed)macoblox_cursor_changed();
+static void quadra_drag_cursor_update_buttons(unsigned buttons) {
+    quadra_lock(&quadra_window_cursor_lock);
+    int before=quadra_drag_cursor_visible(&quadra_drag_cursor);
+    quadra_drag_cursor_buttons(&quadra_drag_cursor,buttons);
+    int changed=before!=quadra_drag_cursor_visible(&quadra_drag_cursor);
+    quadra_unlock(&quadra_window_cursor_lock);
+    if(changed)quadra_cursor_changed();
 }
 static void (*orig_cursor_hide)(id, SEL);
 static void hooked_cursor_hide(id self, SEL cmd) {
-    __atomic_add_fetch(&macoblox_cursor_hide_depth, 1, __ATOMIC_RELEASE);
+    __atomic_add_fetch(&quadra_cursor_hide_depth, 1, __ATOMIC_RELEASE);
     orig_cursor_hide(self, cmd);
-    macoblox_cursor_changed();
+    quadra_cursor_changed();
 }
 static void (*orig_cursor_unhide)(id, SEL);
 static void hooked_cursor_unhide(id self, SEL cmd) {
     orig_cursor_unhide(self, cmd);
-    int depth = __atomic_load_n(&macoblox_cursor_hide_depth, __ATOMIC_ACQUIRE);
-    while (depth > 0 && !__atomic_compare_exchange_n(&macoblox_cursor_hide_depth,
+    int depth = __atomic_load_n(&quadra_cursor_hide_depth, __ATOMIC_ACQUIRE);
+    while (depth > 0 && !__atomic_compare_exchange_n(&quadra_cursor_hide_depth,
             &depth, depth - 1, 0, __ATOMIC_RELEASE, __ATOMIC_RELAXED)) {}
-    macoblox_cursor_changed();
+    quadra_cursor_changed();
 }
 
 // Raw motion for the lock (raw_mouse.c). With XInput 2 the camera deltas
@@ -3122,57 +3122,57 @@ static void hooked_cursor_unhide(id self, SEL cmd) {
 // keyboard and focus transitions flush the sum to preserve their ordering.
 // and the real MotionNotify events only serve to keep the pointer near its
 // anchor. The selection changes on the event loop's own thread and X
-// connection (the game thread only asks). MACOBLOX_RAW_MOUSE=0 keeps the
+// connection (the game thread only asks). QUADRA_RAW_MOUSE=0 keeps the
 // pointer-delta lock.
 typedef struct objc_ivar* Ivar; // also declared with the cursor code below
 extern Ivar class_getInstanceVariable(Class, const char*);
 extern long ivar_getOffset(Ivar);
-extern int macoblox_raw_mouse_select(void* display, int enabled);
-extern int macoblox_raw_mouse_event(void* display, void* event, double* dx, double* dy);
-extern unsigned long macoblox_raw_mouse_event_timestamp(void);
-static id macoblox_event_queue(id display);
-static void macoblox_lock_event_queue(void);
-static void macoblox_unlock_event_queue(void);
-static unsigned long macoblox_event_type(id event);
+extern int quadra_raw_mouse_select(void* display, int enabled);
+extern int quadra_raw_mouse_event(void* display, void* event, double* dx, double* dy);
+extern unsigned long quadra_raw_mouse_event_timestamp(void);
+static id quadra_event_queue(id display);
+static void quadra_lock_event_queue(void);
+static void quadra_unlock_event_queue(void);
+static unsigned long quadra_event_type(id event);
 static double (*orig_mouse_event_delta_x)(id, SEL);
 static double (*orig_mouse_event_delta_y)(id, SEL);
-static volatile int macoblox_raw_mouse_wanted;   // the lock state, set by the game thread
-static int macoblox_raw_mouse_selected;          // what the event loop applied last
-static volatile int macoblox_raw_mouse_active;   // raw events selected: deltas come from them
-static unsigned int macoblox_raw_buttons;        // X buttons held, bit 1..3
-static int macoblox_raw_have_anchor;
-static int macoblox_raw_anchor_x, macoblox_raw_anchor_y; // X window coordinates, y down
-static long macoblox_raw_events, macoblox_raw_posted;
-static unsigned long long macoblox_raw_last_motion_ns;
-static int macoblox_raw_core_motion_seen;
-static unsigned int macoblox_raw_last_server_time;
-static int macoblox_raw_have_server_time;
-static unsigned long macoblox_raw_selection_serial;
-static unsigned long macoblox_x_modifier_flags;
-static unsigned char macoblox_x_modifier_masks[256], macoblox_x_modifier_keys_down[256];
-static void* macoblox_x_modifier_display;
-static volatile unsigned int macoblox_x_event_draining;
-static id macoblox_raw_pending_window;
-static double macoblox_raw_pending_dx, macoblox_raw_pending_dy;
-static unsigned long macoblox_raw_pending_type, macoblox_raw_pending_flags;
-static unsigned int macoblox_raw_pending_button;
-static MacOBloxPoint macoblox_raw_pending_location;
+static volatile int quadra_raw_mouse_wanted;   // the lock state, set by the game thread
+static int quadra_raw_mouse_selected;          // what the event loop applied last
+static volatile int quadra_raw_mouse_active;   // raw events selected: deltas come from them
+static unsigned int quadra_raw_buttons;        // X buttons held, bit 1..3
+static int quadra_raw_have_anchor;
+static int quadra_raw_anchor_x, quadra_raw_anchor_y; // X window coordinates, y down
+static long quadra_raw_events, quadra_raw_posted;
+static unsigned long long quadra_raw_last_motion_ns;
+static int quadra_raw_core_motion_seen;
+static unsigned int quadra_raw_last_server_time;
+static int quadra_raw_have_server_time;
+static unsigned long quadra_raw_selection_serial;
+static unsigned long quadra_x_modifier_flags;
+static unsigned char quadra_x_modifier_masks[256], quadra_x_modifier_keys_down[256];
+static void* quadra_x_modifier_display;
+static volatile unsigned int quadra_x_event_draining;
+static id quadra_raw_pending_window;
+static double quadra_raw_pending_dx, quadra_raw_pending_dy;
+static unsigned long quadra_raw_pending_type, quadra_raw_pending_flags;
+static unsigned int quadra_raw_pending_button;
+static QuadraPoint quadra_raw_pending_location;
 /* Darling classifies Button2 (middle) as right-drag. Correct the generated
  * event at postEvent:, on the same thread, without changing its X state. */
-static __thread unsigned long macoblox_core_motion_type;
-static __thread unsigned int macoblox_core_motion_button;
-static __thread int macoblox_x_batch_last;
+static __thread unsigned long quadra_core_motion_type;
+static __thread unsigned int quadra_core_motion_button;
+static __thread int quadra_x_batch_last;
 
-static int macoblox_raw_mouse_enabled(void) {
+static int quadra_raw_mouse_enabled(void) {
     static int enabled = -1;
     if (enabled < 0) {
-        const char* value = getenv("MACOBLOX_RAW_MOUSE");
+        const char* value = getenv("QUADRA_RAW_MOUSE");
         enabled = !(value && value[0] == '0');
     }
     return enabled;
 }
 
-static void* macoblox_x11_display_connection(id display) {
+static void* quadra_x11_display_connection(id display) {
     static long offset = -2;
     if (offset == -2) {
         Ivar ivar = class_getInstanceVariable(object_getClass(display), "_display");
@@ -3184,59 +3184,59 @@ static void* macoblox_x11_display_connection(id display) {
 // One mouse event with the raw deltas, on the lock window. Darling's deltaY
 // is computed upward and hooked_mouse_event_delta_y flips it for the game,
 // so the raw y (downward, as macOS reports it) is stored flipped.
-static unsigned long macoblox_motion_type(unsigned int buttons, unsigned int* button) {
-    return macoblox_mouse_motion_event(buttons,
-        __atomic_load_n(&macoblox_pointer_grabbed,__ATOMIC_ACQUIRE),button);
+static unsigned long quadra_motion_type(unsigned int buttons, unsigned int* button) {
+    return quadra_mouse_motion_event(buttons,
+        __atomic_load_n(&quadra_pointer_grabbed,__ATOMIC_ACQUIRE),button);
 }
 
-static void macoblox_flush_raw_motion(id display) {
-    id window = macoblox_raw_pending_window;
+static void quadra_flush_raw_motion(id display) {
+    id window = quadra_raw_pending_window;
     if (!window) return;
-    double dx = macoblox_raw_pending_dx, dy = macoblox_raw_pending_dy;
-    macoblox_raw_pending_window = 0;
-    macoblox_raw_pending_dx = macoblox_raw_pending_dy = 0;
-    if (!macoblox_pointer_grabbed || (!dx && !dy)) {
+    double dx = quadra_raw_pending_dx, dy = quadra_raw_pending_dy;
+    quadra_raw_pending_window = 0;
+    quadra_raw_pending_dx = quadra_raw_pending_dy = 0;
+    if (!quadra_pointer_grabbed || (!dx && !dy)) {
         ((void (*)(id, SEL))objc_msgSend)(window, sel_registerName("release"));
         return;
     }
     id event_class = (id)objc_getClass("NSEvent");
-    id event = ((id (*)(id, SEL, unsigned long, MacOBloxPoint, unsigned long, id, long, double, double))objc_msgSend)(
+    id event = ((id (*)(id, SEL, unsigned long, QuadraPoint, unsigned long, id, long, double, double))objc_msgSend)(
         event_class, sel_registerName("mouseEventWithType:location:modifierFlags:window:clickCount:deltaX:deltaY:"),
-        macoblox_raw_pending_type, macoblox_raw_pending_location, macoblox_raw_pending_flags,
+        quadra_raw_pending_type, quadra_raw_pending_location, quadra_raw_pending_flags,
         window, 1, dx, -dy);
     if (event) {
         ((void (*)(id, SEL, long))objc_msgSend)(event, sel_registerName("_setButtonNumber:"),
-                                               (long)macoblox_raw_pending_button);
+                                               (long)quadra_raw_pending_button);
         ((void (*)(id, SEL, id, signed char))objc_msgSend)(display, sel_registerName("postEvent:atStart:"), event, 0);
-        macoblox_raw_posted++;
+        quadra_raw_posted++;
     }
     ((void (*)(id, SEL))objc_msgSend)(window, sel_registerName("release"));
 }
 
-static void macoblox_accumulate_raw_motion(id display, double dx, double dy) {
-    id window = macoblox_lock_window();
+static void quadra_accumulate_raw_motion(id display, double dx, double dy) {
+    id window = quadra_lock_window();
     if (!window) return;
     unsigned int button;
-    unsigned long type = macoblox_motion_type(macoblox_raw_buttons, &button);
-    if (macoblox_raw_pending_window &&
-        (macoblox_raw_pending_window != window || macoblox_raw_pending_type != type ||
-         macoblox_raw_pending_flags != macoblox_x_modifier_flags || macoblox_raw_pending_button != button))
-        macoblox_flush_raw_motion(display);
-    if (!macoblox_raw_pending_window) {
-        macoblox_raw_pending_window = ((id (*)(id, SEL))objc_msgSend)(window, sel_registerName("retain"));
-        macoblox_raw_pending_type = type;
-        macoblox_raw_pending_button = button;
-        macoblox_raw_pending_flags = macoblox_x_modifier_flags;
-        macoblox_raw_pending_location = macoblox_frozen_window_location;
+    unsigned long type = quadra_motion_type(quadra_raw_buttons, &button);
+    if (quadra_raw_pending_window &&
+        (quadra_raw_pending_window != window || quadra_raw_pending_type != type ||
+         quadra_raw_pending_flags != quadra_x_modifier_flags || quadra_raw_pending_button != button))
+        quadra_flush_raw_motion(display);
+    if (!quadra_raw_pending_window) {
+        quadra_raw_pending_window = ((id (*)(id, SEL))objc_msgSend)(window, sel_registerName("retain"));
+        quadra_raw_pending_type = type;
+        quadra_raw_pending_button = button;
+        quadra_raw_pending_flags = quadra_x_modifier_flags;
+        quadra_raw_pending_location = quadra_frozen_window_location;
     }
-    macoblox_raw_pending_dx += dx;
-    macoblox_raw_pending_dy += dy;
+    quadra_raw_pending_dx += dx;
+    quadra_raw_pending_dy += dy;
     /* Direct postXEvent: callers also get their event without needing a drain. */
-    if (!__atomic_load_n(&macoblox_x_event_draining, __ATOMIC_ACQUIRE))
-        macoblox_flush_raw_motion(display);
+    if (!__atomic_load_n(&quadra_x_event_draining, __ATOMIC_ACQUIRE))
+        quadra_flush_raw_motion(display);
 }
 
-static unsigned long macoblox_modifiers_for_x_state(unsigned int state) {
+static unsigned long quadra_modifiers_for_x_state(unsigned int state) {
     unsigned long flags = 0;
     if (state & 1u) flags |= 1UL << 17;       // Shift
     if (state & 2u) flags |= 1UL << 16;       // Caps Lock
@@ -3247,13 +3247,13 @@ static unsigned long macoblox_modifiers_for_x_state(unsigned int state) {
     return flags;
 }
 
-static unsigned int macoblox_buttons_for_x_state(unsigned int state) {
+static unsigned int quadra_buttons_for_x_state(unsigned int state) {
     return ((state & (1u << 8)) ? 1u << 1 : 0) |
            ((state & (1u << 9)) ? 1u << 2 : 0) |
            ((state & (1u << 10)) ? 1u << 3 : 0);
 }
 
-static void macoblox_refresh_x_modifier_mapping(id self, int seed_keys) {
+static void quadra_refresh_x_modifier_mapping(id self, int seed_keys) {
     struct modifier_map { int keys_per_modifier; unsigned char* keycodes; };
     static struct modifier_map* (*get_mapping)(void*);
     static int (*free_mapping)(struct modifier_map*);
@@ -3263,40 +3263,40 @@ static void macoblox_refresh_x_modifier_mapping(id self, int seed_keys) {
         free_mapping = (int (*)(struct modifier_map*))dlsym(RTLD_DEFAULT, "XFreeModifiermap");
         query_keys = (int (*)(void*, char*))dlsym(RTLD_DEFAULT, "XQueryKeymap");
     }
-    void* display = macoblox_x11_display_connection(self);
+    void* display = quadra_x11_display_connection(self);
     if (!display || !get_mapping || !free_mapping) return;
     struct modifier_map* map = get_mapping(display);
     if (map && map->keycodes && map->keys_per_modifier >= 0 && map->keys_per_modifier <= 256) {
-        for (int key = 0; key < 256; key++) macoblox_x_modifier_masks[key] = 0;
+        for (int key = 0; key < 256; key++) quadra_x_modifier_masks[key] = 0;
         for (int modifier = 0; modifier < 8; modifier++)
             for (int index = 0; index < map->keys_per_modifier; index++) {
                 unsigned int key = map->keycodes[modifier * map->keys_per_modifier + index];
-                if (key) macoblox_x_modifier_masks[key] |= 1u << modifier;
+                if (key) quadra_x_modifier_masks[key] |= 1u << modifier;
             }
-        macoblox_x_modifier_display = display;
+        quadra_x_modifier_display = display;
     }
     if (map) free_mapping(map);
     if (seed_keys && query_keys) {
         char down[32] = {0};
         if (query_keys(display, down))
             for (int key = 0; key < 256; key++)
-                macoblox_x_modifier_keys_down[key] = ((unsigned char)down[key / 8] >> (key % 8)) & 1;
+                quadra_x_modifier_keys_down[key] = ((unsigned char)down[key / 8] >> (key % 8)) & 1;
     }
 }
 
-static void macoblox_update_x_input_state(id display, void* event) {
+static void quadra_update_x_input_state(id display, void* event) {
     int type = *(int*)event;
     if (type < 2 || type > 6) return;
     unsigned int state = *(unsigned int*)((char*)event + 80);
     if (type == 2 || type == 3) {
-        if (macoblox_x_modifier_display != macoblox_x11_display_connection(display))
-            macoblox_refresh_x_modifier_mapping(display, 1);
-        state = macoblox_x_modifier_transition(state,
+        if (quadra_x_modifier_display != quadra_x11_display_connection(display))
+            quadra_refresh_x_modifier_mapping(display, 1);
+        state = quadra_x_modifier_transition(state,
             *(unsigned int*)((char*)event + 84), type == 2,
-            macoblox_x_modifier_masks, macoblox_x_modifier_keys_down);
+            quadra_x_modifier_masks, quadra_x_modifier_keys_down);
     }
-    unsigned long flags = macoblox_modifiers_for_x_state(state);
-    unsigned int buttons = macoblox_buttons_for_x_state(state);
+    unsigned long flags = quadra_modifiers_for_x_state(state);
+    unsigned int buttons = quadra_buttons_for_x_state(state);
     if (type == 4 || type == 5) {
         unsigned int button = *(unsigned int*)((char*)event + 84);
         if (button >= 1 && button <= 3) {
@@ -3304,62 +3304,62 @@ static void macoblox_update_x_input_state(id display, void* event) {
             else buttons &= ~(1u << button);
         }
     }
-    int buttons_changed = buttons != macoblox_raw_buttons;
-    if (flags != macoblox_x_modifier_flags || buttons_changed)
-        macoblox_flush_raw_motion(display);
-    macoblox_x_modifier_flags = flags;
-    macoblox_raw_buttons = buttons;
-    if (buttons_changed) macoblox_drag_cursor_update_buttons(buttons);
+    int buttons_changed = buttons != quadra_raw_buttons;
+    if (flags != quadra_x_modifier_flags || buttons_changed)
+        quadra_flush_raw_motion(display);
+    quadra_x_modifier_flags = flags;
+    quadra_raw_buttons = buttons;
+    if (buttons_changed) quadra_drag_cursor_update_buttons(buttons);
 }
 
-static void macoblox_update_pointer_baseline(id display, void* event) {
+static void quadra_update_pointer_baseline(id display, void* event) {
     id platform = ((id (*)(id, SEL, unsigned long))objc_msgSend)(
         display, sel_registerName("windowForID:"), *(unsigned long*)((char*)event + 32));
     if (platform) {
-        MacOBloxPoint point = {*(int*)((char*)event + 64), *(int*)((char*)event + 68)};
-        point = ((MacOBloxPoint (*)(id, SEL, MacOBloxPoint))objc_msgSend)(
+        QuadraPoint point = {*(int*)((char*)event + 64), *(int*)((char*)event + 68)};
+        point = ((QuadraPoint (*)(id, SEL, QuadraPoint))objc_msgSend)(
             platform, sel_registerName("transformPoint:"), point);
-        ((void (*)(id, SEL, MacOBloxPoint))objc_msgSend)(
+        ((void (*)(id, SEL, QuadraPoint))objc_msgSend)(
             platform, sel_registerName("setLastKnownCursorPosition:"), point);
     }
 }
 
 // X events of the event loop, before Darling sees them. Returns 1 when the
 // event is consumed here.
-static int macoblox_raw_mouse_x_event(id self, void* event) {
-    void* display = macoblox_x11_display_connection(self);
+static int quadra_raw_mouse_x_event(id self, void* event) {
+    void* display = quadra_x11_display_connection(self);
     if (!display)
         return 0;
-    if (macoblox_pointer_grabbed && display != macoblox_capture_display)
+    if (quadra_pointer_grabbed && display != quadra_capture_display)
         return 0;
-    int wanted = macoblox_raw_mouse_enabled() && macoblox_raw_mouse_wanted && macoblox_native_motion_active;
+    int wanted = quadra_raw_mouse_enabled() && quadra_raw_mouse_wanted && quadra_native_motion_active;
     static volatile int trace_events = -1;
-    if (macoblox_pointer_grabbed && macoblox_env_cached("MACOBLOX_TRACE_LOCK", &trace_events)) {
+    if (quadra_pointer_grabbed && quadra_env_cached("QUADRA_TRACE_LOCK", &trace_events)) {
         static long traced;
         if (traced++ < 40) {
             write_str("[Quadra Lock] X event type=");
             print_num(*(int*)event);
             write_str(wanted ? " wanted=1" : " wanted=0");
-            write_str(macoblox_raw_mouse_active ? " active=1\n" : " active=0\n");
+            write_str(quadra_raw_mouse_active ? " active=1\n" : " active=0\n");
         }
     }
-    if (wanted != macoblox_raw_mouse_selected) {
+    if (wanted != quadra_raw_mouse_selected) {
         int selected = 0;
-        if (wanted || macoblox_raw_mouse_selected == 1) {
-            macoblox_x_lock_display(display);
-            selected = macoblox_raw_mouse_select(display, wanted);
+        if (wanted || quadra_raw_mouse_selected == 1) {
+            quadra_x_lock_display(display);
+            selected = quadra_raw_mouse_select(display, wanted);
             if (wanted && selected)
-                macoblox_raw_selection_serial = macoblox_x_next_request(display) - 1;
-            macoblox_x_unlock_display(display);
+                quadra_raw_selection_serial = quadra_x_next_request(display) - 1;
+            quadra_x_unlock_display(display);
         }
-        macoblox_raw_mouse_selected = wanted;
-        __atomic_store_n(&macoblox_raw_mouse_active, wanted && selected, __ATOMIC_RELEASE);
-        if (macoblox_raw_mouse_active)
-            macoblox_drop_next_motion = 0;
-        macoblox_raw_events = macoblox_raw_posted = 0;
-        macoblox_raw_last_motion_ns = macoblox_input_now_ns();
-        macoblox_raw_core_motion_seen = 0;
-        macoblox_raw_have_server_time = 0;
+        quadra_raw_mouse_selected = wanted;
+        __atomic_store_n(&quadra_raw_mouse_active, wanted && selected, __ATOMIC_RELEASE);
+        if (quadra_raw_mouse_active)
+            quadra_drop_next_motion = 0;
+        quadra_raw_events = quadra_raw_posted = 0;
+        quadra_raw_last_motion_ns = quadra_input_now_ns();
+        quadra_raw_core_motion_seen = 0;
+        quadra_raw_have_server_time = 0;
         static int reported;
         if (wanted && !reported) {
             reported = 1;
@@ -3369,16 +3369,16 @@ static int macoblox_raw_mouse_x_event(id self, void* event) {
     }
     int type = *(int*)event;
     double dx, dy;
-    if (macoblox_raw_mouse_event(display, event, &dx, &dy)) {
-        if (macoblox_raw_mouse_active && macoblox_pointer_grabbed && (dx != 0 || dy != 0)) {
-            macoblox_raw_events++;
-            macoblox_raw_last_motion_ns = macoblox_input_now_ns();
-            macoblox_raw_core_motion_seen = 0;
-            macoblox_raw_last_server_time = (unsigned int)macoblox_raw_mouse_event_timestamp();
-            macoblox_raw_have_server_time = 1;
-            macoblox_accumulate_raw_motion(self, dx, dy);
+    if (quadra_raw_mouse_event(display, event, &dx, &dy)) {
+        if (quadra_raw_mouse_active && quadra_pointer_grabbed && (dx != 0 || dy != 0)) {
+            quadra_raw_events++;
+            quadra_raw_last_motion_ns = quadra_input_now_ns();
+            quadra_raw_core_motion_seen = 0;
+            quadra_raw_last_server_time = (unsigned int)quadra_raw_mouse_event_timestamp();
+            quadra_raw_have_server_time = 1;
+            quadra_accumulate_raw_motion(self, dx, dy);
             static volatile int trace = -1;
-            if (macoblox_env_cached("MACOBLOX_TRACE_LOCK", &trace) && macoblox_raw_events <= 200) {
+            if (quadra_env_cached("QUADRA_TRACE_LOCK", &trace) && quadra_raw_events <= 200) {
                 write_str("[Quadra Lock] raw dx=");
                 print_num((long long)dx);
                 write_str(" dy=");
@@ -3388,139 +3388,139 @@ static int macoblox_raw_mouse_x_event(id self, void* event) {
         }
         return 1;
     }
-    if (type == 6 && macoblox_native_motion_active && macoblox_pointer_grabbed &&
-        *(unsigned long*)((char*)event + 32) == macoblox_capture_window) {
+    if (type == 6 && quadra_native_motion_active && quadra_pointer_grabbed &&
+        *(unsigned long*)((char*)event + 32) == quadra_capture_window) {
         /* XMotionEvent: x/y at 64/68. The pointer stays near its anchor;
          * the game gets no pointer motion during the lock. */
         int x = *(int*)((char*)event + 64), y = *(int*)((char*)event + 68);
         unsigned long serial = *(unsigned long*)((char*)event + 8);
-        macoblox_pointer_motion_delta(&macoblox_pointer_motion,
+        quadra_pointer_motion_delta(&quadra_pointer_motion,
             serial, x, y, &dx, &dy);
         /* Synthetic warp notifications do not prove the device is moving.
          * Check elapsed time only when real pointer displacement is present;
          * polling rate and the number of recenter events must not decide it. */
-        unsigned long long now = macoblox_input_now_ns();
+        unsigned long long now = quadra_input_now_ns();
         unsigned int server_time = (unsigned int)*(unsigned long*)((char*)event + 56);
         /* Ignore companions of received raw reports, including reports
          * queued before XISelectEvents took effect. An idle mouse must not
          * disable a working stream after its final core companion. */
-        int unmatched = serial >= macoblox_raw_selection_serial &&
-            (!macoblox_raw_have_server_time ||
-             (int)(server_time - macoblox_raw_last_server_time) > 0);
-        if (macoblox_raw_mouse_active && unmatched && (dx || dy)) macoblox_raw_core_motion_seen = 1;
-        if (macoblox_raw_mouse_active && unmatched && (dx || dy) && now &&
-            now >= macoblox_raw_last_motion_ns &&
-            now - macoblox_raw_last_motion_ns >= 100000000ULL) {
-            macoblox_flush_raw_motion(self);
-            __atomic_store_n(&macoblox_raw_mouse_active, 0, __ATOMIC_RELEASE);
-            macoblox_raw_mouse_select(display, 0);
+        int unmatched = serial >= quadra_raw_selection_serial &&
+            (!quadra_raw_have_server_time ||
+             (int)(server_time - quadra_raw_last_server_time) > 0);
+        if (quadra_raw_mouse_active && unmatched && (dx || dy)) quadra_raw_core_motion_seen = 1;
+        if (quadra_raw_mouse_active && unmatched && (dx || dy) && now &&
+            now >= quadra_raw_last_motion_ns &&
+            now - quadra_raw_last_motion_ns >= 100000000ULL) {
+            quadra_flush_raw_motion(self);
+            __atomic_store_n(&quadra_raw_mouse_active, 0, __ATOMIC_RELEASE);
+            quadra_raw_mouse_select(display, 0);
             write_str("[Quadra Input] no raw motion arrived, mouse lock uses pointer deltas\n");
         }
-        if (!macoblox_raw_mouse_active && (dx || dy))
-            macoblox_accumulate_raw_motion(self, dx, dy);
-        int ox = x - macoblox_raw_anchor_x, oy = y - macoblox_raw_anchor_y;
-        if (macoblox_raw_have_anchor && display == macoblox_capture_display &&
-            __atomic_load_n(&macoblox_cursor_hidden_applied, __ATOMIC_ACQUIRE) &&
-            __atomic_load_n(&macoblox_cursor_hidden_generation, __ATOMIC_ACQUIRE) == macoblox_capture_generation &&
-            *(unsigned long*)((char*)event + 32) == macoblox_capture_window &&
-            (ox > MACOBLOX_LOCK_RADIUS || ox < -MACOBLOX_LOCK_RADIUS ||
-            oy > MACOBLOX_LOCK_RADIUS || oy < -MACOBLOX_LOCK_RADIUS ||
-            macoblox_lock_anchor_pending)) {
-            macoblox_lock(&macoblox_capture_request_lock);
-            macoblox_lock_anchor_pending = 0;
-            macoblox_unlock(&macoblox_capture_request_lock);
-            macoblox_warp_capture_pointer(macoblox_raw_anchor_x, macoblox_raw_anchor_y);
+        if (!quadra_raw_mouse_active && (dx || dy))
+            quadra_accumulate_raw_motion(self, dx, dy);
+        int ox = x - quadra_raw_anchor_x, oy = y - quadra_raw_anchor_y;
+        if (quadra_raw_have_anchor && display == quadra_capture_display &&
+            __atomic_load_n(&quadra_cursor_hidden_applied, __ATOMIC_ACQUIRE) &&
+            __atomic_load_n(&quadra_cursor_hidden_generation, __ATOMIC_ACQUIRE) == quadra_capture_generation &&
+            *(unsigned long*)((char*)event + 32) == quadra_capture_window &&
+            (ox > QUADRA_LOCK_RADIUS || ox < -QUADRA_LOCK_RADIUS ||
+            oy > QUADRA_LOCK_RADIUS || oy < -QUADRA_LOCK_RADIUS ||
+            quadra_lock_anchor_pending)) {
+            quadra_lock(&quadra_capture_request_lock);
+            quadra_lock_anchor_pending = 0;
+            quadra_unlock(&quadra_capture_request_lock);
+            quadra_warp_capture_pointer(quadra_raw_anchor_x, quadra_raw_anchor_y);
         }
         /* Keep Darling's previous position current even when its NSEvent is
          * suppressed, so releasing lock or falling back cannot jump. */
-        macoblox_update_pointer_baseline(self, event);
+        quadra_update_pointer_baseline(self, event);
         return 1;
     }
     return 0;
 }
 
-static void macoblox_release_mouse_capture_inner(int restore) {
+static void quadra_release_mouse_capture_inner(int restore) {
     static int (*ungrab)(void*, unsigned long);
     static int (*sync)(void*, int);
     if (!ungrab) {
         ungrab = (int (*)(void*, unsigned long))dlsym(RTLD_DEFAULT, "XUngrabPointer");
         sync = (int (*)(void*, int))dlsym(RTLD_DEFAULT, "XSync");
     }
-    if (macoblox_pointer_grabbed && macoblox_capture_display) {
+    if (quadra_pointer_grabbed && quadra_capture_display) {
         // A normal unlock restores the exact saved local pixel position.
         // Focus loss and window teardown release without stealing the pointer
         // back from another window or warping into a disappearing drawable.
-        if (ungrab) ungrab(macoblox_capture_display, 0 /* CurrentTime */);
+        if (ungrab) ungrab(quadra_capture_display, 0 /* CurrentTime */);
         // An activation can start with the pointer outside the game. Remove
         // confinement before restoration so that saved coordinate is reachable.
         if (restore)
-            macoblox_warp_native_pointer(macoblox_capture_display, macoblox_capture_window,
-                                         macoblox_capture_start_x, macoblox_capture_start_y);
+            quadra_warp_native_pointer(quadra_capture_display, quadra_capture_window,
+                                         quadra_capture_start_x, quadra_capture_start_y);
         // Process restore/ungrab before the private worker shows the cursor.
-        if (sync) sync(macoblox_capture_display, 0);
-        if (__sync_add_and_fetch(&macoblox_associate_mouse_count, 1) <= 20)
+        if (sync) sync(quadra_capture_display, 0);
+        if (__sync_add_and_fetch(&quadra_associate_mouse_count, 1) <= 20)
             write_str("[Quadra Input] mouse lock off\n");
     }
     /* End the selection on its event owner, even when no further X event
      * arrives before a rapid unlock/relock. The next lock negotiates afresh. */
-    if (macoblox_raw_mouse_selected == 1 && macoblox_capture_display)
-        macoblox_raw_mouse_select(macoblox_capture_display, 0);
-    macoblox_raw_mouse_selected = 0;
-    macoblox_lock(&macoblox_capture_request_lock);
-    __atomic_store_n(&macoblox_pointer_grabbed, 0, __ATOMIC_RELEASE);
-    macoblox_raw_mouse_wanted = 0;
-    __atomic_store_n(&macoblox_raw_mouse_active, 0, __ATOMIC_RELEASE);
-    __atomic_store_n(&macoblox_native_motion_active, 0, __ATOMIC_RELEASE);
-    macoblox_pointer_motion = (MacOBloxPointerMotion){0};
-    macoblox_drop_warp_motion = macoblox_drop_next_motion = 0;
-    macoblox_recenter_requested = 0;
-    macoblox_locked_cursor_position_valid = macoblox_locked_cursor_position_pending = 0;
-    macoblox_capture_root = macoblox_capture_root_height = 0;
-    macoblox_unlock(&macoblox_capture_request_lock);
-    macoblox_raw_mouse_selected = -1; // a rapid relock must reapply XI2 selection
-    macoblox_raw_have_anchor = 0;
-    macoblox_capture_display = 0;
-    macoblox_capture_window = 0;
-    macoblox_capture_generation = 0;
-    macoblox_capture_attempted = macoblox_capture_error = 0;
-    macoblox_lock(&macoblox_window_cursor_lock);
-    macoblox_drag_cursor_capture(&macoblox_drag_cursor,0);
-    __atomic_store_n(&macoblox_cursor_lock_window, 0, __ATOMIC_RELEASE);
-    macoblox_unlock(&macoblox_window_cursor_lock);
-    macoblox_set_x_cursor_hidden(0);
+    if (quadra_raw_mouse_selected == 1 && quadra_capture_display)
+        quadra_raw_mouse_select(quadra_capture_display, 0);
+    quadra_raw_mouse_selected = 0;
+    quadra_lock(&quadra_capture_request_lock);
+    __atomic_store_n(&quadra_pointer_grabbed, 0, __ATOMIC_RELEASE);
+    quadra_raw_mouse_wanted = 0;
+    __atomic_store_n(&quadra_raw_mouse_active, 0, __ATOMIC_RELEASE);
+    __atomic_store_n(&quadra_native_motion_active, 0, __ATOMIC_RELEASE);
+    quadra_pointer_motion = (QuadraPointerMotion){0};
+    quadra_drop_warp_motion = quadra_drop_next_motion = 0;
+    quadra_recenter_requested = 0;
+    quadra_locked_cursor_position_valid = quadra_locked_cursor_position_pending = 0;
+    quadra_capture_root = quadra_capture_root_height = 0;
+    quadra_unlock(&quadra_capture_request_lock);
+    quadra_raw_mouse_selected = -1; // a rapid relock must reapply XI2 selection
+    quadra_raw_have_anchor = 0;
+    quadra_capture_display = 0;
+    quadra_capture_window = 0;
+    quadra_capture_generation = 0;
+    quadra_capture_attempted = quadra_capture_error = 0;
+    quadra_lock(&quadra_window_cursor_lock);
+    quadra_drag_cursor_capture(&quadra_drag_cursor,0);
+    __atomic_store_n(&quadra_cursor_lock_window, 0, __ATOMIC_RELEASE);
+    quadra_unlock(&quadra_window_cursor_lock);
+    quadra_set_x_cursor_hidden(0);
 }
 
-static void macoblox_release_mouse_capture(int restore) {
+static void quadra_release_mouse_capture(int restore) {
     if (pthread_main_np()) {
-        macoblox_release_mouse_capture_inner(restore);
+        quadra_release_mouse_capture_inner(restore);
         return;
     }
-    macoblox_lock(&macoblox_capture_request_lock);
-    macoblox_capture_request_generation++;
-    macoblox_capture_request_ready = 1;
-    macoblox_capture_request_has_snapshot = 0;
-    macoblox_capture_request_no_restore = !restore;
-    macoblox_unlock(&macoblox_capture_request_lock);
-    macoblox_wake_event_queue();
+    quadra_lock(&quadra_capture_request_lock);
+    quadra_capture_request_generation++;
+    quadra_capture_request_ready = 1;
+    quadra_capture_request_has_snapshot = 0;
+    quadra_capture_request_no_restore = !restore;
+    quadra_unlock(&quadra_capture_request_lock);
+    quadra_wake_event_queue();
 }
 
-static int macoblox_apply_mouse_capture_inner(int grab, int has_snapshot,
+static int quadra_apply_mouse_capture_inner(int grab, int has_snapshot,
                                              unsigned int snapshot_root, int snapshot_x, int snapshot_y) {
     if (!grab) {
-        if (macoblox_pointer_grabbed || macoblox_capture_attempted)
-            macoblox_release_mouse_capture_inner(1);
+        if (quadra_pointer_grabbed || quadra_capture_attempted)
+            quadra_release_mouse_capture_inner(1);
         return 0;
     }
-    if (macoblox_pointer_grabbed) {
-        if (!__atomic_load_n(&macoblox_cursor_worker_ready, __ATOMIC_ACQUIRE))
-            macoblox_start_xfixes_worker();
+    if (quadra_pointer_grabbed) {
+        if (!__atomic_load_n(&quadra_cursor_worker_ready, __ATOMIC_ACQUIRE))
+            quadra_start_xfixes_worker();
         return 0;
     }
     // Roblox repeats association every frame. A failed grab is retried on
     // the next lock or activation transition, without per-frame round trips.
-    if (macoblox_capture_attempted) return macoblox_capture_error;
-    macoblox_capture_attempted = 1;
-    macoblox_capture_error = 1001; // kCGErrorFailure
+    if (quadra_capture_attempted) return quadra_capture_error;
+    quadra_capture_attempted = 1;
+    quadra_capture_error = 1001; // kCGErrorFailure
     static int (*grab_pointer)(void*, unsigned long, int, unsigned int, int, int,
                                unsigned long, unsigned long, unsigned long);
     static int (*get_geometry)(void*, unsigned long, unsigned long*, int*, int*,
@@ -3533,9 +3533,9 @@ static int macoblox_apply_mouse_capture_inner(int grab, int has_snapshot,
                                 unsigned int*, unsigned int*, unsigned int*, unsigned int*))
             dlsym(RTLD_DEFAULT, "XGetGeometry");
     }
-    id window = macoblox_lock_window();
-    unsigned long handle = macoblox_native_window_handle(window);
-    void* display = handle ? macoblox_native_window_display(window) : 0;
+    id window = quadra_lock_window();
+    unsigned long handle = quadra_native_window_handle(window);
+    void* display = handle ? quadra_native_window_display(window) : 0;
     int x, y, geometry_x, geometry_y;
     unsigned long root;
     unsigned int width, height, border, depth;
@@ -3547,12 +3547,12 @@ static int macoblox_apply_mouse_capture_inner(int grab, int has_snapshot,
     int positioned = has_snapshot && translate && display && handle &&
         translate(display, snapshot_root, handle, snapshot_x, snapshot_y, &x, &y, &child);
     int used_snapshot = positioned;
-    if (!positioned) positioned = macoblox_query_native_pointer(display, handle, &x, &y);
+    if (!positioned) positioned = quadra_query_native_pointer(display, handle, &x, &y);
     if (!grab_pointer || !get_geometry || !display || !handle || !positioned ||
         !get_geometry(display, handle, &root, &geometry_x, &geometry_y, &width, &height, &border, &depth) ||
         !width || !height) {
         write_str("[Quadra Input] mouse lock unavailable: native pointer/window query failed\n");
-        return macoblox_capture_error;
+        return quadra_capture_error;
     }
     // Button events include wheel buttons. Focus remains with the ordinary
     // keyboard owner; XGrabPointer accepts only pointer event masks here.
@@ -3564,35 +3564,35 @@ static int macoblox_apply_mouse_capture_inner(int grab, int has_snapshot,
         write_str("[Quadra Input] XGrabPointer failed: ");
         print_num(result);
         write_str("\n");
-        return macoblox_capture_error;
+        return quadra_capture_error;
     }
-    macoblox_capture_display = display;
-    macoblox_capture_window = handle;
-    macoblox_capture_start_x = x;
-    macoblox_capture_start_y = y;
-    macoblox_pointer_motion = (MacOBloxPointerMotion){.x = x, .y = y};
-    __atomic_store_n(&macoblox_native_motion_active,
-        macoblox_native_motion_supported(), __ATOMIC_RELEASE);
-    int margin = (int)MACOBLOX_LOCK_RADIUS + 20;
-    macoblox_capture_anchor_x = width > (unsigned int)(margin * 2)
+    quadra_capture_display = display;
+    quadra_capture_window = handle;
+    quadra_capture_start_x = x;
+    quadra_capture_start_y = y;
+    quadra_pointer_motion = (QuadraPointerMotion){.x = x, .y = y};
+    __atomic_store_n(&quadra_native_motion_active,
+        quadra_native_motion_supported(), __ATOMIC_RELEASE);
+    int margin = (int)QUADRA_LOCK_RADIUS + 20;
+    quadra_capture_anchor_x = width > (unsigned int)(margin * 2)
         ? (x < margin ? margin : (x > (int)width - margin ? (int)width - margin : x)) : (int)width / 2;
-    macoblox_capture_anchor_y = height > (unsigned int)(margin * 2)
+    quadra_capture_anchor_y = height > (unsigned int)(margin * 2)
         ? (y < margin ? margin : (y > (int)height - margin ? (int)height - margin : y)) : (int)height / 2;
-    macoblox_raw_anchor_x = macoblox_capture_anchor_x;
-    macoblox_raw_anchor_y = macoblox_capture_anchor_y;
-    macoblox_raw_have_anchor = 1;
+    quadra_raw_anchor_x = quadra_capture_anchor_x;
+    quadra_raw_anchor_y = quadra_capture_anchor_y;
+    quadra_raw_have_anchor = 1;
     id platform = ((id (*)(id, SEL))objc_msgSend)(window, sel_registerName("platformWindow"));
-    MacOBloxPoint native_start = {x, y};
-    MacOBloxPoint frozen_window = ((MacOBloxPoint (*)(id, SEL, MacOBloxPoint))objc_msgSend)(
+    QuadraPoint native_start = {x, y};
+    QuadraPoint frozen_window = ((QuadraPoint (*)(id, SEL, QuadraPoint))objc_msgSend)(
         platform, sel_registerName("transformPoint:"), native_start);
-    MacOBloxPoint native_anchor = {macoblox_capture_anchor_x, macoblox_capture_anchor_y};
-    MacOBloxPoint lock_anchor = ((MacOBloxPoint (*)(id, SEL, MacOBloxPoint))objc_msgSend)(
+    QuadraPoint native_anchor = {quadra_capture_anchor_x, quadra_capture_anchor_y};
+    QuadraPoint lock_anchor = ((QuadraPoint (*)(id, SEL, QuadraPoint))objc_msgSend)(
         platform, sel_registerName("transformPoint:"), native_anchor);
     SEL screen_selector = sel_registerName("mouseLocation");
     id event_class = (id)objc_getClass("NSEvent");
-    MacOBloxPoint frozen_screen = orig_event_mouse_location
+    QuadraPoint frozen_screen = orig_event_mouse_location
         ? orig_event_mouse_location(event_class, screen_selector)
-        : ((MacOBloxPoint (*)(id, SEL))objc_msgSend)(event_class, screen_selector);
+        : ((QuadraPoint (*)(id, SEL))objc_msgSend)(event_class, screen_selector);
     int root_x = snapshot_x, root_y = snapshot_y;
     int root_positioned = used_snapshot || (translate &&
         translate(display, handle, root, x, y, &root_x, &root_y, &child));
@@ -3614,59 +3614,59 @@ static int macoblox_apply_mouse_capture_inner(int grab, int has_snapshot,
             screens, sel_registerName("count"))) {
         id first = ((id (*)(id, SEL, unsigned long))objc_msgSend)(screens,
             sel_registerName("objectAtIndex:"), 0);
-        MacOBloxRect frame;
+        QuadraRect frame;
         /* NSRect is 32 bytes: x86_64 objc_msgSend_stret receives an explicit
          * return buffer. The ordinary dispatcher expects self in that slot. */
-        ((void (*)(MacOBloxRect*, id, SEL))objc_msgSend_stret)(
+        ((void (*)(QuadraRect*, id, SEL))objc_msgSend_stret)(
             &frame, first, sel_registerName("frame"));
         if (__builtin_isfinite(frame.size.height) && frame.size.height >= 0 && frame.size.height <= root_height)
             primary_height = frame.size.height;
     }
-    macoblox_lock(&macoblox_capture_request_lock);
-    macoblox_frozen_window_location = frozen_window;
-    macoblox_frozen_screen_location = frozen_screen;
-    macoblox_capture_root = screen_positioned ? root : 0;
-    macoblox_capture_root_height = screen_positioned ? root_height : 0;
+    quadra_lock(&quadra_capture_request_lock);
+    quadra_frozen_window_location = frozen_window;
+    quadra_frozen_screen_location = frozen_screen;
+    quadra_capture_root = screen_positioned ? root : 0;
+    quadra_capture_root_height = screen_positioned ? root_height : 0;
     /* Roblox converts AppKit's global bottom-left coordinate using the
      * first display's frame height. Darling's AppKit instead uses the
      * entire X root height for window frames and NSEvent.mouseLocation.
      * With vertically offset outputs those heights differ. Undo that
      * difference before interpreting a Quartz warp as an X root point. */
-    macoblox_capture_quartz_y_offset = screen_positioned ? (double)root_height - primary_height : 0;
-    macoblox_lock_anchor = lock_anchor;
-    macoblox_lock_anchor_pending = x != macoblox_capture_anchor_x || y != macoblox_capture_anchor_y;
-    macoblox_drop_warp_motion = macoblox_drop_next_motion = 0;
-    macoblox_raw_mouse_wanted = 1;
-    __atomic_store_n(&macoblox_pointer_grabbed, 1, __ATOMIC_RELEASE);
-    macoblox_unlock(&macoblox_capture_request_lock);
-    macoblox_lock(&macoblox_window_cursor_lock);
-    macoblox_cursor_lock_x = x;
-    macoblox_cursor_lock_y = y;
-    macoblox_drag_cursor_buttons(&macoblox_drag_cursor,macoblox_raw_buttons);
-    macoblox_drag_cursor_capture(&macoblox_drag_cursor,1);
-    macoblox_capture_generation = ++macoblox_cursor_lock_generation;
-    __atomic_store_n(&macoblox_cursor_lock_window, handle, __ATOMIC_RELEASE);
-    macoblox_unlock(&macoblox_window_cursor_lock);
-    macoblox_capture_error = 0;
-    macoblox_set_x_cursor_hidden(1);
-    if (__sync_add_and_fetch(&macoblox_associate_mouse_count, 1) <= 20)
+    quadra_capture_quartz_y_offset = screen_positioned ? (double)root_height - primary_height : 0;
+    quadra_lock_anchor = lock_anchor;
+    quadra_lock_anchor_pending = x != quadra_capture_anchor_x || y != quadra_capture_anchor_y;
+    quadra_drop_warp_motion = quadra_drop_next_motion = 0;
+    quadra_raw_mouse_wanted = 1;
+    __atomic_store_n(&quadra_pointer_grabbed, 1, __ATOMIC_RELEASE);
+    quadra_unlock(&quadra_capture_request_lock);
+    quadra_lock(&quadra_window_cursor_lock);
+    quadra_cursor_lock_x = x;
+    quadra_cursor_lock_y = y;
+    quadra_drag_cursor_buttons(&quadra_drag_cursor,quadra_raw_buttons);
+    quadra_drag_cursor_capture(&quadra_drag_cursor,1);
+    quadra_capture_generation = ++quadra_cursor_lock_generation;
+    __atomic_store_n(&quadra_cursor_lock_window, handle, __ATOMIC_RELEASE);
+    quadra_unlock(&quadra_window_cursor_lock);
+    quadra_capture_error = 0;
+    quadra_set_x_cursor_hidden(1);
+    if (__sync_add_and_fetch(&quadra_associate_mouse_count, 1) <= 20)
         write_str("[Quadra Input] mouse lock on (native window confined)\n");
     return 0;
 }
-static int macoblox_apply_mouse_capture(int grab) {
-    return macoblox_apply_mouse_capture_inner(grab, 0, 0, 0, 0);
+static int quadra_apply_mouse_capture(int grab) {
+    return quadra_apply_mouse_capture_inner(grab, 0, 0, 0, 0);
 }
 
-static void macoblox_apply_locked_cursor_position(void) {
-    macoblox_lock(&macoblox_capture_request_lock);
-    int pending = macoblox_locked_cursor_position_pending;
-    MacOBloxPoint position = macoblox_locked_cursor_position;
-    unsigned long root = macoblox_capture_root;
-    unsigned int root_height = macoblox_capture_root_height;
-    double quartz_y_offset = macoblox_capture_quartz_y_offset;
-    if (macoblox_pointer_grabbed) macoblox_locked_cursor_position_pending = 0;
-    macoblox_unlock(&macoblox_capture_request_lock);
-    if (!pending || !root || !macoblox_pointer_grabbed) return;
+static void quadra_apply_locked_cursor_position(void) {
+    quadra_lock(&quadra_capture_request_lock);
+    int pending = quadra_locked_cursor_position_pending;
+    QuadraPoint position = quadra_locked_cursor_position;
+    unsigned long root = quadra_capture_root;
+    unsigned int root_height = quadra_capture_root_height;
+    double quartz_y_offset = quadra_capture_quartz_y_offset;
+    if (quadra_pointer_grabbed) quadra_locked_cursor_position_pending = 0;
+    quadra_unlock(&quadra_capture_request_lock);
+    if (!pending || !root || !quadra_pointer_grabbed) return;
     static int (*translate)(void*, unsigned long, unsigned long, int, int, int*, int*, unsigned long*);
     if (!translate)
         translate = (int (*)(void*, unsigned long, unsigned long, int, int, int*, int*, unsigned long*))
@@ -3675,7 +3675,7 @@ static void macoblox_apply_locked_cursor_position(void) {
     unsigned long child;
     double root_y = position.y + quartz_y_offset;
     if (!__builtin_isfinite(root_y) || root_y <= -2147483000.0 || root_y >= 2147483000.0) return;
-    if (!translate || !translate(macoblox_capture_display, root, macoblox_capture_window,
+    if (!translate || !translate(quadra_capture_display, root, quadra_capture_window,
                                  (int)position.x, (int)root_y, &x, &y, &child)) return;
     static int (*geometry)(void*, unsigned long, unsigned long*, int*, int*,
                             unsigned int*, unsigned int*, unsigned int*, unsigned int*);
@@ -3685,7 +3685,7 @@ static void macoblox_apply_locked_cursor_position(void) {
     unsigned long parent;
     int gx, gy;
     unsigned int width, height, border, depth;
-    if (!geometry || !geometry(macoblox_capture_display, macoblox_capture_window,
+    if (!geometry || !geometry(quadra_capture_display, quadra_capture_window,
                               &parent, &gx, &gy, &width, &height, &border, &depth)) return;
     /* A stale or malformed engine request must never replace the valid
      * position frozen at capture, nor put the visible overlay off-window. */
@@ -3697,163 +3697,163 @@ static void macoblox_apply_locked_cursor_position(void) {
         }
         return;
     }
-    id window = macoblox_lock_window();
-    if (macoblox_native_window_handle(window) != macoblox_capture_window) return;
+    id window = quadra_lock_window();
+    if (quadra_native_window_handle(window) != quadra_capture_window) return;
     id platform = ((id (*)(id, SEL))objc_msgSend)(window, sel_registerName("platformWindow"));
-    MacOBloxPoint native = {x, y};
-    MacOBloxPoint local = ((MacOBloxPoint (*)(id, SEL, MacOBloxPoint))objc_msgSend)(
+    QuadraPoint native = {x, y};
+    QuadraPoint local = ((QuadraPoint (*)(id, SEL, QuadraPoint))objc_msgSend)(
         platform, sel_registerName("transformPoint:"), native);
-    macoblox_lock(&macoblox_capture_request_lock);
-    macoblox_frozen_window_location = local;
-    macoblox_frozen_screen_location = (MacOBloxPoint){position.x, (double)root_height - root_y};
-    macoblox_unlock(&macoblox_capture_request_lock);
-    macoblox_lock(&macoblox_window_cursor_lock);
-    macoblox_cursor_lock_x = x;
-    macoblox_cursor_lock_y = y;
-    macoblox_unlock(&macoblox_window_cursor_lock);
-    macoblox_cursor_changed();
+    quadra_lock(&quadra_capture_request_lock);
+    quadra_frozen_window_location = local;
+    quadra_frozen_screen_location = (QuadraPoint){position.x, (double)root_height - root_y};
+    quadra_unlock(&quadra_capture_request_lock);
+    quadra_lock(&quadra_window_cursor_lock);
+    quadra_cursor_lock_x = x;
+    quadra_cursor_lock_y = y;
+    quadra_unlock(&quadra_window_cursor_lock);
+    quadra_cursor_changed();
 }
 
-static void macoblox_process_mouse_capture_requests(void) {
+static void quadra_process_mouse_capture_requests(void) {
     if (!pthread_main_np()) return;
-    if (macoblox_pointer_grabbed && !__atomic_load_n(&macoblox_cursor_worker_ready, __ATOMIC_ACQUIRE))
-        macoblox_start_xfixes_worker();
-    macoblox_lock(&macoblox_capture_request_lock);
-    int pending = macoblox_capture_request_ready &&
-        macoblox_capture_request_generation != macoblox_capture_processed_generation;
-    int wanted = __atomic_load_n(&macoblox_mouse_lock_requested, __ATOMIC_ACQUIRE) &&
-        __atomic_load_n(&macoblox_input_focused, __ATOMIC_ACQUIRE);
-    int has_snapshot = macoblox_capture_request_has_snapshot;
-    unsigned int root = macoblox_capture_request_root;
-    int x = macoblox_capture_request_x, y = macoblox_capture_request_y;
-    int no_restore = macoblox_capture_request_no_restore;
-    if (pending) macoblox_capture_processed_generation = macoblox_capture_request_generation;
-    int recenter = macoblox_recenter_requested;
-    macoblox_unlock(&macoblox_capture_request_lock);
+    if (quadra_pointer_grabbed && !__atomic_load_n(&quadra_cursor_worker_ready, __ATOMIC_ACQUIRE))
+        quadra_start_xfixes_worker();
+    quadra_lock(&quadra_capture_request_lock);
+    int pending = quadra_capture_request_ready &&
+        quadra_capture_request_generation != quadra_capture_processed_generation;
+    int wanted = __atomic_load_n(&quadra_mouse_lock_requested, __ATOMIC_ACQUIRE) &&
+        __atomic_load_n(&quadra_input_focused, __ATOMIC_ACQUIRE);
+    int has_snapshot = quadra_capture_request_has_snapshot;
+    unsigned int root = quadra_capture_request_root;
+    int x = quadra_capture_request_x, y = quadra_capture_request_y;
+    int no_restore = quadra_capture_request_no_restore;
+    if (pending) quadra_capture_processed_generation = quadra_capture_request_generation;
+    int recenter = quadra_recenter_requested;
+    quadra_unlock(&quadra_capture_request_lock);
     if (pending) {
-        if (!wanted && no_restore) macoblox_release_mouse_capture_inner(0);
-        else macoblox_apply_mouse_capture_inner(wanted, has_snapshot, root, x, y);
+        if (!wanted && no_restore) quadra_release_mouse_capture_inner(0);
+        else quadra_apply_mouse_capture_inner(wanted, has_snapshot, root, x, y);
     }
-    macoblox_apply_locked_cursor_position();
+    quadra_apply_locked_cursor_position();
     /* At a confined edge the server can stop emitting core motion. A
      * watchdog on the event owner can still switch modes and recenter after
      * earlier physical motion proved that the raw stream was missing. */
-    unsigned long long now = macoblox_input_now_ns();
-    if (macoblox_pointer_grabbed && macoblox_raw_mouse_active && macoblox_raw_core_motion_seen &&
-        now && now >= macoblox_raw_last_motion_ns &&
-        now - macoblox_raw_last_motion_ns >= 100000000ULL) {
-        __atomic_store_n(&macoblox_raw_mouse_active, 0, __ATOMIC_RELEASE);
-        macoblox_raw_mouse_select(macoblox_capture_display, 0);
+    unsigned long long now = quadra_input_now_ns();
+    if (quadra_pointer_grabbed && quadra_raw_mouse_active && quadra_raw_core_motion_seen &&
+        now && now >= quadra_raw_last_motion_ns &&
+        now - quadra_raw_last_motion_ns >= 100000000ULL) {
+        __atomic_store_n(&quadra_raw_mouse_active, 0, __ATOMIC_RELEASE);
+        quadra_raw_mouse_select(quadra_capture_display, 0);
         write_str("[Quadra Input] no raw motion arrived, mouse lock uses pointer deltas\n");
-        macoblox_lock_anchor_pending = 1;
+        quadra_lock_anchor_pending = 1;
     }
-    if (macoblox_pointer_grabbed && macoblox_native_motion_active &&
-        !macoblox_pointer_motion.warp_pending &&
-        __atomic_load_n(&macoblox_cursor_hidden_applied, __ATOMIC_ACQUIRE) &&
-        __atomic_load_n(&macoblox_cursor_hidden_generation, __ATOMIC_ACQUIRE) == macoblox_capture_generation &&
-        (macoblox_lock_anchor_pending ||
-         macoblox_pointer_motion.x - macoblox_capture_anchor_x > MACOBLOX_LOCK_RADIUS ||
-         macoblox_pointer_motion.x - macoblox_capture_anchor_x < -MACOBLOX_LOCK_RADIUS ||
-         macoblox_pointer_motion.y - macoblox_capture_anchor_y > MACOBLOX_LOCK_RADIUS ||
-         macoblox_pointer_motion.y - macoblox_capture_anchor_y < -MACOBLOX_LOCK_RADIUS)) {
-        if (macoblox_warp_capture_pointer(macoblox_capture_anchor_x, macoblox_capture_anchor_y))
-            macoblox_lock_anchor_pending = 0;
+    if (quadra_pointer_grabbed && quadra_native_motion_active &&
+        !quadra_pointer_motion.warp_pending &&
+        __atomic_load_n(&quadra_cursor_hidden_applied, __ATOMIC_ACQUIRE) &&
+        __atomic_load_n(&quadra_cursor_hidden_generation, __ATOMIC_ACQUIRE) == quadra_capture_generation &&
+        (quadra_lock_anchor_pending ||
+         quadra_pointer_motion.x - quadra_capture_anchor_x > QUADRA_LOCK_RADIUS ||
+         quadra_pointer_motion.x - quadra_capture_anchor_x < -QUADRA_LOCK_RADIUS ||
+         quadra_pointer_motion.y - quadra_capture_anchor_y > QUADRA_LOCK_RADIUS ||
+         quadra_pointer_motion.y - quadra_capture_anchor_y < -QUADRA_LOCK_RADIUS)) {
+        if (quadra_warp_capture_pointer(quadra_capture_anchor_x, quadra_capture_anchor_y))
+            quadra_lock_anchor_pending = 0;
     }
-    if (recenter && macoblox_pointer_grabbed && !macoblox_raw_mouse_active &&
-        macoblox_recenter_pointer_on_owner()) {
-        macoblox_lock(&macoblox_capture_request_lock);
-        macoblox_recenter_requested = 0;
-        macoblox_lock_anchor_pending = 0;
-        macoblox_unlock(&macoblox_capture_request_lock);
+    if (recenter && quadra_pointer_grabbed && !quadra_raw_mouse_active &&
+        quadra_recenter_pointer_on_owner()) {
+        quadra_lock(&quadra_capture_request_lock);
+        quadra_recenter_requested = 0;
+        quadra_lock_anchor_pending = 0;
+        quadra_unlock(&quadra_capture_request_lock);
     }
 }
-static int macoblox_CGAssociateMouseAndMouseCursorPosition(unsigned int connected) {
-    if (macoblox_wayland_enabled())
-        return macoblox_wayland_associate(connected);
+static int quadra_CGAssociateMouseAndMouseCursorPosition(unsigned int connected) {
+    if (quadra_wayland_enabled())
+        return quadra_wayland_associate(connected);
     /* Persistent capture intent survives focus loss; camera drags end on
      * blur. Unlocks while suspended still cancel persistent intent. */
     int wanted = !connected;
-    if (wanted && !__atomic_load_n(&macoblox_input_focused, __ATOMIC_ACQUIRE))
+    if (wanted && !__atomic_load_n(&quadra_input_focused, __ATOMIC_ACQUIRE))
         return 0;
-    macoblox_lock(&macoblox_capture_request_lock);
-    if (wanted && !__atomic_load_n(&macoblox_input_focused, __ATOMIC_ACQUIRE)) {
-        macoblox_unlock(&macoblox_capture_request_lock);
-        return 0;
-    }
-    if (wanted == __atomic_load_n(&macoblox_mouse_lock_requested, __ATOMIC_ACQUIRE)) {
-        macoblox_unlock(&macoblox_capture_request_lock);
+    quadra_lock(&quadra_capture_request_lock);
+    if (wanted && !__atomic_load_n(&quadra_input_focused, __ATOMIC_ACQUIRE)) {
+        quadra_unlock(&quadra_capture_request_lock);
         return 0;
     }
-    __atomic_store_n(&macoblox_mouse_lock_requested, wanted, __ATOMIC_RELEASE);
-    macoblox_locked_cursor_position_valid = macoblox_locked_cursor_position_pending = 0;
-    unsigned long generation = ++macoblox_capture_request_generation;
-    macoblox_capture_request_ready = !wanted;
-    macoblox_capture_request_has_snapshot = 0;
-    macoblox_capture_request_no_restore = 0;
-    macoblox_unlock(&macoblox_capture_request_lock);
+    if (wanted == __atomic_load_n(&quadra_mouse_lock_requested, __ATOMIC_ACQUIRE)) {
+        quadra_unlock(&quadra_capture_request_lock);
+        return 0;
+    }
+    __atomic_store_n(&quadra_mouse_lock_requested, wanted, __ATOMIC_RELEASE);
+    quadra_locked_cursor_position_valid = quadra_locked_cursor_position_pending = 0;
+    unsigned long generation = ++quadra_capture_request_generation;
+    quadra_capture_request_ready = !wanted;
+    quadra_capture_request_has_snapshot = 0;
+    quadra_capture_request_no_restore = 0;
+    quadra_unlock(&quadra_capture_request_lock);
     unsigned int root = 0;
     int x = 0, y = 0;
-    int sampled = wanted && __atomic_load_n(&macoblox_input_focused, __ATOMIC_ACQUIRE) &&
-        macoblox_raw_x_pointer_snapshot(&root, &x, &y);
+    int sampled = wanted && __atomic_load_n(&quadra_input_focused, __ATOMIC_ACQUIRE) &&
+        quadra_raw_x_pointer_snapshot(&root, &x, &y);
     if (wanted) {
-        macoblox_lock(&macoblox_capture_request_lock);
+        quadra_lock(&quadra_capture_request_lock);
         // An unlock or newer lock published during this snapshot wins.
-        if (generation == macoblox_capture_request_generation) {
-            macoblox_capture_request_has_snapshot = sampled;
-            macoblox_capture_request_root = root;
-            macoblox_capture_request_x = x;
-            macoblox_capture_request_y = y;
-            macoblox_capture_request_ready = 1;
+        if (generation == quadra_capture_request_generation) {
+            quadra_capture_request_has_snapshot = sampled;
+            quadra_capture_request_root = root;
+            quadra_capture_request_x = x;
+            quadra_capture_request_y = y;
+            quadra_capture_request_ready = 1;
         }
-        macoblox_unlock(&macoblox_capture_request_lock);
+        quadra_unlock(&quadra_capture_request_lock);
     }
-    macoblox_wake_event_queue();
+    quadra_wake_event_queue();
     return 0;
 }
-DYLD_INTERPOSE(macoblox_CGAssociateMouseAndMouseCursorPosition,
+DYLD_INTERPOSE(quadra_CGAssociateMouseAndMouseCursorPosition,
                CGAssociateMouseAndMouseCursorPosition);
 
-static int macoblox_CGWarpMouseCursorPosition(MacOBloxPoint position) {
-    extern int macoblox_wayland_warp(MacOBloxPoint);
-    if (macoblox_wayland_enabled())
-        return macoblox_wayland_warp(position);
-    if (__atomic_load_n(&macoblox_pointer_grabbed, __ATOMIC_ACQUIRE) ||
-        __atomic_load_n(&macoblox_mouse_lock_requested, __ATOMIC_ACQUIRE)) {
+static int quadra_CGWarpMouseCursorPosition(QuadraPoint position) {
+    extern int quadra_wayland_warp(QuadraPoint);
+    if (quadra_wayland_enabled())
+        return quadra_wayland_warp(position);
+    if (__atomic_load_n(&quadra_pointer_grabbed, __ATOMIC_ACQUIRE) ||
+        __atomic_load_n(&quadra_mouse_lock_requested, __ATOMIC_ACQUIRE)) {
         /* Shift lock intentionally moves its visible cursor to the center.
          * Move the logical cursor/overlay on the event owner without moving
          * the confined native pointer or replacing its unlock restoration.
          * Identical per-frame requests do not cause X queries or worker wakes.
          * Background requests must not warp the desktop after focus loss. */
-        if (__atomic_load_n(&macoblox_input_focused, __ATOMIC_ACQUIRE) &&
+        if (__atomic_load_n(&quadra_input_focused, __ATOMIC_ACQUIRE) &&
             __builtin_isfinite(position.x) && __builtin_isfinite(position.y) &&
             position.x > -2147483000.0 && position.x < 2147483000.0 &&
             position.y > -2147483000.0 && position.y < 2147483000.0) {
-            macoblox_lock(&macoblox_capture_request_lock);
-            int changed = !macoblox_locked_cursor_position_valid ||
-                position.x != macoblox_locked_cursor_position.x || position.y != macoblox_locked_cursor_position.y;
+            quadra_lock(&quadra_capture_request_lock);
+            int changed = !quadra_locked_cursor_position_valid ||
+                position.x != quadra_locked_cursor_position.x || position.y != quadra_locked_cursor_position.y;
             if (changed) {
-                macoblox_locked_cursor_position = position;
-                macoblox_locked_cursor_position_valid = macoblox_locked_cursor_position_pending = 1;
+                quadra_locked_cursor_position = position;
+                quadra_locked_cursor_position_valid = quadra_locked_cursor_position_pending = 1;
             }
-            macoblox_unlock(&macoblox_capture_request_lock);
-            if (changed) macoblox_wake_event_queue();
+            quadra_unlock(&quadra_capture_request_lock);
+            if (changed) quadra_wake_event_queue();
         }
         return 0;
     }
     return CGWarpMouseCursorPosition(position);
 }
-DYLD_INTERPOSE(macoblox_CGWarpMouseCursorPosition, CGWarpMouseCursorPosition);
+DYLD_INTERPOSE(quadra_CGWarpMouseCursorPosition, CGWarpMouseCursorPosition);
 
 // Returns 1 if the motion event must be dropped (it only reflects our warp).
-static int macoblox_filter_locked_motion_inner(MacOBloxPoint location, double dx, double dy);
+static int quadra_filter_locked_motion_inner(QuadraPoint location, double dx, double dy);
 static double (*orig_mouse_event_delta_x)(id, SEL);
 static double (*orig_mouse_event_delta_y)(id, SEL);
-// MACOBLOX_TRACE_LOCK=1: log every motion event seen during mouse lock.
-static void macoblox_trace_lock_motion(id event, double dx, double dy, const char* action) {
+// QUADRA_TRACE_LOCK=1: log every motion event seen during mouse lock.
+static void quadra_trace_lock_motion(id event, double dx, double dy, const char* action) {
     static volatile int enabled = -1;
-    if (!macoblox_env_cached("MACOBLOX_TRACE_LOCK", &enabled))
+    if (!quadra_env_cached("QUADRA_TRACE_LOCK", &enabled))
         return;
-    MacOBloxPoint location = macoblox_real_event_location(event);
+    QuadraPoint location = quadra_real_event_location(event);
     unsigned long type = ((unsigned long (*)(id, SEL))objc_msgSend)(event, sel_registerName("type"));
     write_str("[Quadra Lock] type=");
     print_num((long long)type);
@@ -3870,10 +3870,10 @@ static void macoblox_trace_lock_motion(id event, double dx, double dy, const cha
     write_str("\n");
 }
 
-static int macoblox_filter_locked_motion(id event) {
-    if (!__atomic_load_n(&macoblox_pointer_grabbed, __ATOMIC_ACQUIRE) ||
-        __atomic_load_n(&macoblox_native_motion_active, __ATOMIC_ACQUIRE) ||
-        __atomic_load_n(&macoblox_raw_mouse_active, __ATOMIC_ACQUIRE))
+static int quadra_filter_locked_motion(id event) {
+    if (!__atomic_load_n(&quadra_pointer_grabbed, __ATOMIC_ACQUIRE) ||
+        __atomic_load_n(&quadra_native_motion_active, __ATOMIC_ACQUIRE) ||
+        __atomic_load_n(&quadra_raw_mouse_active, __ATOMIC_ACQUIRE))
         return 0;
     // Raw Darling deltas (Cocoa axes), without sign flip or sensitivity.
     SEL delta_x = sel_registerName("deltaX"), delta_y = sel_registerName("deltaY");
@@ -3881,25 +3881,25 @@ static int macoblox_filter_locked_motion(id event) {
         : ((double (*)(id, SEL))objc_msgSend)(event, delta_x);
     double dy = orig_mouse_event_delta_y ? orig_mouse_event_delta_y(event, delta_y)
         : ((double (*)(id, SEL))objc_msgSend)(event, delta_y);
-    MacOBloxPoint location = macoblox_real_event_location(event);
-    macoblox_lock(&macoblox_capture_request_lock);
-    int dropping = macoblox_drop_warp_motion;
-    int dropped = macoblox_filter_locked_motion_inner(location, dx, dy);
-    int now_dropping = macoblox_drop_warp_motion;
-    int recenter = macoblox_recenter_requested;
-    macoblox_unlock(&macoblox_capture_request_lock);
-    if (recenter) macoblox_wake_event_queue();
-    macoblox_trace_lock_motion(event, dx, dy,
+    QuadraPoint location = quadra_real_event_location(event);
+    quadra_lock(&quadra_capture_request_lock);
+    int dropping = quadra_drop_warp_motion;
+    int dropped = quadra_filter_locked_motion_inner(location, dx, dy);
+    int now_dropping = quadra_drop_warp_motion;
+    int recenter = quadra_recenter_requested;
+    quadra_unlock(&quadra_capture_request_lock);
+    if (recenter) quadra_wake_event_queue();
+    quadra_trace_lock_motion(event, dx, dy,
                                dropped ? "DROPPED" : (dropping && !now_dropping ? "" :
                                (now_dropping && !dropping ? "RECENTER" : "")));
     return dropped;
 }
 
-static int macoblox_filter_locked_motion_inner(MacOBloxPoint location, double dx, double dy) {
-    if (!__atomic_load_n(&macoblox_pointer_grabbed, __ATOMIC_ACQUIRE) ||
-        __atomic_load_n(&macoblox_raw_mouse_active, __ATOMIC_ACQUIRE)) return 0;
-    if (macoblox_drop_warp_motion) {
-        double ex = macoblox_expected_warp_delta.x, ey = macoblox_expected_warp_delta.y;
+static int quadra_filter_locked_motion_inner(QuadraPoint location, double dx, double dy) {
+    if (!__atomic_load_n(&quadra_pointer_grabbed, __ATOMIC_ACQUIRE) ||
+        __atomic_load_n(&quadra_raw_mouse_active, __ATOMIC_ACQUIRE)) return 0;
+    if (quadra_drop_warp_motion) {
+        double ex = quadra_expected_warp_delta.x, ey = quadra_expected_warp_delta.y;
         double diff_sq = (dx - ex) * (dx - ex) + (dy - ey) * (dy - ey);
         double ex_sq = ex * ex + ey * ey;
         // The warp was a recentering jump of ~100px. If this motion carries the warp's jump
@@ -3909,20 +3909,20 @@ static int macoblox_filter_locked_motion_inner(MacOBloxPoint location, double dx
                       (ex != 0 && (dx * ex > 0) && (dx * dx >= 0.04 * ex * ex)) ||
                       (ey != 0 && (dy * ey > 0) && (dy * dy >= 0.04 * ey * ey));
         if (is_warp) {
-            macoblox_drop_warp_motion = 0;
+            quadra_drop_warp_motion = 0;
             return 1;
         }
         // After 2 events, the warp has surely arrived or passed. Never wait 8 events,
         // which stalled recentering and let the pointer reach the screen edge.
-        if (++macoblox_warp_wait_events > 2)
-            macoblox_drop_warp_motion = 0;
+        if (++quadra_warp_wait_events > 2)
+            quadra_drop_warp_motion = 0;
     }
-    if (!macoblox_drop_warp_motion) {
-        double ox = location.x - macoblox_lock_anchor.x, oy = location.y - macoblox_lock_anchor.y;
-        if (macoblox_lock_anchor_pending ||
-            ox > MACOBLOX_LOCK_RADIUS || ox < -MACOBLOX_LOCK_RADIUS ||
-                   oy > MACOBLOX_LOCK_RADIUS || oy < -MACOBLOX_LOCK_RADIUS) {
-            macoblox_recenter_requested = 1;
+    if (!quadra_drop_warp_motion) {
+        double ox = location.x - quadra_lock_anchor.x, oy = location.y - quadra_lock_anchor.y;
+        if (quadra_lock_anchor_pending ||
+            ox > QUADRA_LOCK_RADIUS || ox < -QUADRA_LOCK_RADIUS ||
+                   oy > QUADRA_LOCK_RADIUS || oy < -QUADRA_LOCK_RADIUS) {
+            quadra_recenter_requested = 1;
         }
     }
     return 0;
@@ -3930,11 +3930,11 @@ static int macoblox_filter_locked_motion_inner(MacOBloxPoint location, double dx
 
 // macOS reports mouse motion deltaY positive downward; Darling computes it in
 // Cocoa window coordinates (positive upward). Scroll events keep their sign.
-// MACOBLOX_MOUSE_SENSITIVITY scales camera motion during mouse lock.
-static double macoblox_mouse_sensitivity(void) {
+// QUADRA_MOUSE_SENSITIVITY scales camera motion during mouse lock.
+static double quadra_mouse_sensitivity(void) {
     static double value = -1;
     if (value < 0) {
-        const char* text = getenv("MACOBLOX_MOUSE_SENSITIVITY");
+        const char* text = getenv("QUADRA_MOUSE_SENSITIVITY");
         double parsed = 0;
         if (text && text[0]) {
             double scale = 1;
@@ -3952,11 +3952,11 @@ static double macoblox_mouse_sensitivity(void) {
     }
     return value;
 }
-// MACOBLOX_SCROLL_SENSITIVITY scales wheel delta for UI menus and scrolling.
-static double macoblox_scroll_sensitivity(void) {
+// QUADRA_SCROLL_SENSITIVITY scales wheel delta for UI menus and scrolling.
+static double quadra_scroll_sensitivity(void) {
     static double value = -1;
     if (value < 0) {
-        const char* text = getenv("MACOBLOX_SCROLL_SENSITIVITY");
+        const char* text = getenv("QUADRA_SCROLL_SENSITIVITY");
         double parsed = 0;
         if (text && text[0]) {
             double scale = 1;
@@ -3974,12 +3974,12 @@ static double macoblox_scroll_sensitivity(void) {
     }
     return value;
 }
-static int macoblox_is_motion_type(id event) {
+static int quadra_is_motion_type(id event) {
     unsigned long type = ((unsigned long (*)(id, SEL))objc_msgSend)(
         event, sel_registerName("type"));
     return type == 5 || type == 6 || type == 7 || type == 27;
 }
-static int macoblox_is_scroll_type(id event) {
+static int quadra_is_scroll_type(id event) {
     unsigned long type = ((unsigned long (*)(id, SEL))objc_msgSend)(
         event, sel_registerName("type"));
     return type == 22; // NSScrollWheel
@@ -3987,45 +3987,45 @@ static int macoblox_is_scroll_type(id event) {
 static double (*orig_mouse_event_delta_x)(id, SEL) = 0;
 static double hooked_mouse_event_delta_x(id self, SEL cmd) {
     double delta = orig_mouse_event_delta_x(self, cmd);
-    if ((macoblox_pointer_grabbed || macoblox_wayland_captured()) && macoblox_is_motion_type(self))
-        return delta * macoblox_mouse_sensitivity();
-    if (macoblox_is_scroll_type(self))
-        return delta * macoblox_scroll_sensitivity();
+    if ((quadra_pointer_grabbed || quadra_wayland_captured()) && quadra_is_motion_type(self))
+        return delta * quadra_mouse_sensitivity();
+    if (quadra_is_scroll_type(self))
+        return delta * quadra_scroll_sensitivity();
     return delta;
 }
 static double (*orig_mouse_event_delta_y)(id, SEL) = 0;
 static double hooked_mouse_event_delta_y(id self, SEL cmd) {
     double delta = orig_mouse_event_delta_y(self, cmd);
-    if (macoblox_is_scroll_type(self))
-        return delta * macoblox_scroll_sensitivity();
-    if (!macoblox_is_motion_type(self))
+    if (quadra_is_scroll_type(self))
+        return delta * quadra_scroll_sensitivity();
+    if (!quadra_is_motion_type(self))
         return delta;
     delta = -delta;
-    return (macoblox_pointer_grabbed || macoblox_wayland_captured()) ? delta * macoblox_mouse_sensitivity() : delta;
+    return (quadra_pointer_grabbed || quadra_wayland_captured()) ? delta * quadra_mouse_sensitivity() : delta;
 }
 
 // Scroll wheel APIs missing from Darling's NSEvent. X11 wheels report coarse
 // line deltas; macOS reports pixels for the same events (about 10 px per
 // line). Roblox's Universal App menu scrolls on the pixel deltas only, so
 // with line-scale values the wheel appeared dead there.
-#define MACOBLOX_SCROLL_LINE_PIXELS 25.0
-static MacOBloxBool event_has_precise_scrolling_deltas(id self, SEL cmd) {
+#define QUADRA_SCROLL_LINE_PIXELS 25.0
+static QuadraBool event_has_precise_scrolling_deltas(id self, SEL cmd) {
     (void)self; (void)cmd;
     return 1;
 }
-static MacOBloxBool event_is_direction_inverted(id self, SEL cmd) {
+static QuadraBool event_is_direction_inverted(id self, SEL cmd) {
     (void)self; (void)cmd;
     return 0;
 }
 static double event_scrolling_delta_x(id self, SEL cmd) {
     (void)cmd;
     double d = ((double (*)(id, SEL))objc_msgSend)(self, sel_registerName("deltaX"));
-    return d * MACOBLOX_SCROLL_LINE_PIXELS;
+    return d * QUADRA_SCROLL_LINE_PIXELS;
 }
 static double event_scrolling_delta_y(id self, SEL cmd) {
     (void)cmd;
     double d = ((double (*)(id, SEL))objc_msgSend)(self, sel_registerName("deltaY"));
-    return d * MACOBLOX_SCROLL_LINE_PIXELS;
+    return d * QUADRA_SCROLL_LINE_PIXELS;
 }
 
 // Darling's -[X11Cursor initWithImage:hotPoint:] copies each pixel row with a
@@ -4034,7 +4034,7 @@ static double event_scrolling_delta_y(id self, SEL cmd) {
 typedef struct {
     unsigned int version, size, width, height, xhot, yhot, delay;
     unsigned int* pixels;
-} MacOBloxXcursorImage;
+} QuadraXcursorImage;
 typedef struct objc_ivar* Ivar;
 extern Ivar class_getInstanceVariable(Class, const char*);
 extern long ivar_getOffset(Ivar);
@@ -4044,14 +4044,14 @@ extern long ivar_getOffset(Ivar);
  * Retry a mapped native Wayland drawable on the AppKit owner, with a finite
  * budget and backoff. Valid surfaces never enter the repair path. */
 extern void* CGLGetWindow(void*);
-extern int macoblox_wayland_enabled(void);
+extern int quadra_wayland_enabled(void);
 static void (*orig_gl_update_view_parameters)(id, SEL);
-static long macoblox_gl_subwindow_offset, macoblox_gl_window_offset;
-static unsigned long long macoblox_input_now_ns(void);
-static void macoblox_recover_gl_drawable(id self, int scheduled) {
-    if (!macoblox_wayland_enabled() || !pthread_main_np()) return;
-    void** surface = (void**)((char*)self + macoblox_gl_window_offset);
-    id child = *(id*)((char*)self + macoblox_gl_subwindow_offset);
+static long quadra_gl_subwindow_offset, quadra_gl_window_offset;
+static unsigned long long quadra_input_now_ns(void);
+static void quadra_recover_gl_drawable(id self, int scheduled) {
+    if (!quadra_wayland_enabled() || !pthread_main_np()) return;
+    void** surface = (void**)((char*)self + quadra_gl_window_offset);
+    id child = *(id*)((char*)self + quadra_gl_subwindow_offset);
     if (*surface || !child) return;
     void* native = ((void* (*)(id, SEL))objc_msgSend)(child, sel_registerName("nativeWindow"));
     if (!native) return;
@@ -4067,7 +4067,7 @@ static void macoblox_recover_gl_drawable(id self, int scheduled) {
         retries[slot].attempts = 0;
         retries[slot].next = 0;
     }
-    unsigned long long now = macoblox_input_now_ns();
+    unsigned long long now = quadra_input_now_ns();
     if (retries[slot].attempts >= 12 || (!scheduled && now < retries[slot].next)) return;
     retries[slot].attempts++;
     retries[slot].next = now + 100000000ULL;
@@ -4082,29 +4082,29 @@ static void macoblox_recover_gl_drawable(id self, int scheduled) {
     else ((void (*)(id, SEL, SEL, id, double))objc_msgSend)(self,
         sel_registerName("performSelector:withObject:afterDelay:"), retry, (id)0, 0.1);
 }
-static void macoblox_retry_gl_drawable(id self, SEL cmd, id unused) {
+static void quadra_retry_gl_drawable(id self, SEL cmd, id unused) {
     (void)cmd; (void)unused;
     /* A pending selector retains the context and its subwindow. Do not touch
      * _view here: it is a weak reference that may have disappeared on close. */
-    macoblox_recover_gl_drawable(self, 1);
+    quadra_recover_gl_drawable(self, 1);
 }
 static void hooked_gl_update_view_parameters(id self, SEL cmd) {
     orig_gl_update_view_parameters(self, cmd);
-    macoblox_recover_gl_drawable(self, 0);
+    quadra_recover_gl_drawable(self, 0);
 }
-static void macoblox_attach_recovered_gl_drawable(void* context) {
-    if (!orig_gl_update_view_parameters || !macoblox_wayland_enabled() || macoblox_cgl_egl_surface(context)) return;
+static void quadra_attach_recovered_gl_drawable(void* context) {
+    if (!orig_gl_update_view_parameters || !quadra_wayland_enabled() || quadra_cgl_egl_surface(context)) return;
     id current = ((id (*)(id, SEL))objc_msgSend)((id)objc_getClass("NSOpenGLContext"),
                                                sel_registerName("currentContext"));
     if (!current || ((void* (*)(id, SEL))objc_msgSend)(current, sel_registerName("CGLContextObj")) != context) return;
-    void* surface = __atomic_load_n((void**)((char*)current + macoblox_gl_window_offset), __ATOMIC_ACQUIRE);
+    void* surface = __atomic_load_n((void**)((char*)current + quadra_gl_window_offset), __ATOMIC_ACQUIRE);
     if (!surface) return;
     /* Bind on the rendering thread, rather than making the renderer's EGL
      * context current on the timer/main thread. Failed binds are bounded. */
     static struct { id owner; void* surface; unsigned attempts; } bindings[64];
     static unsigned replace;
     static volatile unsigned int binding_lock;
-    macoblox_lock(&binding_lock);
+    quadra_lock(&binding_lock);
     int slot = -1;
     for (int i = 0; i < 64; i++) if (bindings[i].owner == current) { slot = i; break; }
     if (slot < 0) slot = (int)(replace++ % 64);
@@ -4113,8 +4113,8 @@ static void macoblox_attach_recovered_gl_drawable(void* context) {
     }
     int allowed = bindings[slot].attempts < 4;
     if (allowed) bindings[slot].attempts++;
-    macoblox_unlock(&binding_lock);
-    if (allowed && !macoblox_CGLContextMakeCurrentAndAttachToWindow(context, surface))
+    quadra_unlock(&binding_lock);
+    if (allowed && !quadra_CGLContextMakeCurrentAndAttachToWindow(context, surface))
         write_str("[Quadra Wayland] Attached recovered drawable on the rendering thread\n");
 }
 extern void* objc_autoreleasePoolPush(void);
@@ -4144,7 +4144,7 @@ extern void CFRelease(const void*);
 // whose compositing corrupts channels of semi-transparent pixels. Returns an
 // Xcursor-style premultiplied ARGB buffer (caller frees), or 0 if the format
 // is not a plain 8-bit RGB(A) layout.
-unsigned int* macoblox_cursor_pixels_from_image(
+unsigned int* quadra_cursor_pixels_from_image(
     id image, unsigned long* width_out, unsigned long* height_out) {
     id reps = ((id (*)(id, SEL))objc_msgSend)(image, sel_registerName("representations"));
     unsigned long rep_count = reps
@@ -4153,7 +4153,7 @@ unsigned int* macoblox_cursor_pixels_from_image(
     for (unsigned long index = 0; index < rep_count && !cg_image; index++) {
         id rep = ((id (*)(id, SEL, unsigned long))objc_msgSend)(
             reps, sel_registerName("objectAtIndex:"), index);
-        if (((MacOBloxBool (*)(id, SEL, SEL))objc_msgSend)(
+        if (((QuadraBool (*)(id, SEL, SEL))objc_msgSend)(
                 rep, sel_registerName("respondsToSelector:"), sel_registerName("CGImage")))
             cg_image = ((void* (*)(id, SEL))objc_msgSend)(rep, sel_registerName("CGImage"));
     }
@@ -4251,22 +4251,22 @@ unsigned int* macoblox_cursor_pixels_from_image(
     return pixels;
 }
 
-static id (*orig_x11_cursor_init_image)(id, SEL, id, MacOBloxPoint) = 0;
+static id (*orig_x11_cursor_init_image)(id, SEL, id, QuadraPoint) = 0;
 static id hooked_x11_cursor_init_image(id self, SEL cmd, id image,
-                                       MacOBloxPoint hot) {
-    MacOBloxXcursorImage* (*image_create)(int, int) =
-        (MacOBloxXcursorImage* (*)(int, int))
+                                       QuadraPoint hot) {
+    QuadraXcursorImage* (*image_create)(int, int) =
+        (QuadraXcursorImage* (*)(int, int))
             dlsym(RTLD_DEFAULT, "XcursorImageCreate");
-    void (*image_destroy)(MacOBloxXcursorImage*) =
-        (void (*)(MacOBloxXcursorImage*))
+    void (*image_destroy)(QuadraXcursorImage*) =
+        (void (*)(QuadraXcursorImage*))
             dlsym(RTLD_DEFAULT, "XcursorImageDestroy");
-    unsigned long (*load_cursor)(void*, const MacOBloxXcursorImage*) =
-        (unsigned long (*)(void*, const MacOBloxXcursorImage*))
+    unsigned long (*load_cursor)(void*, const QuadraXcursorImage*) =
+        (unsigned long (*)(void*, const QuadraXcursorImage*))
             dlsym(RTLD_DEFAULT, "XcursorImageLoadCursor");
     Ivar cursor_ivar = class_getInstanceVariable(object_getClass(self), "_cursor");
-    MacOBloxSize size = image
-        ? ((MacOBloxSize (*)(id, SEL))objc_msgSend)(image, sel_registerName("size"))
-        : (MacOBloxSize){0, 0};
+    QuadraSize size = image
+        ? ((QuadraSize (*)(id, SEL))objc_msgSend)(image, sel_registerName("size"))
+        : (QuadraSize){0, 0};
     unsigned long width = (unsigned long)size.width;
     unsigned long height = (unsigned long)size.height;
     if (!image_create || !image_destroy || !load_cursor || !cursor_ivar ||
@@ -4275,7 +4275,7 @@ static id hooked_x11_cursor_init_image(id self, SEL cmd, id image,
 
     unsigned long source_width = 0, source_height = 0;
     unsigned int* source_pixels =
-        macoblox_cursor_pixels_from_image(image, &source_width, &source_height);
+        quadra_cursor_pixels_from_image(image, &source_width, &source_height);
     if (source_pixels) {
         id direct_display_object = ((id (*)(id, SEL))objc_msgSend)(
             (id)objc_getClass("NSDisplay"), sel_registerName("currentDisplay"));
@@ -4283,7 +4283,7 @@ static id hooked_x11_cursor_init_image(id self, SEL cmd, id image,
             ? ((void* (*)(id, SEL))objc_msgSend)(direct_display_object,
                                                   sel_registerName("display"))
             : 0;
-        MacOBloxXcursorImage* direct = direct_display
+        QuadraXcursorImage* direct = direct_display
             ? image_create((int)source_width, (int)source_height) : 0;
         if (direct) {
             for (unsigned long index = 0; index < source_width * source_height; index++)
@@ -4310,7 +4310,7 @@ static id hooked_x11_cursor_init_image(id self, SEL cmd, id image,
     void* display = display_object
         ? ((void* (*)(id, SEL))objc_msgSend)(display_object, sel_registerName("display"))
         : 0;
-    MacOBloxXcursorImage* ximage = display ? image_create((int)width, (int)height) : 0;
+    QuadraXcursorImage* ximage = display ? image_create((int)width, (int)height) : 0;
     void* color_space = ximage ? CGColorSpaceCreateDeviceRGB() : 0;
     // Premultiplied ARGB in host byte order, the XcursorPixel format.
     void* bitmap = color_space
@@ -4327,15 +4327,15 @@ static id hooked_x11_cursor_init_image(id self, SEL cmd, id image,
 
     void* pool = objc_autoreleasePoolPush();
     id context_class = (id)objc_getClass("NSGraphicsContext");
-    id graphics = ((id (*)(id, SEL, void*, MacOBloxBool))objc_msgSend)(
+    id graphics = ((id (*)(id, SEL, void*, QuadraBool))objc_msgSend)(
         context_class, sel_registerName("graphicsContextWithGraphicsPort:flipped:"),
         bitmap, 0);
     ((void (*)(id, SEL))objc_msgSend)(context_class, sel_registerName("saveGraphicsState"));
     ((void (*)(id, SEL, id))objc_msgSend)(
         context_class, sel_registerName("setCurrentContext:"), graphics);
-    MacOBloxRect destination = {{0, 0}, {(double)width, (double)height}};
-    MacOBloxRect whole_image = {{0, 0}, {0, 0}};
-    ((void (*)(id, SEL, MacOBloxRect, MacOBloxRect, unsigned long, double))objc_msgSend)(
+    QuadraRect destination = {{0, 0}, {(double)width, (double)height}};
+    QuadraRect whole_image = {{0, 0}, {0, 0}};
+    ((void (*)(id, SEL, QuadraRect, QuadraRect, unsigned long, double))objc_msgSend)(
         image, sel_registerName("drawInRect:fromRect:operation:fraction:"),
         destination, whole_image, 1UL /* NSCompositeCopy */, 1.0);
     ((void (*)(id, SEL))objc_msgSend)(context_class, sel_registerName("restoreGraphicsState"));
@@ -4402,7 +4402,7 @@ static id hooked_x11_cursor_init_image(id self, SEL cmd, id image,
  * image construction paths and named/blank cursors follow the same policy. */
 static void (*orig_x11_display_set_cursor)(id, SEL, id);
 static void hooked_x11_display_set_cursor(id self, SEL cmd, id cursor) {
-    unsigned long handle = macoblox_native_window_handle(macoblox_lock_window());
+    unsigned long handle = quadra_native_window_handle(quadra_lock_window());
     orig_x11_display_set_cursor(self, cmd, cursor);
     if (!handle)
         return;
@@ -4411,11 +4411,11 @@ static void hooked_x11_display_set_cursor(id self, SEL cmd, id cursor) {
         return;
     unsigned long selected_cursor = cursor
         ? *(unsigned long*)((char*)cursor + ivar_getOffset(cursor_ivar)) : 0;
-    macoblox_lock(&macoblox_window_cursor_lock);
-    int image_changed = macoblox_window_cursor_selection.window != handle ||
-        macoblox_window_cursor_selection.cursor != selected_cursor ||
-        macoblox_window_cursor_selection.owner != cursor;
-    macoblox_unlock(&macoblox_window_cursor_lock);
+    quadra_lock(&quadra_window_cursor_lock);
+    int image_changed = quadra_window_cursor_selection.window != handle ||
+        quadra_window_cursor_selection.cursor != selected_cursor ||
+        quadra_window_cursor_selection.owner != cursor;
+    quadra_unlock(&quadra_window_cursor_lock);
     if (image_changed) {
         id current = ((id (*)(id, SEL))objc_msgSend)(
             (id)objc_getClass("NSCursor"), sel_registerName("currentCursor"));
@@ -4423,33 +4423,33 @@ static void hooked_x11_display_set_cursor(id self, SEL cmd, id cursor) {
         id image = platform_ivar && *(id*)((char*)current + ivar_getOffset(platform_ivar)) == cursor
             ? ((id (*)(id, SEL))objc_msgSend)(current, sel_registerName("image")) : 0;
         unsigned long width = 0, height = 0;
-        unsigned int *pixels = image ? macoblox_cursor_pixels_from_image(image, &width, &height) : 0;
-        MacOBloxPoint hot = image
-            ? ((MacOBloxPoint (*)(id, SEL))objc_msgSend)(current, sel_registerName("hotSpot")) : (MacOBloxPoint){0, 0};
-        MacOBloxSize logical = image
-            ? ((MacOBloxSize (*)(id, SEL))objc_msgSend)(image, sel_registerName("size")) : (MacOBloxSize){0, 0};
+        unsigned int *pixels = image ? quadra_cursor_pixels_from_image(image, &width, &height) : 0;
+        QuadraPoint hot = image
+            ? ((QuadraPoint (*)(id, SEL))objc_msgSend)(current, sel_registerName("hotSpot")) : (QuadraPoint){0, 0};
+        QuadraSize logical = image
+            ? ((QuadraSize (*)(id, SEL))objc_msgSend)(image, sel_registerName("size")) : (QuadraSize){0, 0};
         double x = logical.width > 0 ? hot.x * width / logical.width : 0;
         double y = logical.height > 0 ? hot.y * height / logical.height : 0;
-        macoblox_cursor_overlay_select_image(selected_cursor, pixels, (unsigned int)width, (unsigned int)height,
+        quadra_cursor_overlay_select_image(selected_cursor, pixels, (unsigned int)width, (unsigned int)height,
             __builtin_isfinite(x) && x >= 0 && x < width ? (unsigned int)x : 0,
             __builtin_isfinite(y) && y >= 0 && y < height ? (unsigned int)y : 0);
         free(pixels);
     }
     if (cursor)
         ((id (*)(id, SEL))objc_msgSend)(cursor, sel_registerName("retain"));
-    macoblox_lock(&macoblox_window_cursor_lock);
-    id previous = (id)macoblox_window_cursor_selection.owner;
-    int changed = macoblox_cursor_selection_set(&macoblox_window_cursor_selection,
+    quadra_lock(&quadra_window_cursor_lock);
+    id previous = (id)quadra_window_cursor_selection.owner;
+    int changed = quadra_cursor_selection_set(&quadra_window_cursor_selection,
                                                 handle, selected_cursor, cursor);
-    int pending = macoblox_window_cursor_selection.dirty;
-    macoblox_unlock(&macoblox_window_cursor_lock);
+    int pending = quadra_window_cursor_selection.dirty;
+    quadra_unlock(&quadra_window_cursor_lock);
     id release = changed ? previous : cursor;
     if (release)
         ((void (*)(id, SEL))objc_msgSend)(release, sel_registerName("release"));
     if (pending) {
-        macoblox_start_xfixes_worker();
-        if (__atomic_load_n(&macoblox_cursor_worker_ready, __ATOMIC_ACQUIRE))
-            macoblox_wake_worker(macoblox_cursor_wake[1]);
+        quadra_start_xfixes_worker();
+        if (__atomic_load_n(&quadra_cursor_worker_ready, __ATOMIC_ACQUIRE))
+            quadra_wake_worker(quadra_cursor_wake[1]);
     }
 }
 
@@ -4457,7 +4457,7 @@ static void hooked_x11_display_set_cursor(id self, SEL cmd, id cursor) {
 // Roblox installs local monitors for its input, so implement them the macOS
 // way: -[NSApplication sendEvent:] passes each matching event to the handlers
 // first; a handler may replace the event or return nil to consume it.
-struct MacOBloxBlock {
+struct QuadraBlock {
     void* isa;
     int flags;
     int reserved;
@@ -4465,29 +4465,29 @@ struct MacOBloxBlock {
 };
 extern void* _Block_copy(const void*);
 extern void _Block_release(const void*);
-#define MACOBLOX_MAX_MONITORS 32
+#define QUADRA_MAX_MONITORS 32
 static struct {
     unsigned long long mask;
-    struct MacOBloxBlock* block;
-} macoblox_monitors[MACOBLOX_MAX_MONITORS];
-static volatile int macoblox_monitor_lock;
+    struct QuadraBlock* block;
+} quadra_monitors[QUADRA_MAX_MONITORS];
+static volatile int quadra_monitor_lock;
 
 static id event_add_local_monitor(id cls, SEL cmd, unsigned long long mask,
                                   void* handler) {
     (void)cls; (void)cmd;
     if (!handler)
         return 0;
-    struct MacOBloxBlock* block = (struct MacOBloxBlock*)_Block_copy(handler);
-    while (!__sync_bool_compare_and_swap(&macoblox_monitor_lock, 0, 1)) {}
+    struct QuadraBlock* block = (struct QuadraBlock*)_Block_copy(handler);
+    while (!__sync_bool_compare_and_swap(&quadra_monitor_lock, 0, 1)) {}
     int stored = 0;
-    for (int index = 0; index < MACOBLOX_MAX_MONITORS && !stored; index++) {
-        if (!macoblox_monitors[index].block) {
-            macoblox_monitors[index].mask = mask;
-            macoblox_monitors[index].block = block;
+    for (int index = 0; index < QUADRA_MAX_MONITORS && !stored; index++) {
+        if (!quadra_monitors[index].block) {
+            quadra_monitors[index].mask = mask;
+            quadra_monitors[index].block = block;
             stored = 1;
         }
     }
-    __sync_lock_release(&macoblox_monitor_lock);
+    __sync_lock_release(&quadra_monitor_lock);
     write_str("[Quadra Input] addLocalMonitorForEventsMatchingMask mask=");
     print_hex(mask);
     write_str(stored ? "\n" : " (table full, ignored)\n");
@@ -4502,17 +4502,17 @@ static void event_remove_monitor(id cls, SEL cmd, id monitor) {
     (void)cls; (void)cmd;
     if (!monitor)
         return;
-    while (!__sync_bool_compare_and_swap(&macoblox_monitor_lock, 0, 1)) {}
-    for (int index = 0; index < MACOBLOX_MAX_MONITORS; index++) {
-        if (macoblox_monitors[index].block == (struct MacOBloxBlock*)monitor) {
-            macoblox_monitors[index].block = 0;
-            macoblox_monitors[index].mask = 0;
-            __sync_lock_release(&macoblox_monitor_lock);
+    while (!__sync_bool_compare_and_swap(&quadra_monitor_lock, 0, 1)) {}
+    for (int index = 0; index < QUADRA_MAX_MONITORS; index++) {
+        if (quadra_monitors[index].block == (struct QuadraBlock*)monitor) {
+            quadra_monitors[index].block = 0;
+            quadra_monitors[index].mask = 0;
+            __sync_lock_release(&quadra_monitor_lock);
             _Block_release(monitor);
             return;
         }
     }
-    __sync_lock_release(&macoblox_monitor_lock);
+    __sync_lock_release(&quadra_monitor_lock);
 }
 
 // Keyboard state for CGEventSourceKeyState, which Darling lacks and Roblox
@@ -4520,25 +4520,25 @@ static void event_remove_monitor(id cls, SEL cmd, id monitor) {
 // when the window loses the keyboard (hooked_post_x_event): X sends the key
 // releases to whoever has it then, so a key held during Alt+Tab stayed
 // "down" (the character kept walking).
-static volatile unsigned char macoblox_key_down[128];
-extern int macoblox_wayland_key_transition(id);
-extern int macoblox_wayland_dispatch_event(id);
-static void macoblox_track_key_event(id event, unsigned long type) {
+static volatile unsigned char quadra_key_down[128];
+extern int quadra_wayland_key_transition(id);
+extern int quadra_wayland_dispatch_event(id);
+static void quadra_track_key_event(id event, unsigned long type) {
     if (type != 10 && type != 11 && type != 12) // keyDown, keyUp, flagsChanged
         return;
     unsigned short key = ((unsigned short (*)(id, SEL))objc_msgSend)(
         event, sel_registerName("keyCode"));
     if (key >= 128)
         return;
-    int transition = macoblox_wayland_key_transition(event);
+    int transition = quadra_wayland_key_transition(event);
     if (transition) {
         // Explicit transitions distinguish left/right modifiers even when
         // the other Ctrl/Shift key remains held during flagsChanged.
-        macoblox_key_down[key] = transition == 1;
+        quadra_key_down[key] = transition == 1;
         return;
     }
     if (type != 12) {
-        macoblox_key_down[key] = type == 10;
+        quadra_key_down[key] = type == 10;
         return;
     }
     unsigned long flags = ((unsigned long (*)(id, SEL))objc_msgSend)(
@@ -4552,42 +4552,42 @@ static void macoblox_track_key_event(id event, unsigned long type) {
     case 57: bit = 1UL << 16; break;          // caps lock
     default: return;
     }
-    macoblox_key_down[key] = (flags & bit) != 0;
+    quadra_key_down[key] = (flags & bit) != 0;
 }
 unsigned char CGEventSourceKeyState(int state_id, unsigned short key) {
     (void)state_id;
-    return key < 128 ? macoblox_key_down[key] : 0;
+    return key < 128 ? quadra_key_down[key] : 0;
 }
 
-static int macoblox_trace_keys_enabled(void);
+static int quadra_trace_keys_enabled(void);
 static void (*orig_app_send_event)(id, SEL, id) = 0;
 static void hooked_app_send_event(id self, SEL cmd, id event) {
     if (event) {
-        if (macoblox_wayland_dispatch_event(event))
+        if (quadra_wayland_dispatch_event(event))
             return;
         unsigned long type = ((unsigned long (*)(id, SEL))objc_msgSend)(
             event, sel_registerName("type"));
-        macoblox_track_key_event(event, type);
-        if ((type == 10 || type == 11) && macoblox_trace_keys_enabled()) {
+        quadra_track_key_event(event, type);
+        if ((type == 10 || type == 11) && quadra_trace_keys_enabled()) {
             write_str(type == 10 ? "[Quadra Keys] game keyDown code=" : "[Quadra Keys] game keyUp   code=");
             print_num(((unsigned short (*)(id, SEL))objc_msgSend)(event, sel_registerName("keyCode")));
             write_str(((signed char (*)(id, SEL))objc_msgSend)(event, sel_registerName("isARepeat")) ? " repeat\n" : "\n");
         }
         if ((type == 5 || type == 6 || type == 7 || type == 27) &&
-            macoblox_filter_locked_motion(event))
+            quadra_filter_locked_motion(event))
             return;
         unsigned long long event_mask = type < 64 ? 1ULL << type : 0;
-        struct MacOBloxBlock* handlers[MACOBLOX_MAX_MONITORS];
+        struct QuadraBlock* handlers[QUADRA_MAX_MONITORS];
         int handler_count = 0;
-        while (!__sync_bool_compare_and_swap(&macoblox_monitor_lock, 0, 1)) {}
-        for (int index = 0; index < MACOBLOX_MAX_MONITORS; index++) {
-            if (macoblox_monitors[index].block &&
-                (macoblox_monitors[index].mask & event_mask))
+        while (!__sync_bool_compare_and_swap(&quadra_monitor_lock, 0, 1)) {}
+        for (int index = 0; index < QUADRA_MAX_MONITORS; index++) {
+            if (quadra_monitors[index].block &&
+                (quadra_monitors[index].mask & event_mask))
                 // A reference of our own: a handler may remove a monitor
                 // (and free its block) while the others still run.
-                handlers[handler_count++] = (struct MacOBloxBlock*)_Block_copy(macoblox_monitors[index].block);
+                handlers[handler_count++] = (struct QuadraBlock*)_Block_copy(quadra_monitors[index].block);
         }
-        __sync_lock_release(&macoblox_monitor_lock);
+        __sync_lock_release(&quadra_monitor_lock);
         for (int index = 0; index < handler_count; index++) {
             if (event)
                 event = handlers[index]->invoke(handlers[index], event);
@@ -4602,24 +4602,24 @@ static void hooked_app_send_event(id self, SEL cmd, id event) {
 // Darling drops pointer motion unless the window accepts mouse-moved events.
 // On macOS Roblox receives motion through tracking areas instead, which
 // Darling does not deliver here, so the Roblox window always accepts them.
-static MacOBloxBool (*orig_window_accepts_mouse_moved)(id, SEL) = 0;
-static MacOBloxBool hooked_window_accepts_mouse_moved(id self, SEL cmd) {
+static QuadraBool (*orig_window_accepts_mouse_moved)(id, SEL) = 0;
+static QuadraBool hooked_window_accepts_mouse_moved(id self, SEL cmd) {
     (void)self; (void)cmd;
     return 1;
 }
 
 // The launcher ends the session as soon as the user asks to quit (the quit
-// sentinel; see macoblox_write_quit_sentinel). Closing the game window is
+// sentinel; see quadra_write_quit_sentinel). Closing the game window is
 // that ask: Roblox's own teardown would otherwise keep the process alive
 // for seconds after the window is gone, with the launcher still waiting.
 static void (*orig_window_close)(id, SEL) = 0;
 static void hooked_window_close(id self, SEL cmd) {
     const char* class_name = object_getClassName(self);
     if (class_name && ascii_strings_equal(class_name, "RBXWindow")) {
-        __atomic_store_n(&macoblox_mouse_lock_requested, 0, __ATOMIC_RELEASE);
-        __atomic_store_n(&macoblox_input_focused, 0, __ATOMIC_RELEASE);
-        macoblox_release_mouse_capture(0);
-        macoblox_write_quit_sentinel();
+        __atomic_store_n(&quadra_mouse_lock_requested, 0, __ATOMIC_RELEASE);
+        __atomic_store_n(&quadra_input_focused, 0, __ATOMIC_RELEASE);
+        quadra_release_mouse_capture(0);
+        quadra_write_quit_sentinel();
     }
     if (orig_window_close)
         orig_window_close(self, cmd);
@@ -4628,10 +4628,10 @@ static void (*orig_window_perform_close)(id, SEL, id) = 0;
 static void hooked_window_perform_close(id self, SEL cmd, id sender) {
     const char* class_name = object_getClassName(self);
     if (class_name && ascii_strings_equal(class_name, "RBXWindow")) {
-        __atomic_store_n(&macoblox_mouse_lock_requested, 0, __ATOMIC_RELEASE);
-        __atomic_store_n(&macoblox_input_focused, 0, __ATOMIC_RELEASE);
-        macoblox_release_mouse_capture(0);
-        macoblox_write_quit_sentinel();
+        __atomic_store_n(&quadra_mouse_lock_requested, 0, __ATOMIC_RELEASE);
+        __atomic_store_n(&quadra_input_focused, 0, __ATOMIC_RELEASE);
+        quadra_release_mouse_capture(0);
+        quadra_write_quit_sentinel();
     }
     if (orig_window_perform_close)
         orig_window_perform_close(self, cmd, sender);
@@ -4643,8 +4643,8 @@ static void hooked_window_perform_close(id self, SEL cmd, id sender) {
 // right-button camera drag therefore left nothing to hit: the game never saw
 // the right button go up and kept turning the camera until the menu opened.
 // While the other button is still held, put the location back after its up.
-static unsigned int macoblox_window_buttons_down; // bit 0 left, bit 1 right
-static void macoblox_window_track_button(id self, unsigned long type, id event,
+static unsigned int quadra_window_buttons_down; // bit 0 left, bit 1 right
+static void quadra_window_track_button(id self, unsigned long type, id event,
                                          void (*dispatch)(id, SEL, id), SEL cmd) {
     static long offset = -2;
     if (offset == -2) {
@@ -4653,25 +4653,25 @@ static void macoblox_window_track_button(id self, unsigned long type, id event,
     }
     unsigned int button = (type == 1 || type == 2) ? 1u : 2u;
     if (type == 1 || type == 3) {
-        macoblox_window_buttons_down |= button;
+        quadra_window_buttons_down |= button;
         dispatch(self, cmd, event);
         return;
     }
-    macoblox_window_buttons_down &= ~button;
-    MacOBloxPoint* location = offset >= 0 ? (MacOBloxPoint*)((char*)self + offset) : 0;
-    MacOBloxPoint kept = location ? *location : (MacOBloxPoint){0, 0};
+    quadra_window_buttons_down &= ~button;
+    QuadraPoint* location = offset >= 0 ? (QuadraPoint*)((char*)self + offset) : 0;
+    QuadraPoint kept = location ? *location : (QuadraPoint){0, 0};
     dispatch(self, cmd, event);
-    if (location && macoblox_window_buttons_down)
+    if (location && quadra_window_buttons_down)
         *location = kept;
 }
 
-// MACOBLOX_TRACE_EVENTS=1: log mouse events as AppKit dispatches them.
+// QUADRA_TRACE_EVENTS=1: log mouse events as AppKit dispatches them.
 // Movement is sampled; button, enter/exit and scroll events are all logged.
 static void (*orig_window_send_event)(id, SEL, id) = 0;
-static volatile long macoblox_traced_motion_events;
+static volatile long quadra_traced_motion_events;
 static void hooked_window_send_event(id self, SEL cmd, id event) {
     static volatile int enabled = -1;
-    macoblox_env_cached("MACOBLOX_TRACE_EVENTS", &enabled);
+    quadra_env_cached("QUADRA_TRACE_EVENTS", &enabled);
     if (enabled && event) {
         unsigned long type = ((unsigned long (*)(id, SEL))objc_msgSend)(
             event, sel_registerName("type"));
@@ -4681,11 +4681,11 @@ static void hooked_window_send_event(id self, SEL cmd, id event) {
         int is_other = type == 8 || type == 9 || type == 22;
         int log = is_button || is_other;
         if (is_motion) {
-            long count = __sync_add_and_fetch(&macoblox_traced_motion_events, 1);
+            long count = __sync_add_and_fetch(&quadra_traced_motion_events, 1);
             log = count <= 20 || count % 50 == 0;
         }
         if (log) {
-            MacOBloxPoint location = ((MacOBloxPoint (*)(id, SEL))objc_msgSend)(
+            QuadraPoint location = ((QuadraPoint (*)(id, SEL))objc_msgSend)(
                 event, sel_registerName("locationInWindow"));
             write_str("[Quadra Event] type=");
             print_num((long long)type);
@@ -4707,7 +4707,7 @@ static void hooked_window_send_event(id self, SEL cmd, id event) {
                 id superview = content ? ((id (*)(id, SEL))objc_msgSend)(
                     content, sel_registerName("superview")) : 0;
                 id root = superview ? superview : content;
-                id hit = root ? ((id (*)(id, SEL, MacOBloxPoint))objc_msgSend)(
+                id hit = root ? ((id (*)(id, SEL, QuadraPoint))objc_msgSend)(
                     root, sel_registerName("hitTest:"), location) : 0;
                 write_str(" hit=");
                 write_str(hit ? object_getClassName(hit) : "(nil)");
@@ -4718,7 +4718,7 @@ static void hooked_window_send_event(id self, SEL cmd, id event) {
             }
             if (is_motion) {
                 write_str(" sample=");
-                print_num(macoblox_traced_motion_events);
+                print_num(quadra_traced_motion_events);
             }
             write_str("\n");
         }
@@ -4726,14 +4726,14 @@ static void hooked_window_send_event(id self, SEL cmd, id event) {
     unsigned long type = event ? ((unsigned long (*)(id, SEL))objc_msgSend)(
         event, sel_registerName("type")) : 0;
     if (type >= 1 && type <= 4)
-        macoblox_window_track_button(self, type, event, orig_window_send_event, cmd);
+        quadra_window_track_button(self, type, event, orig_window_send_event, cmd);
     else
         orig_window_send_event(self, cmd, event);
 }
 
 // Log where Roblox tries to send the user: an in-app WKWebView page or an
 // external URL. Darling's WebKit is a stub, so both currently show nothing.
-static void macoblox_log_url(const char* prefix, id url) {
+static void quadra_log_url(const char* prefix, id url) {
     id text = url ? ((id (*)(id, SEL))objc_msgSend)(url, sel_registerName("absoluteString")) : 0;
     const char* utf8 = text ? ((const char* (*)(id, SEL))objc_msgSend)(
                                   text, sel_registerName("UTF8String")) : 0;
@@ -4741,28 +4741,28 @@ static void macoblox_log_url(const char* prefix, id url) {
     write_str(utf8 ? utf8 : "(nil)");
     write_str("\n");
 }
-static id (*orig_web_view_init)(id, SEL, MacOBloxRect, id) = 0;
-static id hooked_web_view_init(id self, SEL cmd, MacOBloxRect frame, id configuration) {
+static id (*orig_web_view_init)(id, SEL, QuadraRect, id) = 0;
+static id hooked_web_view_init(id self, SEL cmd, QuadraRect frame, id configuration) {
     write_str("[Quadra Web] WKWebView initWithFrame:configuration:\n");
     return orig_web_view_init(self, cmd, frame, configuration);
 }
 static id (*orig_web_view_load_request)(id, SEL, id) = 0;
 static id hooked_web_view_load_request(id self, SEL cmd, id request) {
     id url = request ? ((id (*)(id, SEL))objc_msgSend)(request, sel_registerName("URL")) : 0;
-    macoblox_log_url("[Quadra Web] WKWebView loadRequest: ", url);
+    quadra_log_url("[Quadra Web] WKWebView loadRequest: ", url);
     return orig_web_view_load_request(self, cmd, request);
 }
 // Links open in the launcher's browser window when it is there
 // (web_bridge.m); roblox:// links go to the client's own URL handler.
-extern int macoblox_web_open_url(id url);
-static MacOBloxBool (*orig_workspace_open_url)(id, SEL, id) = 0;
-static MacOBloxBool hooked_workspace_open_url(id self, SEL cmd, id url) {
-    if (url && macoblox_web_open_url(url)) {
+extern int quadra_web_open_url(id url);
+static QuadraBool (*orig_workspace_open_url)(id, SEL, id) = 0;
+static QuadraBool hooked_workspace_open_url(id self, SEL cmd, id url) {
+    if (url && quadra_web_open_url(url)) {
         write_str("[Quadra Web] NSWorkspace openURL: shown by the launcher\n");
         return 1;
     }
-    MacOBloxBool result = orig_workspace_open_url(self, cmd, url);
-    macoblox_log_url(result ? "[Quadra Web] NSWorkspace openURL: (ok) "
+    QuadraBool result = orig_workspace_open_url(self, cmd, url);
+    quadra_log_url(result ? "[Quadra Web] NSWorkspace openURL: (ok) "
                             : "[Quadra Web] NSWorkspace openURL: (failed) ", url);
     return result;
 }
@@ -4796,14 +4796,14 @@ static long hooked_mouse_event_button_number(id self, SEL cmd) {
 // lacks. Roblox's InputMethodHandler (an NSTextView subclass) queries them
 // when a text box gains focus; the missing hasMarkedText was fatal. These
 // report "no IME composition in progress", matching a plain text field.
-typedef struct { unsigned long location, length; } MacOBloxRange;
-static MacOBloxBool text_view_has_marked_text(id self, SEL cmd) {
+typedef struct { unsigned long location, length; } QuadraRange;
+static QuadraBool text_view_has_marked_text(id self, SEL cmd) {
     (void)self; (void)cmd;
     return 0;
 }
-static MacOBloxRange text_view_marked_range(id self, SEL cmd) {
+static QuadraRange text_view_marked_range(id self, SEL cmd) {
     (void)self; (void)cmd;
-    MacOBloxRange range = {0x7FFFFFFFFFFFFFFFUL /* NSNotFound */, 0};
+    QuadraRange range = {0x7FFFFFFFFFFFFFFFUL /* NSNotFound */, 0};
     return range;
 }
 static void text_view_unmark_text(id self, SEL cmd) {
@@ -4814,8 +4814,8 @@ static id text_view_valid_marked_attributes(id self, SEL cmd) {
     return ((id (*)(id, SEL))objc_msgSend)((id)objc_getClass("NSArray"),
                                            sel_registerName("array"));
 }
-static id text_view_attributed_substring(id self, SEL cmd, MacOBloxRange range,
-                                         MacOBloxRange* actual) {
+static id text_view_attributed_substring(id self, SEL cmd, QuadraRange range,
+                                         QuadraRange* actual) {
     (void)cmd;
     if (actual) {
         actual->location = 0x7FFFFFFFFFFFFFFFUL;
@@ -4834,7 +4834,7 @@ static id text_view_attributed_substring(id self, SEL cmd, MacOBloxRange range,
     unsigned long available = length - range.location;
     if (range.length > available)
         range.length = available;
-    id substring = ((id (*)(id, SEL, MacOBloxRange))objc_msgSend)(
+    id substring = ((id (*)(id, SEL, QuadraRange))objc_msgSend)(
         storage, sel_registerName("attributedSubstringFromRange:"), range);
     if (substring && actual)
         *actual = range;
@@ -4845,18 +4845,18 @@ static id text_view_attributed_substring(id self, SEL cmd, MacOBloxRange range,
 
 // Convenience constructors from macOS 10.12 missing in Darling's AppKit.
 // Roblox builds its web challenge window with them.
-static id macoblox_new_view(const char* class_name) {
+static id quadra_new_view(const char* class_name) {
     id object = ((id (*)(id, SEL))objc_msgSend)((id)objc_getClass(class_name),
                                                 sel_registerName("alloc"));
-    MacOBloxRect zero = {{0, 0}, {0, 0}};
-    object = ((id (*)(id, SEL, MacOBloxRect))objc_msgSend)(
+    QuadraRect zero = {{0, 0}, {0, 0}};
+    object = ((id (*)(id, SEL, QuadraRect))objc_msgSend)(
         object, sel_registerName("initWithFrame:"), zero);
     return ((id (*)(id, SEL))objc_msgSend)(object, sel_registerName("autorelease"));
 }
 static id button_with_image_target_action(id cls, SEL cmd, id image, id target,
                                           SEL action) {
     (void)cls; (void)cmd;
-    id button = macoblox_new_view("NSButton");
+    id button = quadra_new_view("NSButton");
     if (!button)
         return 0;
     ((void (*)(id, SEL, id))objc_msgSend)(button, sel_registerName("setImage:"), image);
@@ -4869,15 +4869,15 @@ static id button_with_image_target_action(id cls, SEL cmd, id image, id target,
 }
 static id text_field_label_with_string(id cls, SEL cmd, id string) {
     (void)cls; (void)cmd;
-    id label = macoblox_new_view("NSTextField");
+    id label = quadra_new_view("NSTextField");
     if (!label)
         return 0;
     ((void (*)(id, SEL, id))objc_msgSend)(label, sel_registerName("setStringValue:"), string);
-    ((void (*)(id, SEL, MacOBloxBool))objc_msgSend)(label, sel_registerName("setEditable:"), 0);
-    ((void (*)(id, SEL, MacOBloxBool))objc_msgSend)(label, sel_registerName("setSelectable:"), 0);
-    ((void (*)(id, SEL, MacOBloxBool))objc_msgSend)(label, sel_registerName("setBezeled:"), 0);
-    ((void (*)(id, SEL, MacOBloxBool))objc_msgSend)(label, sel_registerName("setBordered:"), 0);
-    ((void (*)(id, SEL, MacOBloxBool))objc_msgSend)(label, sel_registerName("setDrawsBackground:"), 0);
+    ((void (*)(id, SEL, QuadraBool))objc_msgSend)(label, sel_registerName("setEditable:"), 0);
+    ((void (*)(id, SEL, QuadraBool))objc_msgSend)(label, sel_registerName("setSelectable:"), 0);
+    ((void (*)(id, SEL, QuadraBool))objc_msgSend)(label, sel_registerName("setBezeled:"), 0);
+    ((void (*)(id, SEL, QuadraBool))objc_msgSend)(label, sel_registerName("setBordered:"), 0);
+    ((void (*)(id, SEL, QuadraBool))objc_msgSend)(label, sel_registerName("setDrawsBackground:"), 0);
     ((void (*)(id, SEL))objc_msgSend)(label, sel_registerName("sizeToFit"));
     return label;
 }
@@ -4889,23 +4889,23 @@ static long contact_store_authorization_denied(id cls, SEL cmd, long entity_type
     (void)cls; (void)cmd; (void)entity_type;
     return 2; // CNAuthorizationStatusDenied
 }
-struct MacOBloxAccessBlock {
+struct QuadraAccessBlock {
     void* isa;
     int flags;
     int reserved;
-    void (*invoke)(void*, MacOBloxBool, id);
+    void (*invoke)(void*, QuadraBool, id);
 };
 static void contact_store_request_access(id self, SEL cmd, long entity_type,
                                          void* completion) {
     (void)self; (void)cmd; (void)entity_type;
     if (completion)
-        ((struct MacOBloxAccessBlock*)completion)->invoke(completion, 0, 0);
+        ((struct QuadraAccessBlock*)completion)->invoke(completion, 0, 0);
 }
 
 // Darling's Keychain does not persist SecItemAdd, so Roblox's login (a
 // generic password item keyed by kSecAttrAccount) was gone after every
 // restart. Keep generic password items as files instead:
-// ~/Library/MacOBlox/Keychain/<hex account>, mode 0600.
+// ~/Library/QuadraHQ/Keychain/<hex account>, mode 0600.
 // Other item classes still go to Darling's Security framework.
 extern int SecItemAdd(id attributes, id* result);
 extern int SecItemCopyMatching(id query, id* result);
@@ -4916,13 +4916,13 @@ extern const id kSecAttrAccount;
 extern const id kSecValueData;
 extern const id kSecReturnData;
 extern int chmod(const char*, unsigned short);
-#define MACOBLOX_ERR_SEC_ITEM_NOT_FOUND (-25300)
+#define QUADRA_ERR_SEC_ITEM_NOT_FOUND (-25300)
 
-static id macoblox_keychain_path(id query) {
+static id quadra_keychain_path(id query) {
     id item_class = ((id (*)(id, SEL, id))objc_msgSend)(query, sel_registerName("objectForKey:"), kSecClass);
     id account = ((id (*)(id, SEL, id))objc_msgSend)(query, sel_registerName("objectForKey:"), kSecAttrAccount);
     if (!item_class || !account ||
-        !((MacOBloxBool (*)(id, SEL, id))objc_msgSend)(item_class, sel_registerName("isEqual:"),
+        !((QuadraBool (*)(id, SEL, id))objc_msgSend)(item_class, sel_registerName("isEqual:"),
                                                         kSecClassGenericPassword))
         return 0;
     const char* name = ((const char* (*)(id, SEL))objc_msgSend)(account, sel_registerName("UTF8String"));
@@ -4949,7 +4949,7 @@ static id macoblox_keychain_path(id query) {
     }
     hex[length] = 0;
     id home = ((id (*)(void))dlsym(RTLD_DEFAULT, "NSHomeDirectory"))();
-    const char* session_directory = getenv("MACOBLOX_SESSION_DIRECTORY");
+    const char* session_directory = getenv("QUADRA_SESSION_DIRECTORY");
     if (!session_directory || !session_directory[0]) session_directory = "Library/QuadraHQ";
     id directory = ((id (*)(id, SEL, id))objc_msgSend)(
         home, sel_registerName("stringByAppendingPathComponent:"),
@@ -4957,7 +4957,7 @@ static id macoblox_keychain_path(id query) {
             sel_registerName("stringWithUTF8String:"), session_directory));
     directory = ((id (*)(id, SEL, id))objc_msgSend)(directory,
         sel_registerName("stringByAppendingPathComponent:"), @"Keychain");
-    ((MacOBloxBool (*)(id, SEL, id, MacOBloxBool, id, id*))objc_msgSend)(
+    ((QuadraBool (*)(id, SEL, id, QuadraBool, id, id*))objc_msgSend)(
         ((id (*)(id, SEL))objc_msgSend)((id)objc_getClass("NSFileManager"), sel_registerName("defaultManager")),
         sel_registerName("createDirectoryAtPath:withIntermediateDirectories:attributes:error:"),
         directory, 1, 0, 0);
@@ -4968,8 +4968,8 @@ static id macoblox_keychain_path(id query) {
             sel_registerName("stringWithUTF8String:"), hex));
 }
 
-static int macoblox_SecItemAdd(id attributes, id* result) {
-    id path = attributes ? macoblox_keychain_path(attributes) : 0;
+static int quadra_SecItemAdd(id attributes, id* result) {
+    id path = attributes ? quadra_keychain_path(attributes) : 0;
     if (!path)
         return SecItemAdd(attributes, result);
     id data = ((id (*)(id, SEL, id))objc_msgSend)(attributes, sel_registerName("objectForKey:"), kSecValueData);
@@ -4983,7 +4983,7 @@ static int macoblox_SecItemAdd(id attributes, id* result) {
     if (fd >= 0)
         close(fd);
     chmod(file, 0600);
-    MacOBloxBool written = fd >= 0 && ((MacOBloxBool (*)(id, SEL, id, MacOBloxBool))objc_msgSend)(
+    QuadraBool written = fd >= 0 && ((QuadraBool (*)(id, SEL, id, QuadraBool))objc_msgSend)(
         data, sel_registerName("writeToFile:atomically:"), path, 0); // atomic writes are broken in Darling
     if (result)
         *result = 0;
@@ -4994,41 +4994,41 @@ static int macoblox_SecItemAdd(id attributes, id* result) {
     write_str("[Quadra Keychain] stored generic password item\n");
     return 0;
 }
-DYLD_INTERPOSE(macoblox_SecItemAdd, SecItemAdd);
+DYLD_INTERPOSE(quadra_SecItemAdd, SecItemAdd);
 
-static int macoblox_SecItemCopyMatching(id query, id* result) {
-    id path = query ? macoblox_keychain_path(query) : 0;
+static int quadra_SecItemCopyMatching(id query, id* result) {
+    id path = query ? quadra_keychain_path(query) : 0;
     if (!path)
         return SecItemCopyMatching(query, result);
     id data = ((id (*)(id, SEL, id))objc_msgSend)((id)objc_getClass("NSData"),
                                                  sel_registerName("dataWithContentsOfFile:"), path);
     if (!data)
-        return MACOBLOX_ERR_SEC_ITEM_NOT_FOUND;
+        return QUADRA_ERR_SEC_ITEM_NOT_FOUND;
     id wants_data = ((id (*)(id, SEL, id))objc_msgSend)(query, sel_registerName("objectForKey:"), kSecReturnData);
     if (result)
-        *result = wants_data && ((MacOBloxBool (*)(id, SEL))objc_msgSend)(wants_data, sel_registerName("boolValue"))
+        *result = wants_data && ((QuadraBool (*)(id, SEL))objc_msgSend)(wants_data, sel_registerName("boolValue"))
             ? ((id (*)(id, SEL))objc_msgSend)(data, sel_registerName("retain"))  // caller owns (+1)
             : 0;
     return 0;
 }
-DYLD_INTERPOSE(macoblox_SecItemCopyMatching, SecItemCopyMatching);
+DYLD_INTERPOSE(quadra_SecItemCopyMatching, SecItemCopyMatching);
 
-static int macoblox_SecItemDelete(id query) {
-    id path = query ? macoblox_keychain_path(query) : 0;
+static int quadra_SecItemDelete(id query) {
+    id path = query ? quadra_keychain_path(query) : 0;
     if (!path)
         return SecItemDelete(query);
-    MacOBloxBool removed = ((MacOBloxBool (*)(id, SEL, id, id*))objc_msgSend)(
+    QuadraBool removed = ((QuadraBool (*)(id, SEL, id, id*))objc_msgSend)(
         ((id (*)(id, SEL))objc_msgSend)((id)objc_getClass("NSFileManager"), sel_registerName("defaultManager")),
         sel_registerName("removeItemAtPath:error:"), path, 0);
-    return removed ? 0 : MACOBLOX_ERR_SEC_ITEM_NOT_FOUND;
+    return removed ? 0 : QUADRA_ERR_SEC_ITEM_NOT_FOUND;
 }
-DYLD_INTERPOSE(macoblox_SecItemDelete, SecItemDelete);
+DYLD_INTERPOSE(quadra_SecItemDelete, SecItemDelete);
 
-// Records the requested OpenGL profile (gl_profile.c); MACOBLOX_TRACE_CGL
+// Records the requested OpenGL profile (gl_profile.c); QUADRA_TRACE_CGL
 // logs the attributes (Darling's CGL pixel format keeps almost none of them).
 static id (*orig_pixel_format_init)(id, SEL, const unsigned int*) = 0;
 static id hooked_pixel_format_init(id self, SEL cmd, const unsigned int* attributes) {
-    if (macoblox_trace_cgl_enabled()) {
+    if (quadra_trace_cgl_enabled()) {
         // Up to the terminating 0 (the array may be on the caller's stack).
         write_str("[Quadra CGL] NSOpenGLPixelFormat attributes:");
         for (int index = 0; attributes && index < 64; index++) {
@@ -5040,7 +5040,7 @@ static id hooked_pixel_format_init(id self, SEL cmd, const unsigned int* attribu
         write_str("\n");
     }
     id result = orig_pixel_format_init(self, cmd, attributes);
-    macoblox_note_pixel_format(result, attributes);
+    quadra_note_pixel_format(result, attributes);
     return result;
 }
 
@@ -5054,7 +5054,7 @@ static id hooked_pixel_format_init(id self, SEL cmd, const unsigned int* attribu
 // beforeEvent: tested the reference event's type instead of each queued
 // event's. The queue (an NSMutableArray) is also shared with the rendering
 // thread (shared_current_display), so all three take a lock.
-static volatile unsigned int macoblox_event_queue_lock;
+static volatile unsigned int quadra_event_queue_lock;
 extern const void *CFRunLoopGetMain(void);
 extern const void *kCFRunLoopCommonModes;
 extern const void *CFRunLoopSourceCreate(const void *, long, void *);
@@ -5062,14 +5062,14 @@ extern void CFRunLoopAddSource(const void *, const void *, const void *);
 extern void CFRunLoopSourceSignal(const void *);
 extern void CFRunLoopWakeUp(const void *);
 extern int pthread_main_np(void);
-static const void *macoblox_event_queue_source;
-static volatile unsigned int macoblox_event_queue_wake_pending;
-static void macoblox_event_queue_source_perform(void *info) {
+static const void *quadra_event_queue_source;
+static volatile unsigned int quadra_event_queue_wake_pending;
+static void quadra_event_queue_source_perform(void *info) {
     (void)info;
-    __atomic_store_n(&macoblox_event_queue_wake_pending, 0, __ATOMIC_RELEASE);
-    macoblox_process_mouse_capture_requests();
+    __atomic_store_n(&quadra_event_queue_wake_pending, 0, __ATOMIC_RELEASE);
+    quadra_process_mouse_capture_requests();
 }
-static void macoblox_install_event_queue_source(void) {
+static void quadra_install_event_queue_source(void) {
     struct {
         long version; void *info;
         const void *(*retain)(const void *); void (*release)(const void *);
@@ -5077,7 +5077,7 @@ static void macoblox_install_event_queue_source(void) {
         unsigned char (*equal)(const void *, const void *); unsigned long (*hash)(const void *);
         void (*schedule)(void *, const void *, const void *);
         void (*cancel)(void *, const void *, const void *); void (*perform)(void *);
-    } context = {.perform = macoblox_event_queue_source_perform};
+    } context = {.perform = quadra_event_queue_source_perform};
     const void *source = CFRunLoopSourceCreate(0, 0, &context);
     if (!source) {
         write_str("[Quadra] Could not create event queue wake source\n");
@@ -5086,11 +5086,11 @@ static void macoblox_install_event_queue_source(void) {
     /* Retained for the installed hooks' lifetime. AppKit adds its modal and
      * tracking modes to the main loop's common modes during initialization. */
     CFRunLoopAddSource(CFRunLoopGetMain(), source, kCFRunLoopCommonModes);
-    __atomic_store_n(&macoblox_event_queue_source, source, __ATOMIC_RELEASE);
+    __atomic_store_n(&quadra_event_queue_source, source, __ATOMIC_RELEASE);
 }
-static void macoblox_wake_event_queue(void) {
-    const void *source = __atomic_load_n(&macoblox_event_queue_source, __ATOMIC_ACQUIRE);
-    if (!source || __atomic_exchange_n(&macoblox_event_queue_wake_pending, 1, __ATOMIC_ACQ_REL))
+static void quadra_wake_event_queue(void) {
+    const void *source = __atomic_load_n(&quadra_event_queue_source, __ATOMIC_ACQUIRE);
+    if (!source || __atomic_exchange_n(&quadra_event_queue_wake_pending, 1, __ATOMIC_ACQ_REL))
         return;
     /* NSRunLoop returns after a handled source. A wake by itself can resume
      * waiting with an NSEvent still queued, including when a timer posts it.
@@ -5099,40 +5099,40 @@ static void macoblox_wake_event_queue(void) {
     if (!pthread_main_np())
         CFRunLoopWakeUp(CFRunLoopGetMain());
 }
-static void macoblox_lock_event_queue(void) {
-    macoblox_lock(&macoblox_event_queue_lock);
+static void quadra_lock_event_queue(void) {
+    quadra_lock(&quadra_event_queue_lock);
 }
-static void macoblox_unlock_event_queue(void) {
-    macoblox_unlock(&macoblox_event_queue_lock);
+static void quadra_unlock_event_queue(void) {
+    quadra_unlock(&quadra_event_queue_lock);
 }
-static id macoblox_event_queue(id display) {
+static id quadra_event_queue(id display) {
     static Ivar queue_ivar;
     if (!queue_ivar)
         queue_ivar = class_getInstanceVariable(objc_getClass("NSDisplay"), "_eventQueue");
     return queue_ivar ? *(id*)((char*)display + ivar_getOffset(queue_ivar)) : (id)0;
 }
-static unsigned long macoblox_event_type(id event) {
+static unsigned long quadra_event_type(id event) {
     return ((unsigned long (*)(id, SEL))objc_msgSend)(event, sel_registerName("type"));
 }
-static int macoblox_mask_matches(unsigned long long mask, unsigned long type) {
+static int quadra_mask_matches(unsigned long long mask, unsigned long type) {
     return type < 64 && (mask & (1ULL << type));
 }
 
 static id hooked_display_next_event(id self, SEL cmd, unsigned long long mask, id until, id mode,
                                     signed char dequeue) {
     (void)cmd;
-    id queue = macoblox_event_queue(self);
+    id queue = quadra_event_queue(self);
     SEL count = sel_registerName("count"), object_at = sel_registerName("objectAtIndex:");
     // No waiting when a matching event is queued. Events of other types may
     // wait there for someone else: they must not turn every wait into a spin.
     int matching = 0;
     if (queue) {
-        macoblox_lock_event_queue();
+        quadra_lock_event_queue();
         unsigned long total = ((unsigned long (*)(id, SEL))objc_msgSend)(queue, count);
         for (unsigned long index = 0; index < total && !matching; index++)
-            matching = macoblox_mask_matches(mask, macoblox_event_type(
+            matching = quadra_mask_matches(mask, quadra_event_type(
                 ((id (*)(id, SEL, unsigned long))objc_msgSend)(queue, object_at, index)));
-        macoblox_unlock_event_queue();
+        quadra_unlock_event_queue();
     }
     if (matching)
         until = ((id (*)(id, SEL))objc_msgSend)((id)objc_getClass("NSDate"), sel_registerName("date"));
@@ -5142,11 +5142,11 @@ static id hooked_display_next_event(id self, SEL cmd, unsigned long long mask, i
                                                      mode, until);
     id result = (id)0;
     if (queue) {
-        macoblox_lock_event_queue();
+        quadra_lock_event_queue();
         unsigned long total = ((unsigned long (*)(id, SEL))objc_msgSend)(queue, count);
         for (unsigned long index = 0; index < total; index++) {
             id event = ((id (*)(id, SEL, unsigned long))objc_msgSend)(queue, object_at, index);
-            if (!macoblox_mask_matches(mask, macoblox_event_type(event)))
+            if (!quadra_mask_matches(mask, quadra_event_type(event)))
                 continue;
             result = ((id (*)(id, SEL))objc_msgSend)(event, sel_registerName("retain"));
             if (dequeue)
@@ -5157,7 +5157,7 @@ static id hooked_display_next_event(id self, SEL cmd, unsigned long long mask, i
         /* Nobody may ever ask for some event types; keep the queue bounded. */
         while (((unsigned long (*)(id, SEL))objc_msgSend)(queue, count) > 4096)
             ((void (*)(id, SEL, unsigned long))objc_msgSend)(queue, sel_registerName("removeObjectAtIndex:"), 0);
-        macoblox_unlock_event_queue();
+        quadra_unlock_event_queue();
         if (result)
             result = ((id (*)(id, SEL))objc_msgSend)(result, sel_registerName("autorelease"));
     }
@@ -5169,9 +5169,9 @@ static id hooked_display_next_event(id self, SEL cmd, unsigned long long mask, i
          * to the app and to event monitors, and tracking loops (buttons in
          * alerts) took it as a mouse event outside and gave up. */
         id event = ((id (*)(id, SEL))objc_msgSend)((id)objc_getClass("NSEvent"), sel_registerName("alloc"));
-        event = ((id (*)(id, SEL, unsigned long, MacOBloxPoint, unsigned long, id))objc_msgSend)(
+        event = ((id (*)(id, SEL, unsigned long, QuadraPoint, unsigned long, id))objc_msgSend)(
             event, sel_registerName("initWithType:location:modifierFlags:window:"), 100,
-            (MacOBloxPoint){0, 0}, 0, (id)0);
+            (QuadraPoint){0, 0}, 0, (id)0);
         result = ((id (*)(id, SEL))objc_msgSend)(event, sel_registerName("autorelease"));
     }
     return result;
@@ -5179,33 +5179,33 @@ static id hooked_display_next_event(id self, SEL cmd, unsigned long long mask, i
 
 static void hooked_display_post_event(id self, SEL cmd, id event, signed char at_start) {
     (void)cmd;
-    id queue = macoblox_event_queue(self);
+    id queue = quadra_event_queue(self);
     if (!queue || !event)
         return;
-    if (macoblox_core_motion_type && macoblox_is_motion_type(event)) {
+    if (quadra_core_motion_type && quadra_is_motion_type(event)) {
         static Ivar type_ivar;
         if (!type_ivar)
             type_ivar = class_getInstanceVariable(objc_getClass("NSEvent"), "_type");
         if (type_ivar)
-            *(unsigned long*)((char*)event + ivar_getOffset(type_ivar)) = macoblox_core_motion_type;
+            *(unsigned long*)((char*)event + ivar_getOffset(type_ivar)) = quadra_core_motion_type;
         ((void (*)(id, SEL, long))objc_msgSend)(event, sel_registerName("_setButtonNumber:"),
-                                              (long)macoblox_core_motion_button);
+                                              (long)quadra_core_motion_button);
     }
-    macoblox_lock_event_queue();
+    quadra_lock_event_queue();
     if (at_start) {
         ((void (*)(id, SEL, id, unsigned long))objc_msgSend)(queue, sel_registerName("insertObject:atIndex:"),
                                                              event, 0);
     } else {
-        unsigned long type = macoblox_event_type(event);
+        unsigned long type = quadra_event_type(event);
         // Coalesce mouse motion events during mouse lock: accumulate deltas into the last
         // queued event of the same type. This matches macOS AppKit event coalescing, prevents
         // queue backlog from high polling rate mice, and eliminates input lag when releasing the mouse.
-        if (macoblox_pointer_grabbed && (type == 5 || type == 6 || type == 7 || type == 27)) {
+        if (quadra_pointer_grabbed && (type == 5 || type == 6 || type == 7 || type == 27)) {
             unsigned long total = ((unsigned long (*)(id, SEL))objc_msgSend)(queue, sel_registerName("count"));
             if (total > 0) {
                 id last = ((id (*)(id, SEL, unsigned long))objc_msgSend)(
                     queue, sel_registerName("objectAtIndex:"), total - 1);
-                if (macoblox_event_type(last) == type &&
+                if (quadra_event_type(last) == type &&
                     ((long (*)(id, SEL))objc_msgSend)(last, sel_registerName("windowNumber")) ==
                         ((long (*)(id, SEL))objc_msgSend)(event, sel_registerName("windowNumber")) &&
                     ((unsigned long (*)(id, SEL))objc_msgSend)(last, sel_registerName("modifierFlags")) ==
@@ -5229,8 +5229,8 @@ static void hooked_display_post_event(id self, SEL cmd, id event, signed char at
                         *(double*)((char*)event + off_y) += *(double*)((char*)last + off_y);
                         ((void (*)(id, SEL, unsigned long, id))objc_msgSend)(
                             queue, sel_registerName("replaceObjectAtIndex:withObject:"), total - 1, event);
-                        macoblox_unlock_event_queue();
-                        macoblox_wake_event_queue();
+                        quadra_unlock_event_queue();
+                        quadra_wake_event_queue();
                         return;
                     }
                 }
@@ -5238,16 +5238,16 @@ static void hooked_display_post_event(id self, SEL cmd, id event, signed char at
         }
         ((void (*)(id, SEL, id))objc_msgSend)(queue, sel_registerName("addObject:"), event);
     }
-    macoblox_unlock_event_queue();
-    macoblox_wake_event_queue();
+    quadra_unlock_event_queue();
+    quadra_wake_event_queue();
 }
 
 static void hooked_display_discard_events(id self, SEL cmd, unsigned long long mask, id before) {
     (void)cmd;
-    id queue = macoblox_event_queue(self);
+    id queue = quadra_event_queue(self);
     if (!queue)
         return;
-    macoblox_lock_event_queue();
+    quadra_lock_event_queue();
     unsigned long total = ((unsigned long (*)(id, SEL))objc_msgSend)(queue, sel_registerName("count"));
     unsigned long stop = total;
     for (unsigned long index = 0; index < total; index++)
@@ -5257,10 +5257,10 @@ static void hooked_display_discard_events(id self, SEL cmd, unsigned long long m
         }
     for (unsigned long index = stop; index-- > 0;) {
         id event = ((id (*)(id, SEL, unsigned long))objc_msgSend)(queue, sel_registerName("objectAtIndex:"), index);
-        if (macoblox_mask_matches(mask, macoblox_event_type(event)))
+        if (quadra_mask_matches(mask, quadra_event_type(event)))
             ((void (*)(id, SEL, unsigned long))objc_msgSend)(queue, sel_registerName("removeObjectAtIndex:"), index);
     }
-    macoblox_unlock_event_queue();
+    quadra_unlock_event_queue();
 }
 
 // X11 events as Darling's AppKit receives them (-[X11Display postXEvent:]).
@@ -5275,87 +5275,87 @@ static void hooked_display_discard_events(id self, SEL cmd, unsigned long long m
 // on its way (mouse lock), nothing is merged: the lock logic must see the
 // warp's motion alone. (The 48 px limit below did not ensure that: the
 // warp's own event was merged into the next one whenever that was close.)
-// MACOBLOX_NO_MOTION_COMPRESSION=1 turns this off.
-// MACOBLOX_TRACE_KEYS=1 logs X key presses/releases here and the key events
+// QUADRA_NO_MOTION_COMPRESSION=1 turns this off.
+// QUADRA_TRACE_KEYS=1 logs X key presses/releases here and the key events
 // the game gets (sendEvent), to find lost or stuck keys.
 static void (*orig_post_x_event)(id, SEL, void*);
-static int macoblox_trace_keys_enabled(void) {
+static int quadra_trace_keys_enabled(void) {
     static volatile int enabled = -1;
-    return macoblox_env_cached("MACOBLOX_TRACE_KEYS", &enabled);
+    return quadra_env_cached("QUADRA_TRACE_KEYS", &enabled);
 }
-static int macoblox_game_focus_event(id self, void* event) {
+static int quadra_game_focus_event(id self, void* event) {
     unsigned long xid = *(unsigned long*)((char*)event + 32);
-    unsigned long capture = __atomic_load_n(&macoblox_cursor_lock_window, __ATOMIC_ACQUIRE);
+    unsigned long capture = __atomic_load_n(&quadra_cursor_lock_window, __ATOMIC_ACQUIRE);
     id app = ((id (*)(id, SEL))objc_msgSend)((id)objc_getClass("NSApplication"),
                                              sel_registerName("sharedApplication"));
     id main = ((id (*)(id, SEL))objc_msgSend)(app, sel_registerName("mainWindow"));
-    unsigned long main_handle = macoblox_native_window_handle(main);
+    unsigned long main_handle = quadra_native_window_handle(main);
     if (capture || main_handle)
         return xid == capture || xid == main_handle;
     (void)self;
     return 1; // first activation, before a main window has been established
 }
-static void macoblox_refresh_pointer_state(id self) {
+static void quadra_refresh_pointer_state(id self) {
     static int (*query)(void*, unsigned long, unsigned long*, unsigned long*, int*, int*, int*, int*, unsigned int*);
     if (!query)
         query = (int (*)(void*, unsigned long, unsigned long*, unsigned long*, int*, int*, int*, int*, unsigned int*))
             dlsym(RTLD_DEFAULT, "XQueryPointer");
-    void* display = macoblox_x11_display_connection(self);
-    unsigned long window = macoblox_native_window_handle(macoblox_lock_window());
+    void* display = quadra_x11_display_connection(self);
+    unsigned long window = quadra_native_window_handle(quadra_lock_window());
     unsigned long root, child;
     int rx, ry, x, y;
     unsigned int state;
     if (query && display && window && query(display, window, &root, &child, &rx, &ry, &x, &y, &state)) {
-        macoblox_x_modifier_flags = macoblox_modifiers_for_x_state(state);
-        macoblox_raw_buttons = macoblox_buttons_for_x_state(state);
-        macoblox_drag_cursor_update_buttons(macoblox_raw_buttons);
+        quadra_x_modifier_flags = quadra_modifiers_for_x_state(state);
+        quadra_raw_buttons = quadra_buttons_for_x_state(state);
+        quadra_drag_cursor_update_buttons(quadra_raw_buttons);
     }
 }
 static void hooked_post_x_event_inner(id self, SEL cmd, void* event) {
     int type = *(int*)event;
     if (type != 35 /* raw events */ && type != 6 /* their core motion companions */)
-        macoblox_flush_raw_motion(self);
-    macoblox_update_x_input_state(self, event);
+        quadra_flush_raw_motion(self);
+    quadra_update_x_input_state(self, event);
     if (type == 34 /* MappingNotify */)
-        macoblox_refresh_x_modifier_mapping(self, 1);
+        quadra_refresh_x_modifier_mapping(self, 1);
     // Destroy/UnmapNotify carry event at 32 and the affected window at 40.
     // Release before Darling removes the platform object or focus changes.
     if ((type == 17 /* DestroyNotify */ || type == 18 /* UnmapNotify */) &&
-        macoblox_capture_window && *(unsigned long*)((char*)event + 40) == macoblox_capture_window) {
-        __atomic_store_n(&macoblox_input_focused, 0, __ATOMIC_RELEASE);
+        quadra_capture_window && *(unsigned long*)((char*)event + 40) == quadra_capture_window) {
+        __atomic_store_n(&quadra_input_focused, 0, __ATOMIC_RELEASE);
         if (type == 17)
-            __atomic_store_n(&macoblox_mouse_lock_requested, 0, __ATOMIC_RELEASE);
-        macoblox_release_mouse_capture(0);
+            __atomic_store_n(&quadra_mouse_lock_requested, 0, __ATOMIC_RELEASE);
+        quadra_release_mouse_capture(0);
     }
     {
         static volatile int trace_x = -1;
         static long traced_x;
-        if (macoblox_env_cached("MACOBLOX_TRACE_XEVENTS", &trace_x) && traced_x++ < 80) {
+        if (quadra_env_cached("QUADRA_TRACE_XEVENTS", &trace_x) && traced_x++ < 80) {
             write_str("[Quadra X] event type=");
             print_num(type);
             write_str(" display=");
-            print_num((long long)(unsigned long)macoblox_x11_display_connection(self));
+            print_num((long long)(unsigned long)quadra_x11_display_connection(self));
             static char* (*display_string)(void*);
             if (!display_string)
                 display_string = (char* (*)(void*))dlsym(RTLD_DEFAULT, "XDisplayString");
-            if (display_string && macoblox_x11_display_connection(self)) {
+            if (display_string && quadra_x11_display_connection(self)) {
                 write_str(" ");
-                write_str(display_string(macoblox_x11_display_connection(self)));
+                write_str(display_string(quadra_x11_display_connection(self)));
             }
-            write_str(macoblox_pointer_grabbed ? " locked\n" : "\n");
+            write_str(quadra_pointer_grabbed ? " locked\n" : "\n");
         }
     }
-    if (macoblox_raw_mouse_x_event(self, event))
+    if (quadra_raw_mouse_x_event(self, event))
         return;
-    if (type == 7 /* EnterNotify */ && macoblox_pointer_grabbed && !macoblox_raw_mouse_active &&
+    if (type == 7 /* EnterNotify */ && quadra_pointer_grabbed && !quadra_raw_mouse_active &&
         *(int*)((char*)event + 80) == 0 /* NotifyNormal */)
         /* The pointer drifted out of the window during a mouse lock and came
          * back. The first motion after it reports the whole distance from the
          * exit point, which would fling the game camera: drop that one. */
-        macoblox_drop_next_motion = 1;
-    if (type == 6 /* MotionNotify */ && macoblox_pointer_grabbed &&
-        macoblox_drop_next_motion) {
-        macoblox_drop_next_motion = 0;
+        quadra_drop_next_motion = 1;
+    if (type == 6 /* MotionNotify */ && quadra_pointer_grabbed &&
+        quadra_drop_next_motion) {
+        quadra_drop_next_motion = 0;
         return;
     }
     if (type == 33 /* ClientMessage */) {
@@ -5368,7 +5368,7 @@ static void hooked_post_x_event_inner(id self, SEL cmd, void* event) {
         if (!intern_atom)
             intern_atom = (unsigned long (*)(void*, const char*, int))
                 dlsym(RTLD_DEFAULT, "XInternAtom");
-        void* display = macoblox_x11_display_connection(self);
+        void* display = quadra_x11_display_connection(self);
         if (display && intern_atom && display != atom_display) {
             wm_protocols = intern_atom(display, "WM_PROTOCOLS", 1);
             wm_delete = intern_atom(display, "WM_DELETE_WINDOW", 1);
@@ -5386,13 +5386,13 @@ static void hooked_post_x_event_inner(id self, SEL cmd, void* event) {
                 id window = ((id (*)(id, SEL, unsigned long))objc_msgSend)(windows, sel_registerName("objectAtIndex:"), i);
                 const char* name = object_getClassName(window);
                 if (!name || !ascii_strings_equal(name, "RBXWindow") ||
-                    macoblox_native_window_handle(window) != *(unsigned long*)((char*)event + 32))
+                    quadra_native_window_handle(window) != *(unsigned long*)((char*)event + 32))
                     continue;
                 write_str("[Quadra] Window close requested (WM_DELETE_WINDOW)\n");
-                __atomic_store_n(&macoblox_mouse_lock_requested, 0, __ATOMIC_RELEASE);
-                __atomic_store_n(&macoblox_input_focused, 0, __ATOMIC_RELEASE);
-                macoblox_release_mouse_capture(0);
-                macoblox_write_quit_sentinel();
+                __atomic_store_n(&quadra_mouse_lock_requested, 0, __ATOMIC_RELEASE);
+                __atomic_store_n(&quadra_input_focused, 0, __ATOMIC_RELEASE);
+                quadra_release_mouse_capture(0);
+                quadra_write_quit_sentinel();
                 break;
             }
         }
@@ -5409,10 +5409,10 @@ static void hooked_post_x_event_inner(id self, SEL cmd, void* event) {
             peek = (int (*)(void*, void*))dlsym(RTLD_DEFAULT, "XPeekEvent");
             Ivar display_ivar = class_getInstanceVariable(object_getClass(self), "_display");
             display_offset = display_ivar ? (long)ivar_getOffset(display_ivar) : -1;
-            compression = !macoblox_env_on("MACOBLOX_NO_MOTION_COMPRESSION") && queued && peek &&
+            compression = !quadra_env_on("QUADRA_NO_MOTION_COMPRESSION") && queued && peek &&
                           display_offset >= 0;
         }
-        void* display = compression && !macoblox_drop_warp_motion && !macoblox_x_batch_last
+        void* display = compression && !quadra_drop_warp_motion && !quadra_x_batch_last
             ? *(void**)((char*)self + display_offset) : 0;
         if (display && queued(display, 0 /* QueuedAlready */) > 0) {
             unsigned char next[192];
@@ -5433,30 +5433,30 @@ static void hooked_post_x_event_inner(id self, SEL cmd, void* event) {
         if (mode == 1 /* NotifyGrab */ || mode == 2 /* NotifyUngrab */ ||
             *(int*)((char*)event + 44) == 2 /* NotifyInferior */)
             return;
-        if (macoblox_game_focus_event(self, event)) {
+        if (quadra_game_focus_event(self, event)) {
             for (int key = 0; key < 128; key++)
-                macoblox_key_down[key] = 0;
+                quadra_key_down[key] = 0;
             for (int key = 0; key < 256; key++)
-                macoblox_x_modifier_keys_down[key] = 0;
-            macoblox_lock(&macoblox_window_cursor_lock);
-            int button_capture = macoblox_drag_cursor.button_capture;
-            macoblox_unlock(&macoblox_window_cursor_lock);
-            macoblox_lock(&macoblox_capture_request_lock);
-            __atomic_store_n(&macoblox_input_focused, 0, __ATOMIC_RELEASE);
+                quadra_x_modifier_keys_down[key] = 0;
+            quadra_lock(&quadra_window_cursor_lock);
+            int button_capture = quadra_drag_cursor.button_capture;
+            quadra_unlock(&quadra_window_cursor_lock);
+            quadra_lock(&quadra_capture_request_lock);
+            __atomic_store_n(&quadra_input_focused, 0, __ATOMIC_RELEASE);
             if (button_capture)
-                __atomic_store_n(&macoblox_mouse_lock_requested, 0, __ATOMIC_RELEASE);
-            macoblox_unlock(&macoblox_capture_request_lock);
-            macoblox_release_mouse_capture(0);
-            macoblox_raw_buttons = 0;
-            macoblox_window_buttons_down = 0;
-            macoblox_x_modifier_flags = 0;
+                __atomic_store_n(&quadra_mouse_lock_requested, 0, __ATOMIC_RELEASE);
+            quadra_unlock(&quadra_capture_request_lock);
+            quadra_release_mouse_capture(0);
+            quadra_raw_buttons = 0;
+            quadra_window_buttons_down = 0;
+            quadra_x_modifier_flags = 0;
         }
     } else if (type == 9 /* FocusIn */) {
         int mode = *(int*)((char*)event + 40);
         if (mode == 1 /* NotifyGrab */ || mode == 2 /* NotifyUngrab */ ||
             *(int*)((char*)event + 44) == 2 /* NotifyInferior */)
             return;
-    } else if ((type == 2 || type == 3) && macoblox_trace_keys_enabled()) {
+    } else if ((type == 2 || type == 3) && quadra_trace_keys_enabled()) {
         /* XKeyEvent: time at 56, keycode at 84 */
         write_str(type == 2 ? "[Quadra Keys] X press   keycode=" : "[Quadra Keys] X release keycode=");
         print_num(*(unsigned int*)((char*)event + 84));
@@ -5469,32 +5469,32 @@ static void hooked_post_x_event_inner(id self, SEL cmd, void* event) {
         write_str("\n");
     }
     if (type == 6 /* MotionNotify */)
-        macoblox_core_motion_type = macoblox_motion_type(macoblox_raw_buttons, &macoblox_core_motion_button);
+        quadra_core_motion_type = quadra_motion_type(quadra_raw_buttons, &quadra_core_motion_button);
     @try {
         orig_post_x_event(self, cmd, event);
     } @finally {
-        macoblox_core_motion_type = macoblox_core_motion_button = 0;
+        quadra_core_motion_type = quadra_core_motion_button = 0;
     }
-    if (type == 9 /* FocusIn */ && macoblox_game_focus_event(self, event)) {
+    if (type == 9 /* FocusIn */ && quadra_game_focus_event(self, event)) {
         /* Darling must activate the Cocoa window before we resolve its lock
          * anchor. State is queried once on activation, never per raw report. */
-        macoblox_refresh_pointer_state(self);
-        macoblox_refresh_x_modifier_mapping(self, 1);
-        __atomic_store_n(&macoblox_input_focused, 1, __ATOMIC_RELEASE);
-        if (!macoblox_pointer_grabbed)
-            macoblox_capture_attempted = macoblox_capture_error = 0;
-        macoblox_lock(&macoblox_capture_request_lock);
-        int request_ready = macoblox_capture_request_ready;
-        macoblox_unlock(&macoblox_capture_request_lock);
+        quadra_refresh_pointer_state(self);
+        quadra_refresh_x_modifier_mapping(self, 1);
+        __atomic_store_n(&quadra_input_focused, 1, __ATOMIC_RELEASE);
+        if (!quadra_pointer_grabbed)
+            quadra_capture_attempted = quadra_capture_error = 0;
+        quadra_lock(&quadra_capture_request_lock);
+        int request_ready = quadra_capture_request_ready;
+        quadra_unlock(&quadra_capture_request_lock);
         if (request_ready) {
-            macoblox_process_mouse_capture_requests();
-            macoblox_apply_mouse_capture(__atomic_load_n(&macoblox_mouse_lock_requested, __ATOMIC_ACQUIRE));
+            quadra_process_mouse_capture_requests();
+            quadra_apply_mouse_capture(__atomic_load_n(&quadra_mouse_lock_requested, __ATOMIC_ACQUIRE));
         }
     }
 }
 
 static void hooked_post_x_event(id self, SEL cmd, void* event) {
-    macoblox_process_mouse_capture_requests();
+    quadra_process_mouse_capture_requests();
     hooked_post_x_event_inner(self, cmd, event);
 }
 
@@ -5503,23 +5503,23 @@ static void hooked_process_pending_events(id self, SEL cmd) {
     /* XPending inside an unbounded drain can keep importing reports forever.
      * Take one snapshot and give the app a turn after 128 events or 2 ms. */
     if (!pthread_main_np()) {
-        macoblox_wake_event_queue();
+        quadra_wake_event_queue();
         return;
     }
     unsigned int expected = 0;
-    if (!__atomic_compare_exchange_n(&macoblox_x_event_draining, &expected, 1, 0,
+    if (!__atomic_compare_exchange_n(&quadra_x_event_draining, &expected, 1, 0,
                                     __ATOMIC_ACQUIRE, __ATOMIC_RELAXED))
         return;
     id pool = 0;
     @try {
-        macoblox_process_mouse_capture_requests();
+        quadra_process_mouse_capture_requests();
         static int (*pending)(void*);
         static int (*next)(void*, void*);
         if (!pending) {
             pending = (int (*)(void*))dlsym(RTLD_DEFAULT, "XPending");
             next = (int (*)(void*, void*))dlsym(RTLD_DEFAULT, "XNextEvent");
         }
-        void* display = macoblox_x11_display_connection(self);
+        void* display = quadra_x11_display_connection(self);
         if (!pending || !next || !display) {
             orig_process_pending_events(self, cmd);
         } else {
@@ -5527,41 +5527,41 @@ static void hooked_process_pending_events(id self, SEL cmd) {
                                                    sel_registerName("new"));
             int total = pending(display);
             if (total > 128) total = 128;
-            unsigned long long deadline = macoblox_input_now_ns() + 2000000ULL;
+            unsigned long long deadline = quadra_input_now_ns() + 2000000ULL;
             for (int index = 0; index < total; index++) {
                 /* Deliver the final core motion even when more arrive. A
                  * compressor waiting for an empty queue could otherwise
                  * suppress every batch of a continuous stream. */
-                macoblox_x_batch_last = index + 1 == total || macoblox_input_now_ns() >= deadline;
+                quadra_x_batch_last = index + 1 == total || quadra_input_now_ns() >= deadline;
                 unsigned long event[24]; // XEvent, 192 bytes on x86_64
                 if (!next(display, event))
                     ((void (*)(id, SEL, void*))objc_msgSend)(self, sel_registerName("postXEvent:"), event);
-                if (macoblox_x_batch_last)
+                if (quadra_x_batch_last)
                     break;
             }
-            macoblox_x_batch_last = 0;
-            macoblox_flush_raw_motion(self);
+            quadra_x_batch_last = 0;
+            quadra_flush_raw_motion(self);
         }
     } @finally {
-        macoblox_core_motion_type = macoblox_core_motion_button = 0;
-        macoblox_x_batch_last = 0;
-        if (macoblox_raw_pending_window) {
-            ((void (*)(id, SEL))objc_msgSend)(macoblox_raw_pending_window, sel_registerName("release"));
-            macoblox_raw_pending_window = 0;
-            macoblox_raw_pending_dx = macoblox_raw_pending_dy = 0;
+        quadra_core_motion_type = quadra_core_motion_button = 0;
+        quadra_x_batch_last = 0;
+        if (quadra_raw_pending_window) {
+            ((void (*)(id, SEL))objc_msgSend)(quadra_raw_pending_window, sel_registerName("release"));
+            quadra_raw_pending_window = 0;
+            quadra_raw_pending_dx = quadra_raw_pending_dy = 0;
         }
         if (pool)
             ((void (*)(id, SEL))objc_msgSend)(pool, sel_registerName("release"));
-        __atomic_store_n(&macoblox_x_event_draining, 0, __ATOMIC_RELEASE);
+        __atomic_store_n(&quadra_x_event_draining, 0, __ATOMIC_RELEASE);
     }
 }
 
 // OpenGL subwindows get the screen's visual (gl_profile.c explains why).
 #include "x11_drawable_cache.h"
 
-extern unsigned long macoblox_replace_gl_subwindow(void* display, unsigned long parent, unsigned long old);
-static id (*orig_x11_subwindow_init)(id, SEL, id, MacOBloxRect);
-static id hooked_x11_subwindow_init(id self, SEL cmd, id parent, MacOBloxRect frame) {
+extern unsigned long quadra_replace_gl_subwindow(void* display, unsigned long parent, unsigned long old);
+static id (*orig_x11_subwindow_init)(id, SEL, id, QuadraRect);
+static id hooked_x11_subwindow_init(id self, SEL cmd, id parent, QuadraRect frame) {
     id result = orig_x11_subwindow_init(self, cmd, parent, frame);
     if (!result || !parent)
         return result;
@@ -5574,17 +5574,17 @@ static id hooked_x11_subwindow_init(id self, SEL cmd, id parent, MacOBloxRect fr
     void* display = *(void**)((char*)result + ivar_getOffset(display_ivar));
     unsigned long parent_handle =
         ((unsigned long (*)(id, SEL))objc_msgSend)(parent, sel_registerName("windowHandle"));
-    *window = macoblox_replace_gl_subwindow(display, parent_handle, *window);
+    *window = quadra_replace_gl_subwindow(display, parent_handle, *window);
     return result;
 }
 
 // Classes from Darling's X11 backend load after this library initializes, so
 // hooks on them are installed again once NSApplication finishes launching.
-static void macoblox_install_late_hooks(void) {
-    macoblox_install_surface_scale_hook();
+static void quadra_install_late_hooks(void) {
+    quadra_install_surface_scale_hook();
     static volatile int visibility_hooked;
     Class cursor_class = objc_getClass("NSCursor");
-    if (cursor_class && !macoblox_wayland_enabled() && __sync_bool_compare_and_swap(&visibility_hooked, 0, 1)) {
+    if (cursor_class && !quadra_wayland_enabled() && __sync_bool_compare_and_swap(&visibility_hooked, 0, 1)) {
         Method hide = class_getClassMethod(cursor_class, sel_registerName("hide"));
         Method unhide = class_getClassMethod(cursor_class, sel_registerName("unhide"));
         if (hide && unhide) {
@@ -5605,7 +5605,7 @@ static void macoblox_install_late_hooks(void) {
         Method discard = class_getInstanceMethod(display_class,
             sel_registerName("discardEventsMatchingMask:beforeEvent:"));
         if (next && post && discard && class_getInstanceVariable(display_class, "_eventQueue")) {
-            macoblox_install_event_queue_source();
+            quadra_install_event_queue_source();
             method_setImplementation(next, (IMP)hooked_display_next_event);
             method_setImplementation(post, (IMP)hooked_display_post_event);
             method_setImplementation(discard, (IMP)hooked_display_discard_events);
@@ -5636,13 +5636,13 @@ static void macoblox_install_late_hooks(void) {
     }
     static volatile int subwindow_hooked;
     Class x11_subwindow_class = objc_getClass("X11SubWindow");
-    macoblox_install_x11_drawable_cache(x11_subwindow_class);
+    quadra_install_x11_drawable_cache(x11_subwindow_class);
     if (x11_subwindow_class && __sync_bool_compare_and_swap(&subwindow_hooked, 0, 1)) {
         Method method = class_getInstanceMethod(
             x11_subwindow_class, sel_registerName("initWithParentWindow:frame:"));
         if (method) {
             orig_x11_subwindow_init =
-                (id (*)(id, SEL, id, MacOBloxRect))method_getImplementation(method);
+                (id (*)(id, SEL, id, QuadraRect))method_getImplementation(method);
             method_setImplementation(method, (IMP)hooked_x11_subwindow_init);
             write_str("[Quadra] Hooked X11SubWindow initWithParentWindow:frame: (GL visual)\n");
         }
@@ -5654,7 +5654,7 @@ static void macoblox_install_late_hooks(void) {
             x11_cursor_class, sel_registerName("initWithImage:hotPoint:"));
         if (method) {
             orig_x11_cursor_init_image =
-                (id (*)(id, SEL, id, MacOBloxPoint))method_getImplementation(method);
+                (id (*)(id, SEL, id, QuadraPoint))method_getImplementation(method);
             method_setImplementation(method, (IMP)hooked_x11_cursor_init_image);
             write_str("[Quadra] Replaced X11Cursor initWithImage:hotPoint: (row copy fix)\n");
         }
@@ -5683,7 +5683,7 @@ static void macoblox_install_late_hooks(void) {
             objc_getClass("NSWindow"), sel_registerName("acceptsMouseMovedEvents"));
         if (accepts) {
             orig_window_accepts_mouse_moved =
-                (MacOBloxBool (*)(id, SEL))method_getImplementation(accepts);
+                (QuadraBool (*)(id, SEL))method_getImplementation(accepts);
             method_setImplementation(accepts, (IMP)hooked_window_accepts_mouse_moved);
             write_str("[Quadra] RBXWindow always accepts mouse-moved events\n");
         }
@@ -5730,20 +5730,20 @@ static void macoblox_install_late_hooks(void) {
         method = class_getInstanceMethod(mouse_event_class, sel_registerName("locationInWindow"));
         if (method) {
             orig_event_location_in_window =
-                (MacOBloxPoint (*)(id, SEL))method_getImplementation(method);
+                (QuadraPoint (*)(id, SEL))method_getImplementation(method);
             method_setImplementation(method, (IMP)hooked_event_location_in_window);
         }
         method = class_getInstanceMethod(objc_getClass("NSWindow"),
                                          sel_registerName("mouseLocationOutsideOfEventStream"));
         if (method) {
             orig_window_mouse_location =
-                (MacOBloxPoint (*)(id, SEL))method_getImplementation(method);
+                (QuadraPoint (*)(id, SEL))method_getImplementation(method);
             method_setImplementation(method, (IMP)hooked_window_mouse_location);
         }
         method = class_getClassMethod(objc_getClass("NSEvent"), sel_registerName("mouseLocation"));
         if (method) {
             orig_event_mouse_location =
-                (MacOBloxPoint (*)(id, SEL))method_getImplementation(method);
+                (QuadraPoint (*)(id, SEL))method_getImplementation(method);
             method_setImplementation(method, (IMP)hooked_event_mouse_location);
         }
         write_str("[Quadra] Mouse location freezes during mouse lock\n");
@@ -5771,7 +5771,7 @@ static void macoblox_install_late_hooks(void) {
             }
         }
     }
-    macoblox_install_text_input_hooks();
+    quadra_install_text_input_hooks();
     static volatile int constructors_added;
     if (__sync_bool_compare_and_swap(&constructors_added, 0, 1)) {
         Class button_meta = object_getClass((id)objc_getClass("NSButton"));
@@ -5819,7 +5819,7 @@ static void macoblox_install_late_hooks(void) {
         Method method = class_getInstanceMethod(
             web_view_class, sel_registerName("initWithFrame:configuration:"));
         if (method) {
-            orig_web_view_init = (id (*)(id, SEL, MacOBloxRect, id))method_getImplementation(method);
+            orig_web_view_init = (id (*)(id, SEL, QuadraRect, id))method_getImplementation(method);
             method_setImplementation(method, (IMP)hooked_web_view_init);
         }
         method = class_getInstanceMethod(web_view_class, sel_registerName("loadRequest:"));
@@ -5829,7 +5829,7 @@ static void macoblox_install_late_hooks(void) {
         }
         method = class_getInstanceMethod(workspace_class, sel_registerName("openURL:"));
         if (method) {
-            orig_workspace_open_url = (MacOBloxBool (*)(id, SEL, id))method_getImplementation(method);
+            orig_workspace_open_url = (QuadraBool (*)(id, SEL, id))method_getImplementation(method);
             method_setImplementation(method, (IMP)hooked_workspace_open_url);
         }
         write_str("[Quadra] Tracing WKWebView and NSWorkspace openURL:\n");
@@ -5914,38 +5914,38 @@ static int ascii_contains_case_insensitive(const char* text, const char* needle)
 // cookiesForURL: ignores the URL (every cookie for every URL, login included,
 // also over plain http), and nothing is kept on disk. So Set-Cookie headers
 // are parsed here (cookies built with +[NSHTTPCookie cookieWithProperties:],
-// Domain always set) and the cookies are kept here (macoblox_cookie_store):
+// Domain always set) and the cookies are kept here (quadra_cookie_store):
 // the newest value wins, a URL gets only the cookies whose domain, path,
 // Secure flag and expiry fit it, and persistent cookies are saved to
-// ~/Library/MacOBlox/Cookies.plist (mode 0600, replaced atomically) and
+// ~/Library/QuadraHQ/Cookies.plist (mode 0600, replaced atomically) and
 // loaded back at startup.
 #define MSG0(r, o, sel) ((r (*)(id, SEL))objc_msgSend)((id)(o), sel_registerName(sel))
 #define MSG1(r, o, sel, a) ((r (*)(id, SEL, id))objc_msgSend)((id)(o), sel_registerName(sel), (a))
 #define MSG2(r, o, sel, a, b) ((r (*)(id, SEL, id, id))objc_msgSend)((id)(o), sel_registerName(sel), (a), (b))
-static id macoblox_nsstring(const char* text) {
+static id quadra_nsstring(const char* text) {
     return ((id (*)(id, SEL, const char*))objc_msgSend)(
         (id)objc_getClass("NSString"), sel_registerName("stringWithUTF8String:"), text);
 }
-static id macoblox_trimmed(id string) {
+static id quadra_trimmed(id string) {
     id whitespace = MSG0(id, objc_getClass("NSCharacterSet"), "whitespaceAndNewlineCharacterSet");
     return MSG1(id, string, "stringByTrimmingCharactersInSet:", whitespace);
 }
-static id macoblox_cf_boolean(int value) {
-    return ((id (*)(id, SEL, MacOBloxBool))objc_msgSend)(
-        (id)objc_getClass("NSNumber"), sel_registerName("numberWithBool:"), (MacOBloxBool)(value != 0));
+static id quadra_cf_boolean(int value) {
+    return ((id (*)(id, SEL, QuadraBool))objc_msgSend)(
+        (id)objc_getClass("NSNumber"), sel_registerName("numberWithBool:"), (QuadraBool)(value != 0));
 }
 
-static id macoblox_http_date(id text) {
+static id quadra_http_date(id text) {
     id formatter = MSG0(id, MSG0(id, objc_getClass("NSDateFormatter"), "alloc"), "init");
     MSG1(void, formatter, "setLocale:",
-         MSG1(id, objc_getClass("NSLocale"), "localeWithLocaleIdentifier:", macoblox_nsstring("en_US_POSIX")));
+         MSG1(id, objc_getClass("NSLocale"), "localeWithLocaleIdentifier:", quadra_nsstring("en_US_POSIX")));
     MSG1(void, formatter, "setTimeZone:",
-         MSG1(id, objc_getClass("NSTimeZone"), "timeZoneWithAbbreviation:", macoblox_nsstring("GMT")));
+         MSG1(id, objc_getClass("NSTimeZone"), "timeZoneWithAbbreviation:", quadra_nsstring("GMT")));
     static const char* formats[] = {"EEE, dd MMM yyyy HH:mm:ss zzz", "EEE, dd-MMM-yyyy HH:mm:ss zzz",
                                     "EEE, dd-MMM-yy HH:mm:ss zzz", "EEEE, dd-MMM-yy HH:mm:ss zzz"};
     id date = 0;
     for (int index = 0; index < 4 && !date; index++) {
-        MSG1(void, formatter, "setDateFormat:", macoblox_nsstring(formats[index]));
+        MSG1(void, formatter, "setDateFormat:", quadra_nsstring(formats[index]));
         date = MSG1(id, formatter, "dateFromString:", text);
     }
     MSG0(void, formatter, "release");
@@ -5954,84 +5954,84 @@ static id macoblox_http_date(id text) {
 
 // Does `host` fall under cookie domain `domain` (both lowercase; a leading
 // dot on the domain is ignored)?
-static int macoblox_domain_matches(id host, id domain) {
+static int quadra_domain_matches(id host, id domain) {
     if (!host || !domain)
         return 0;
-    if (MSG1(MacOBloxBool, domain, "hasPrefix:", macoblox_nsstring(".")))
+    if (MSG1(QuadraBool, domain, "hasPrefix:", quadra_nsstring(".")))
         domain = ((id (*)(id, SEL, unsigned long))objc_msgSend)(domain, sel_registerName("substringFromIndex:"), 1);
     if (!MSG0(unsigned long, domain, "length"))
         return 0;
-    return MSG1(MacOBloxBool, host, "isEqualToString:", domain) ||
-           MSG1(MacOBloxBool, host, "hasSuffix:", MSG1(id, macoblox_nsstring("."), "stringByAppendingString:", domain));
+    return MSG1(QuadraBool, host, "isEqualToString:", domain) ||
+           MSG1(QuadraBool, host, "hasSuffix:", MSG1(id, quadra_nsstring("."), "stringByAppendingString:", domain));
 }
 
 // Build one NSHTTPCookie from a single "name=value; attr; attr=value" string.
-static id macoblox_cookie_from_string(id line, id url) {
-    id parts = MSG1(id, line, "componentsSeparatedByString:", macoblox_nsstring(";"));
+static id quadra_cookie_from_string(id line, id url) {
+    id parts = MSG1(id, line, "componentsSeparatedByString:", quadra_nsstring(";"));
     unsigned long count = MSG0(unsigned long, parts, "count");
     if (!count)
         return 0;
-    id first = macoblox_trimmed(MSG1(id, parts, "objectAtIndex:", (id)0));
-    unsigned long equals = ((MacOBloxRange (*)(id, SEL, id))objc_msgSend)(
-        first, sel_registerName("rangeOfString:"), macoblox_nsstring("=")).location;
+    id first = quadra_trimmed(MSG1(id, parts, "objectAtIndex:", (id)0));
+    unsigned long equals = ((QuadraRange (*)(id, SEL, id))objc_msgSend)(
+        first, sel_registerName("rangeOfString:"), quadra_nsstring("=")).location;
     if (equals == 0x7FFFFFFFFFFFFFFFUL || equals == 0)
         return 0;
     id properties = MSG0(id, objc_getClass("NSMutableDictionary"), "dictionary");
     MSG2(void, properties, "setObject:forKey:",
-         macoblox_trimmed(((id (*)(id, SEL, unsigned long))objc_msgSend)(first, sel_registerName("substringToIndex:"), equals)),
-         macoblox_nsstring("Name"));
+         quadra_trimmed(((id (*)(id, SEL, unsigned long))objc_msgSend)(first, sel_registerName("substringToIndex:"), equals)),
+         quadra_nsstring("Name"));
     MSG2(void, properties, "setObject:forKey:",
          ((id (*)(id, SEL, unsigned long))objc_msgSend)(first, sel_registerName("substringFromIndex:"), equals + 1),
-         macoblox_nsstring("Value"));
+         quadra_nsstring("Value"));
     id host = url ? MSG0(id, url, "host") : 0;
-    MSG2(void, properties, "setObject:forKey:", host ? host : macoblox_nsstring("roblox.com"),
-         macoblox_nsstring("Domain"));
-    MSG2(void, properties, "setObject:forKey:", macoblox_nsstring("/"), macoblox_nsstring("Path"));
+    MSG2(void, properties, "setObject:forKey:", host ? host : quadra_nsstring("roblox.com"),
+         quadra_nsstring("Domain"));
+    MSG2(void, properties, "setObject:forKey:", quadra_nsstring("/"), quadra_nsstring("Path"));
     // Darling's CFHTTPCookieIsSecure reads Secure with CFBooleanGetValue and
     // crashes when it is missing, so it is always set, as a CFBoolean.
-    MSG2(void, properties, "setObject:forKey:", macoblox_cf_boolean(0), macoblox_nsstring("Secure"));
+    MSG2(void, properties, "setObject:forKey:", quadra_cf_boolean(0), quadra_nsstring("Secure"));
     for (unsigned long index = 1; index < count; index++) {
-        id attribute = macoblox_trimmed(((id (*)(id, SEL, unsigned long))objc_msgSend)(
+        id attribute = quadra_trimmed(((id (*)(id, SEL, unsigned long))objc_msgSend)(
             parts, sel_registerName("objectAtIndex:"), index));
-        unsigned long split = ((MacOBloxRange (*)(id, SEL, id))objc_msgSend)(
-            attribute, sel_registerName("rangeOfString:"), macoblox_nsstring("=")).location;
+        unsigned long split = ((QuadraRange (*)(id, SEL, id))objc_msgSend)(
+            attribute, sel_registerName("rangeOfString:"), quadra_nsstring("=")).location;
         id key = split == 0x7FFFFFFFFFFFFFFFUL ? attribute
             : ((id (*)(id, SEL, unsigned long))objc_msgSend)(attribute, sel_registerName("substringToIndex:"), split);
-        id value = split == 0x7FFFFFFFFFFFFFFFUL ? macoblox_nsstring("")
-            : macoblox_trimmed(((id (*)(id, SEL, unsigned long))objc_msgSend)(
+        id value = split == 0x7FFFFFFFFFFFFFFFUL ? quadra_nsstring("")
+            : quadra_trimmed(((id (*)(id, SEL, unsigned long))objc_msgSend)(
                   attribute, sel_registerName("substringFromIndex:"), split + 1));
-        const char* name = MSG0(const char*, MSG0(id, macoblox_trimmed(key), "lowercaseString"), "UTF8String");
+        const char* name = MSG0(const char*, MSG0(id, quadra_trimmed(key), "lowercaseString"), "UTF8String");
         if (!name)
             continue;
         if (ascii_strings_equal(name, "domain") && MSG0(unsigned long, value, "length")) {
             // A server may only set cookies for its own domain (RFC 6265).
-            if (host && !macoblox_domain_matches(MSG0(id, host, "lowercaseString"),
+            if (host && !quadra_domain_matches(MSG0(id, host, "lowercaseString"),
                                                  MSG0(id, value, "lowercaseString")))
                 return 0;
-            MSG2(void, properties, "setObject:forKey:", value, macoblox_nsstring("Domain"));
+            MSG2(void, properties, "setObject:forKey:", value, quadra_nsstring("Domain"));
         } else if (ascii_strings_equal(name, "path") && MSG0(unsigned long, value, "length")) {
-            MSG2(void, properties, "setObject:forKey:", value, macoblox_nsstring("Path"));
+            MSG2(void, properties, "setObject:forKey:", value, quadra_nsstring("Path"));
         } else if (ascii_strings_equal(name, "expires")) {
-            id date = macoblox_http_date(value);
-            if (date && !MSG1(id, properties, "objectForKey:", macoblox_nsstring("Max-Age")))
-                MSG2(void, properties, "setObject:forKey:", date, macoblox_nsstring("Expires"));
+            id date = quadra_http_date(value);
+            if (date && !MSG1(id, properties, "objectForKey:", quadra_nsstring("Max-Age")))
+                MSG2(void, properties, "setObject:forKey:", date, quadra_nsstring("Expires"));
         } else if (ascii_strings_equal(name, "max-age")) {
             double seconds = MSG0(double, value, "doubleValue");
             id date = ((id (*)(id, SEL, double))objc_msgSend)(
                 (id)objc_getClass("NSDate"), sel_registerName("dateWithTimeIntervalSinceNow:"), seconds);
-            MSG2(void, properties, "setObject:forKey:", date, macoblox_nsstring("Expires"));
-            MSG2(void, properties, "setObject:forKey:", value, macoblox_nsstring("Max-Age"));
+            MSG2(void, properties, "setObject:forKey:", date, quadra_nsstring("Expires"));
+            MSG2(void, properties, "setObject:forKey:", value, quadra_nsstring("Max-Age"));
         } else if (ascii_strings_equal(name, "secure")) {
-            MSG2(void, properties, "setObject:forKey:", macoblox_cf_boolean(1), macoblox_nsstring("Secure"));
+            MSG2(void, properties, "setObject:forKey:", quadra_cf_boolean(1), quadra_nsstring("Secure"));
         }
     }
-    MSG1(void, properties, "removeObjectForKey:", macoblox_nsstring("Max-Age"));
+    MSG1(void, properties, "removeObjectForKey:", quadra_nsstring("Max-Age"));
     return MSG1(id, objc_getClass("NSHTTPCookie"), "cookieWithProperties:", properties);
 }
 
 // Split a combined Set-Cookie header ("a=1; Expires=Wed, 21 Oct ...,b=2")
 // at commas that start a new "name=" pair, not at commas inside dates.
-static id macoblox_split_set_cookie(id header) {
+static id quadra_split_set_cookie(id header) {
     id result = MSG0(id, objc_getClass("NSMutableArray"), "array");
     const char* text = MSG0(const char*, header, "UTF8String");
     if (!text)
@@ -6075,11 +6075,11 @@ static id cookies_with_response_headers(id cls, SEL cmd, id headers, id url) {
         if (!key_text || !ascii_equal_case_insensitive(key_text, "set-cookie"))
             continue;
         id value = MSG1(id, headers, "objectForKey:", key);
-        id lines = MSG1(MacOBloxBool, value, "isKindOfClass:", (id)objc_getClass("NSArray"))
-            ? value : macoblox_split_set_cookie(value);
+        id lines = MSG1(QuadraBool, value, "isKindOfClass:", (id)objc_getClass("NSArray"))
+            ? value : quadra_split_set_cookie(value);
         unsigned long line_count = MSG0(unsigned long, lines, "count");
         for (unsigned long line = 0; line < line_count; line++) {
-            id cookie = macoblox_cookie_from_string(
+            id cookie = quadra_cookie_from_string(
                 ((id (*)(id, SEL, unsigned long))objc_msgSend)(lines, sel_registerName("objectAtIndex:"), line), url);
             if (cookie)
                 MSG1(void, cookies, "addObject:", cookie);
@@ -6093,22 +6093,22 @@ extern int close(int);
 extern int rename(const char*, const char*);
 extern int unlink(const char*);
 
-// ~/Library/MacOBlox/Cookies.plist, the folder made private (0700).
-static id macoblox_cookie_file(void) {
+// ~/Library/QuadraHQ/Cookies.plist, the folder made private (0700).
+static id quadra_cookie_file(void) {
     static id file;
     if (file)
         return file;
     id home = ((id (*)(void))dlsym(RTLD_DEFAULT, "NSHomeDirectory"))();
-    const char* session_directory = getenv("MACOBLOX_SESSION_DIRECTORY");
+    const char* session_directory = getenv("QUADRA_SESSION_DIRECTORY");
     if (!session_directory || !session_directory[0]) session_directory = "Library/QuadraHQ";
     id directory = MSG1(id, home, "stringByAppendingPathComponent:",
-                        macoblox_nsstring(session_directory));
-    ((MacOBloxBool (*)(id, SEL, id, MacOBloxBool, id, id*))objc_msgSend)(
+                        quadra_nsstring(session_directory));
+    ((QuadraBool (*)(id, SEL, id, QuadraBool, id, id*))objc_msgSend)(
         MSG0(id, objc_getClass("NSFileManager"), "defaultManager"),
         sel_registerName("createDirectoryAtPath:withIntermediateDirectories:attributes:error:"),
         directory, 1, 0, 0);
     chmod(MSG0(const char*, directory, "fileSystemRepresentation"), 0700);
-    file = MSG0(id, MSG1(id, directory, "stringByAppendingPathComponent:", macoblox_nsstring("Cookies.plist")),
+    file = MSG0(id, MSG1(id, directory, "stringByAppendingPathComponent:", quadra_nsstring("Cookies.plist")),
                 "retain");
     return file;
 }
@@ -6116,31 +6116,31 @@ static id macoblox_cookie_file(void) {
 // The store: domain|path|name -> the cookie's properties (as saved), and
 // -> the NSHTTPCookie handed out. Session cookies (no expiry date) are kept
 // only in memory. Roblox's HTTP threads use it at the same time, so every
-// access holds macoblox_cookie_lock; the NSMutableDictionary is not
+// access holds quadra_cookie_lock; the NSMutableDictionary is not
 // thread-safe.
-static id macoblox_cookie_entries, macoblox_cookie_objects;
-static volatile int macoblox_cookie_lock_word, macoblox_cookie_write_word;
-static void macoblox_cookie_lock(void) {
-    while (__sync_lock_test_and_set(&macoblox_cookie_lock_word, 1))
-        macoblox_sleep_us(50);
+static id quadra_cookie_entries, quadra_cookie_objects;
+static volatile int quadra_cookie_lock_word, quadra_cookie_write_word;
+static void quadra_cookie_lock(void) {
+    while (__sync_lock_test_and_set(&quadra_cookie_lock_word, 1))
+        quadra_sleep_us(50);
 }
-static void macoblox_cookie_unlock(void) { __sync_lock_release(&macoblox_cookie_lock_word); }
+static void quadra_cookie_unlock(void) { __sync_lock_release(&quadra_cookie_lock_word); }
 
-static void macoblox_cookie_store_init(void) { // with the lock held
-    if (!macoblox_cookie_entries) {
-        macoblox_cookie_entries = MSG0(id, MSG0(id, objc_getClass("NSMutableDictionary"), "alloc"), "init");
-        macoblox_cookie_objects = MSG0(id, MSG0(id, objc_getClass("NSMutableDictionary"), "alloc"), "init");
+static void quadra_cookie_store_init(void) { // with the lock held
+    if (!quadra_cookie_entries) {
+        quadra_cookie_entries = MSG0(id, MSG0(id, objc_getClass("NSMutableDictionary"), "alloc"), "init");
+        quadra_cookie_objects = MSG0(id, MSG0(id, objc_getClass("NSMutableDictionary"), "alloc"), "init");
     }
 }
 
-static id macoblox_cookie_key(id domain, id path, id name) {
+static id quadra_cookie_key(id domain, id path, id name) {
     return ((id (*)(id, SEL, id, ...))objc_msgSend)(
         (id)objc_getClass("NSString"), sel_registerName("stringWithFormat:"),
-        macoblox_nsstring("%@|%@|%@"), domain ? MSG0(id, domain, "lowercaseString") : macoblox_nsstring(""),
-        path ? path : macoblox_nsstring("/"), name ? name : macoblox_nsstring(""));
+        quadra_nsstring("%@|%@|%@"), domain ? MSG0(id, domain, "lowercaseString") : quadra_nsstring(""),
+        path ? path : quadra_nsstring("/"), name ? name : quadra_nsstring(""));
 }
 
-static int macoblox_cookie_expired(id expires, id now) {
+static int quadra_cookie_expired(id expires, id now) {
     return expires && MSG1(long, expires, "compare:", now) != 1 /* NSOrderedDescending */;
 }
 
@@ -6148,27 +6148,27 @@ static int macoblox_cookie_expired(id expires, id now) {
 // renamed over Cookies.plist, so a crash or a kill during the write never
 // leaves a cut-off file (which logged the user out). One writer at a time,
 // and the snapshot is taken by the writer, so the last write is the newest.
-static void macoblox_save_cookies(void) {
-    while (__sync_lock_test_and_set(&macoblox_cookie_write_word, 1))
-        macoblox_sleep_us(1000);
+static void quadra_save_cookies(void) {
+    while (__sync_lock_test_and_set(&quadra_cookie_write_word, 1))
+        quadra_sleep_us(1000);
     @autoreleasepool {
         id now = MSG0(id, objc_getClass("NSDate"), "date");
         id persistent = MSG0(id, objc_getClass("NSMutableArray"), "array");
-        macoblox_cookie_lock();
+        quadra_cookie_lock();
         @try {
-            id entries = macoblox_cookie_entries ? MSG0(id, macoblox_cookie_entries, "allValues") : 0;
+            id entries = quadra_cookie_entries ? MSG0(id, quadra_cookie_entries, "allValues") : 0;
             unsigned long count = entries ? MSG0(unsigned long, entries, "count") : 0;
             for (unsigned long index = 0; index < count; index++) {
                 id entry = ((id (*)(id, SEL, unsigned long))objc_msgSend)(entries, sel_registerName("objectAtIndex:"), index);
-                id expires = MSG1(id, entry, "objectForKey:", macoblox_nsstring("Expires"));
-                if (expires && !macoblox_cookie_expired(expires, now))
+                id expires = MSG1(id, entry, "objectForKey:", quadra_nsstring("Expires"));
+                if (expires && !quadra_cookie_expired(expires, now))
                     MSG1(void, persistent, "addObject:", entry);
             }
         } @finally {
-            macoblox_cookie_unlock();
+            quadra_cookie_unlock();
         }
-        id file = macoblox_cookie_file();
-        id temporary = MSG1(id, file, "stringByAppendingString:", macoblox_nsstring(".tmp"));
+        id file = quadra_cookie_file();
+        id temporary = MSG1(id, file, "stringByAppendingString:", quadra_nsstring(".tmp"));
         const char* temporary_path = MSG0(const char*, temporary, "fileSystemRepresentation");
         const char* file_path = MSG0(const char*, file, "fileSystemRepresentation");
         // Created private before any cookie is in it; the plist write keeps the mode.
@@ -6176,19 +6176,19 @@ static void macoblox_save_cookies(void) {
         if (fd >= 0) {
             close(fd);
             chmod(temporary_path, 0600);
-            if (((MacOBloxBool (*)(id, SEL, id, MacOBloxBool))objc_msgSend)(
+            if (((QuadraBool (*)(id, SEL, id, QuadraBool))objc_msgSend)(
                     persistent, sel_registerName("writeToFile:atomically:"), temporary, 0))
                 rename(temporary_path, file_path); // Darling leaves atomic writes as .tmpN files
             else
                 unlink(temporary_path);
         }
     }
-    __sync_lock_release(&macoblox_cookie_write_word);
+    __sync_lock_release(&quadra_cookie_write_word);
 }
 
 // Put `cookie` into the store (or take it out); 1 if a persistent cookie
 // changed, i.e. the file must be written.
-static int macoblox_store_cookie(id cookie, int deleted) {
+static int quadra_store_cookie(id cookie, int deleted) {
     if (!cookie)
         return 0;
     id name = MSG0(id, cookie, "name");
@@ -6197,52 +6197,52 @@ static int macoblox_store_cookie(id cookie, int deleted) {
     if (!name || !domain)
         return 0;
     if (!path || !MSG0(unsigned long, path, "length"))
-        path = macoblox_nsstring("/");
-    id key = macoblox_cookie_key(domain, path, name);
+        path = quadra_nsstring("/");
+    id key = quadra_cookie_key(domain, path, name);
     id expires = MSG0(id, cookie, "expiresDate");
     id now = MSG0(id, objc_getClass("NSDate"), "date");
-    if (macoblox_cookie_expired(expires, now))
+    if (quadra_cookie_expired(expires, now))
         deleted = 1; // an expired Set-Cookie is how servers delete cookies
     id entry = 0, object = 0;
     if (!deleted) {
         entry = MSG0(id, objc_getClass("NSMutableDictionary"), "dictionary");
-        MSG2(void, entry, "setObject:forKey:", name, macoblox_nsstring("Name"));
+        MSG2(void, entry, "setObject:forKey:", name, quadra_nsstring("Name"));
         id value = MSG0(id, cookie, "value");
-        MSG2(void, entry, "setObject:forKey:", value ? value : macoblox_nsstring(""), macoblox_nsstring("Value"));
-        MSG2(void, entry, "setObject:forKey:", domain, macoblox_nsstring("Domain"));
-        MSG2(void, entry, "setObject:forKey:", path, macoblox_nsstring("Path"));
+        MSG2(void, entry, "setObject:forKey:", value ? value : quadra_nsstring(""), quadra_nsstring("Value"));
+        MSG2(void, entry, "setObject:forKey:", domain, quadra_nsstring("Domain"));
+        MSG2(void, entry, "setObject:forKey:", path, quadra_nsstring("Path"));
         if (expires)
-            MSG2(void, entry, "setObject:forKey:", expires, macoblox_nsstring("Expires"));
+            MSG2(void, entry, "setObject:forKey:", expires, quadra_nsstring("Expires"));
         id properties = MSG0(id, cookie, "properties");
-        id secure = properties ? MSG1(id, properties, "objectForKey:", macoblox_nsstring("Secure")) : 0;
-        int is_secure = secure && ((MacOBloxBool (*)(id, SEL, SEL))objc_msgSend)(secure, sel_registerName("respondsToSelector:"), sel_registerName("boolValue"))
-            && MSG0(MacOBloxBool, secure, "boolValue");
-        MSG2(void, entry, "setObject:forKey:", macoblox_cf_boolean(is_secure), macoblox_nsstring("Secure"));
+        id secure = properties ? MSG1(id, properties, "objectForKey:", quadra_nsstring("Secure")) : 0;
+        int is_secure = secure && ((QuadraBool (*)(id, SEL, SEL))objc_msgSend)(secure, sel_registerName("respondsToSelector:"), sel_registerName("boolValue"))
+            && MSG0(QuadraBool, secure, "boolValue");
+        MSG2(void, entry, "setObject:forKey:", quadra_cf_boolean(is_secure), quadra_nsstring("Secure"));
         object = MSG1(id, objc_getClass("NSHTTPCookie"), "cookieWithProperties:", entry);
         if (!object)
             return 0;
     }
     int changed = 0, persistent_changed = 0;
-    macoblox_cookie_lock();
+    quadra_cookie_lock();
     @try {
-        macoblox_cookie_store_init();
-        id old = MSG1(id, macoblox_cookie_entries, "objectForKey:", key);
-        int old_persistent = old && MSG1(id, old, "objectForKey:", macoblox_nsstring("Expires"));
+        quadra_cookie_store_init();
+        id old = MSG1(id, quadra_cookie_entries, "objectForKey:", key);
+        int old_persistent = old && MSG1(id, old, "objectForKey:", quadra_nsstring("Expires"));
         if (deleted) {
             changed = old != 0;
             persistent_changed = old_persistent;
-            MSG1(void, macoblox_cookie_entries, "removeObjectForKey:", key);
-            MSG1(void, macoblox_cookie_objects, "removeObjectForKey:", key);
+            MSG1(void, quadra_cookie_entries, "removeObjectForKey:", key);
+            MSG1(void, quadra_cookie_objects, "removeObjectForKey:", key);
         } else {
-            changed = !old || !MSG1(MacOBloxBool, old, "isEqualToDictionary:", entry);
+            changed = !old || !MSG1(QuadraBool, old, "isEqualToDictionary:", entry);
             persistent_changed = changed && (old_persistent || expires);
             if (changed) {
-                MSG2(void, macoblox_cookie_entries, "setObject:forKey:", entry, key);
-                MSG2(void, macoblox_cookie_objects, "setObject:forKey:", object, key);
+                MSG2(void, quadra_cookie_entries, "setObject:forKey:", entry, key);
+                MSG2(void, quadra_cookie_objects, "setObject:forKey:", object, key);
             }
         }
     } @finally {
-        macoblox_cookie_unlock();
+        quadra_cookie_unlock();
     }
     if (changed) { // one write per line: HTTP threads log at the same time
         char line[300];
@@ -6263,54 +6263,54 @@ static int macoblox_store_cookie(id cookie, int deleted) {
 
 // The store's cookies that fit `url` (all of them without a URL), and after
 // them Darling's own that fit and that the store has no newer value of.
-static id macoblox_cookies_for(id url, id darling_cookies) {
+static id quadra_cookies_for(id url, id darling_cookies) {
     id host = url ? MSG0(id, MSG0(id, url, "host"), "lowercaseString") : 0;
     if (url && !host)
         return MSG0(id, objc_getClass("NSMutableArray"), "array");
     id url_path = url ? MSG0(id, url, "path") : 0;
     if (!url_path || !MSG0(unsigned long, url_path, "length"))
-        url_path = macoblox_nsstring("/");
+        url_path = quadra_nsstring("/");
     id scheme = url ? MSG0(id, MSG0(id, url, "scheme"), "lowercaseString") : 0;
-    int secure_url = !url || MSG1(MacOBloxBool, scheme, "isEqualToString:", macoblox_nsstring("https")) ||
-                     MSG1(MacOBloxBool, scheme, "isEqualToString:", macoblox_nsstring("wss"));
+    int secure_url = !url || MSG1(QuadraBool, scheme, "isEqualToString:", quadra_nsstring("https")) ||
+                     MSG1(QuadraBool, scheme, "isEqualToString:", quadra_nsstring("wss"));
     id now = MSG0(id, objc_getClass("NSDate"), "date");
     id result = MSG0(id, objc_getClass("NSMutableArray"), "array");
     id names = MSG0(id, objc_getClass("NSMutableSet"), "set");
     for (int pass = 0; pass < 2; pass++) {
         id cookies = darling_cookies;
         if (pass == 0) {
-            macoblox_cookie_lock();
+            quadra_cookie_lock();
             @try {
-                cookies = macoblox_cookie_objects ? MSG0(id, macoblox_cookie_objects, "allValues") : 0;
+                cookies = quadra_cookie_objects ? MSG0(id, quadra_cookie_objects, "allValues") : 0;
             } @finally {
-                macoblox_cookie_unlock();
+                quadra_cookie_unlock();
             }
         }
         unsigned long count = cookies ? MSG0(unsigned long, cookies, "count") : 0;
         for (unsigned long index = 0; index < count; index++) {
             id cookie = ((id (*)(id, SEL, unsigned long))objc_msgSend)(cookies, sel_registerName("objectAtIndex:"), index);
             id name = MSG0(id, cookie, "name");
-            if (!name || (pass == 1 && MSG1(MacOBloxBool, names, "containsObject:", name)))
+            if (!name || (pass == 1 && MSG1(QuadraBool, names, "containsObject:", name)))
                 continue;
-            if (macoblox_cookie_expired(MSG0(id, cookie, "expiresDate"), now))
+            if (quadra_cookie_expired(MSG0(id, cookie, "expiresDate"), now))
                 continue;
             if (url) {
-                if (!macoblox_domain_matches(host, MSG0(id, MSG0(id, cookie, "domain"), "lowercaseString")))
+                if (!quadra_domain_matches(host, MSG0(id, MSG0(id, cookie, "domain"), "lowercaseString")))
                     continue;
                 id path = MSG0(id, cookie, "path");
                 unsigned long length = path ? MSG0(unsigned long, path, "length") : 0;
                 // RFC 6265 path-match: the cookie path, then "/" or the end.
-                if (length && !(MSG1(MacOBloxBool, url_path, "isEqualToString:", path) ||
-                                (MSG1(MacOBloxBool, url_path, "hasPrefix:", path) &&
-                                 (MSG1(MacOBloxBool, path, "hasSuffix:", macoblox_nsstring("/")) ||
+                if (length && !(MSG1(QuadraBool, url_path, "isEqualToString:", path) ||
+                                (MSG1(QuadraBool, url_path, "hasPrefix:", path) &&
+                                 (MSG1(QuadraBool, path, "hasSuffix:", quadra_nsstring("/")) ||
                                   ((unsigned short (*)(id, SEL, unsigned long))objc_msgSend)(
                                       url_path, sel_registerName("characterAtIndex:"), length) == '/'))))
                     continue;
                 id properties = MSG0(id, cookie, "properties");
-                id secure = properties ? MSG1(id, properties, "objectForKey:", macoblox_nsstring("Secure")) : 0;
+                id secure = properties ? MSG1(id, properties, "objectForKey:", quadra_nsstring("Secure")) : 0;
                 if (!secure_url && secure &&
-                    ((MacOBloxBool (*)(id, SEL, SEL))objc_msgSend)(secure, sel_registerName("respondsToSelector:"), sel_registerName("boolValue")) &&
-                    MSG0(MacOBloxBool, secure, "boolValue"))
+                    ((QuadraBool (*)(id, SEL, SEL))objc_msgSend)(secure, sel_registerName("respondsToSelector:"), sel_registerName("boolValue")) &&
+                    MSG0(QuadraBool, secure, "boolValue"))
                     continue;
             }
             MSG1(void, result, "addObject:", cookie);
@@ -6325,10 +6325,10 @@ static void hooked_cookie_storage_set(id self, SEL cmd, id cookie) {
     orig_cookie_storage_set(self, cmd, cookie);
     int save;
     @autoreleasepool {
-        save = macoblox_store_cookie(cookie, 0);
+        save = quadra_store_cookie(cookie, 0);
     }
     if (save)
-        macoblox_save_cookies();
+        quadra_save_cookies();
 }
 static void (*orig_cookie_storage_set_many)(id, SEL, id, id, id) = 0;
 static void hooked_cookie_storage_set_many(id self, SEL cmd, id cookies, id url, id main_url) {
@@ -6337,21 +6337,21 @@ static void hooked_cookie_storage_set_many(id self, SEL cmd, id cookies, id url,
     @autoreleasepool {
         unsigned long count = cookies ? MSG0(unsigned long, cookies, "count") : 0;
         for (unsigned long index = 0; index < count; index++)
-            save |= macoblox_store_cookie(((id (*)(id, SEL, unsigned long))objc_msgSend)(
+            save |= quadra_store_cookie(((id (*)(id, SEL, unsigned long))objc_msgSend)(
                 cookies, sel_registerName("objectAtIndex:"), index), 0);
     }
     if (save)
-        macoblox_save_cookies(); // once per batch
+        quadra_save_cookies(); // once per batch
 }
 static void (*orig_cookie_storage_delete)(id, SEL, id) = 0;
 static void hooked_cookie_storage_delete(id self, SEL cmd, id cookie) {
     orig_cookie_storage_delete(self, cmd, cookie);
     int save;
     @autoreleasepool {
-        save = macoblox_store_cookie(cookie, 1);
+        save = quadra_store_cookie(cookie, 1);
     }
     if (save)
-        macoblox_save_cookies();
+        quadra_save_cookies();
 }
 
 static id (*orig_cookie_storage_for_url)(id, SEL, id) = 0;
@@ -6361,7 +6361,7 @@ static id hooked_cookie_storage_for_url(id self, SEL cmd, id url) {
         return darling;
     id result;
     @autoreleasepool {
-        result = MSG0(id, macoblox_cookies_for(url, darling), "copy");
+        result = MSG0(id, quadra_cookies_for(url, darling), "copy");
     }
     return MSG0(id, result, "autorelease");
 }
@@ -6371,41 +6371,41 @@ static id hooked_cookie_storage_cookies(id self, SEL cmd) {
     id darling = orig_cookie_storage_cookies(self, cmd);
     id result;
     @autoreleasepool {
-        result = MSG0(id, macoblox_cookies_for(0, darling), "copy");
+        result = MSG0(id, quadra_cookies_for(0, darling), "copy");
     }
     return MSG0(id, result, "autorelease");
 }
 
 // Only into this store, not Darling's: Darling hands out every cookie it
 // has for every URL.
-static void macoblox_load_cookies(void) {
+static void quadra_load_cookies(void) {
     int loaded = 0;
     @autoreleasepool {
-        id entries = MSG1(id, objc_getClass("NSArray"), "arrayWithContentsOfFile:", macoblox_cookie_file());
+        id entries = MSG1(id, objc_getClass("NSArray"), "arrayWithContentsOfFile:", quadra_cookie_file());
         unsigned long count = entries ? MSG0(unsigned long, entries, "count") : 0;
         id now = MSG0(id, objc_getClass("NSDate"), "date");
-        macoblox_cookie_lock();
+        quadra_cookie_lock();
         @try {
-            macoblox_cookie_store_init();
+            quadra_cookie_store_init();
             for (unsigned long index = 0; index < count; index++) {
                 id entry = ((id (*)(id, SEL, unsigned long))objc_msgSend)(entries, sel_registerName("objectAtIndex:"), index);
-                if (!MSG1(MacOBloxBool, entry, "isKindOfClass:", (id)objc_getClass("NSDictionary")))
+                if (!MSG1(QuadraBool, entry, "isKindOfClass:", (id)objc_getClass("NSDictionary")))
                     continue;
-                id expires = MSG1(id, entry, "objectForKey:", macoblox_nsstring("Expires"));
-                if (!expires || macoblox_cookie_expired(expires, now))
+                id expires = MSG1(id, entry, "objectForKey:", quadra_nsstring("Expires"));
+                if (!expires || quadra_cookie_expired(expires, now))
                     continue;
                 id cookie = MSG1(id, objc_getClass("NSHTTPCookie"), "cookieWithProperties:", entry);
                 if (!cookie)
                     continue;
-                id key = macoblox_cookie_key(MSG1(id, entry, "objectForKey:", macoblox_nsstring("Domain")),
-                                             MSG1(id, entry, "objectForKey:", macoblox_nsstring("Path")),
-                                             MSG1(id, entry, "objectForKey:", macoblox_nsstring("Name")));
-                MSG2(void, macoblox_cookie_entries, "setObject:forKey:", entry, key);
-                MSG2(void, macoblox_cookie_objects, "setObject:forKey:", cookie, key);
+                id key = quadra_cookie_key(MSG1(id, entry, "objectForKey:", quadra_nsstring("Domain")),
+                                             MSG1(id, entry, "objectForKey:", quadra_nsstring("Path")),
+                                             MSG1(id, entry, "objectForKey:", quadra_nsstring("Name")));
+                MSG2(void, quadra_cookie_entries, "setObject:forKey:", entry, key);
+                MSG2(void, quadra_cookie_objects, "setObject:forKey:", cookie, key);
                 loaded++;
             }
         } @finally {
-            macoblox_cookie_unlock();
+            quadra_cookie_unlock();
         }
     }
     write_str("[Quadra Cookies] loaded ");
@@ -6417,29 +6417,29 @@ static void macoblox_load_cookies(void) {
 // a second display for Roblox's rendering worker, although the main thread's
 // display is already valid. Share the first successfully created display.
 static id (*orig_current_display)(id, SEL) = 0;
-static void *macoblox_shared_display;
-static volatile int macoblox_display_lock;
+static void *quadra_shared_display;
+static volatile int quadra_display_lock;
 static id shared_current_display(id cls, SEL cmd) {
-    id shared = (id)__atomic_load_n(&macoblox_shared_display, __ATOMIC_ACQUIRE);
+    id shared = (id)__atomic_load_n(&quadra_shared_display, __ATOMIC_ACQUIRE);
     if (shared)
         return shared;
-    while (__sync_lock_test_and_set(&macoblox_display_lock, 1))
-        macoblox_sleep_us(1000);
+    while (__sync_lock_test_and_set(&quadra_display_lock, 1))
+        quadra_sleep_us(1000);
     @try {
-        shared = (id)__atomic_load_n(&macoblox_shared_display, __ATOMIC_RELAXED);
+        shared = (id)__atomic_load_n(&quadra_shared_display, __ATOMIC_RELAXED);
         if (!shared) {
-            id display = macoblox_wayland_enabled() ? macoblox_wayland_display()
+            id display = quadra_wayland_enabled() ? quadra_wayland_display()
                                                     : orig_current_display(cls, cmd);
             if (display) {
                 shared = ((id (*)(id, SEL))objc_msgSend)(
                     display, sel_registerName("retain"));
-                __atomic_store_n(&macoblox_shared_display, (void *)shared, __ATOMIC_RELEASE);
+                __atomic_store_n(&quadra_shared_display, (void *)shared, __ATOMIC_RELEASE);
             }
         }
     } @finally {
         // Backend initialization may raise an exception. Let a caller retry
         // without leaving every display request waiting on this lock.
-        __sync_lock_release(&macoblox_display_lock);
+        __sync_lock_release(&quadra_display_lock);
     }
     return shared;
 }
@@ -6453,14 +6453,14 @@ static void install_swizzles(void) {
         return;
     }
 
-    write_str("[Quadra] libMacOBloxShims loaded.\n");
+    write_str("[Quadra] libQuadraShims loaded.\n");
     long slide = _dyld_get_image_vmaddr_slide(0);
     write_str("[Quadra] Main executable ASLR slide: ");
     print_hex(slide);
     write_str("\n");
 
     // Let Darling and Crashpad own signals unless diagnosis is explicitly requested.
-    if (macoblox_crash_diagnostics_enabled()) {
+    if (quadra_crash_diagnostics_enabled()) {
         struct darwin_sigaction debug_action = {crash_handler, 0, 0x0040};
         const int fatal_signals[] = {4, 5, 6, 10, 11};
         for (unsigned int index = 0; index < sizeof(fatal_signals) / sizeof(fatal_signals[0]); index++)
@@ -6513,15 +6513,15 @@ static void install_swizzles(void) {
 
     Class gl_context_class = objc_getClass("NSOpenGLContext");
     if (gl_context_class) {
-        if (macoblox_wayland_enabled()) {
+        if (quadra_wayland_enabled()) {
             Method update = class_getInstanceMethod(gl_context_class, sel_registerName("updateViewParameters"));
             Ivar child = class_getInstanceVariable(gl_context_class, "_subwindow");
             Ivar surface = class_getInstanceVariable(gl_context_class, "_cglWindow");
             if (update && child && surface && ivar_getOffset(child) > 0 && ivar_getOffset(surface) > 0 &&
                 class_addMethod(gl_context_class, sel_registerName("_ciderRetryWaylandDrawable:"),
-                                (IMP)macoblox_retry_gl_drawable, "v@:@")) {
-                macoblox_gl_subwindow_offset = ivar_getOffset(child);
-                macoblox_gl_window_offset = ivar_getOffset(surface);
+                                (IMP)quadra_retry_gl_drawable, "v@:@")) {
+                quadra_gl_subwindow_offset = ivar_getOffset(child);
+                quadra_gl_window_offset = ivar_getOffset(surface);
                 orig_gl_update_view_parameters = (void (*)(id, SEL))method_getImplementation(update);
                 method_setImplementation(update, (IMP)hooked_gl_update_view_parameters);
                 write_str("[Quadra Wayland] Bounded recovery for initially unavailable EGL drawables enabled\n");
@@ -6601,7 +6601,7 @@ static void install_swizzles(void) {
         }
     }
 
-    macoblox_install_late_hooks();
+    quadra_install_late_hooks();
 
     Class archiver_meta = object_getClass((id)objc_getClass("NSKeyedArchiver"));
     Class unarchiver_meta = object_getClass((id)objc_getClass("NSKeyedUnarchiver"));
@@ -6614,12 +6614,12 @@ static void install_swizzles(void) {
         class_addMethod(unarchiver_meta, unarchive, (IMP)keyed_unarchiver_unarchived_object, "@@:#@^@"))
         write_str("[Quadra] Added +[NSKeyedUnarchiver unarchivedObjectOfClass:fromData:error:]\n");
 
-    const char* hide_menu = getenv("MACOBLOX_HIDE_MENU_BAR");
+    const char* hide_menu = getenv("QUADRA_HIDE_MENU_BAR");
     Class menu_view_class = objc_getClass("NSMainMenuView");
     if (hide_menu && hide_menu[0] == '1' && menu_view_class) {
         Method method = class_getClassMethod(menu_view_class, sel_registerName("menuHeight"));
         if (method) {
-            method_setImplementation(method, (IMP)macoblox_zero_menu_height);
+            method_setImplementation(method, (IMP)quadra_zero_menu_height);
             write_str("[Quadra] Menu bar hidden\n");
         }
     }
@@ -6661,7 +6661,7 @@ static void install_swizzles(void) {
                     (void (*)(id, SEL, id, id, id))method_getImplementation(set_many);
                 method_setImplementation(set_many, (IMP)hooked_cookie_storage_set_many);
             }
-            macoblox_load_cookies();
+            quadra_load_cookies();
         }
     }
 
@@ -6862,7 +6862,7 @@ static void install_swizzles(void) {
         }
     }
 
-    macoblox_install_startup_diagnostics();
+    quadra_install_startup_diagnostics();
 
     Class wtCls = objc_getClass("NSWindowTemplate");
     if (wtCls) {
@@ -6904,7 +6904,7 @@ static void install_swizzles(void) {
     if (winCls) {
         Method mW = class_getInstanceMethod(winCls, sel_registerName("initWithContentRect:styleMask:backing:defer:"));
         if (mW) {
-            orig_win_init = (id (*)(id, SEL, MacOBloxRect, unsigned long, unsigned long, MacOBloxBool))method_getImplementation(mW);
+            orig_win_init = (id (*)(id, SEL, QuadraRect, unsigned long, unsigned long, QuadraBool))method_getImplementation(mW);
             method_setImplementation(mW, (IMP)hooked_win_init);
             write_str("[Quadra] Hooked NSWindow initWithContentRect:...\n");
         }
@@ -6945,40 +6945,40 @@ const void* kTISPropertyUnicodeKeyLayoutData = @"kTISPropertyUnicodeKeyLayoutDat
 // data during startup, so that placeholder becomes CFDataCreateCopy(NULL) and
 // crashes in CFDataGetLength. Keep real Objective-C objects alive for the
 // process and provide a valid ANSI fallback resource for key-label queries.
-static id macoblox_keyboard_source;
-static id macoblox_keyboard_layout_data;
-static id macoblox_keyboard_languages;
+static id quadra_keyboard_source;
+static id quadra_keyboard_layout_data;
+static id quadra_keyboard_languages;
 
 // Built by one thread; the source is published last, so a thread that sees
 // it also sees the layout data (another thread used to get a NULL layout,
 // the very crash this avoids).
-static void macoblox_initialize_keyboard_source(void) {
+static void quadra_initialize_keyboard_source(void) {
     static volatile int state; // 0 new, 1 building, 2 done
     if (state == 2)
         return;
     if (!__sync_bool_compare_and_swap(&state, 0, 1)) {
         while (state != 2)
-            macoblox_sleep_us(100);
+            quadra_sleep_us(100);
         return;
     }
     Class object_class = objc_getClass("NSObject");
     Class data_class = objc_getClass("NSData");
     Class array_class = objc_getClass("NSArray");
     if (object_class && data_class && array_class) {
-        MacOBloxKeyboardLabels layout;
-        macoblox_build_keyboard_labels(&layout);
+        QuadraKeyboardLabels layout;
+        quadra_build_keyboard_labels(&layout);
         id data = ((id (*)(id, SEL, const void*, unsigned long))objc_msgSend)(
             (id)data_class, sel_registerName("dataWithBytes:length:"), &layout, sizeof layout);
-        macoblox_keyboard_layout_data = data
+        quadra_keyboard_layout_data = data
             ? ((id (*)(id, SEL))objc_msgSend)(data, sel_registerName("retain")) : 0;
         id languages = ((id (*)(id, SEL, id))objc_msgSend)(
             (id)array_class, sel_registerName("arrayWithObject:"), @"en");
-        macoblox_keyboard_languages = languages
+        quadra_keyboard_languages = languages
             ? ((id (*)(id, SEL))objc_msgSend)(languages, sel_registerName("retain")) : 0;
         id source = ((id (*)(id, SEL))objc_msgSend)((id)object_class, sel_registerName("new"));
         __sync_synchronize();
-        macoblox_keyboard_source = source;
-        if (source && macoblox_keyboard_layout_data)
+        quadra_keyboard_source = source;
+        if (source && quadra_keyboard_layout_data)
             write_str("[Quadra] Carbon key labels use a valid ANSI fallback layout\n");
     }
     __sync_synchronize();
@@ -6986,9 +6986,9 @@ static void macoblox_initialize_keyboard_source(void) {
 }
 
 void* TISCopyCurrentKeyboardInputSource(void) {
-    macoblox_initialize_keyboard_source();
-    return macoblox_keyboard_source
-        ? ((id (*)(id, SEL))objc_msgSend)(macoblox_keyboard_source, sel_registerName("retain")) : 0;
+    quadra_initialize_keyboard_source();
+    return quadra_keyboard_source
+        ? ((id (*)(id, SEL))objc_msgSend)(quadra_keyboard_source, sel_registerName("retain")) : 0;
 }
 
 void* TISCopyCurrentKeyboardLayoutInputSource(void) {
@@ -6997,11 +6997,11 @@ void* TISCopyCurrentKeyboardLayoutInputSource(void) {
 
 const void* TISGetInputSourceProperty(void* source, const void* key) {
     (void)source;
-    macoblox_initialize_keyboard_source();
+    quadra_initialize_keyboard_source();
     if (key == kTISPropertyInputSourceLanguages)
-        return macoblox_keyboard_languages;
+        return quadra_keyboard_languages;
     if (key == kTISPropertyUnicodeKeyLayoutData)
-        return macoblox_keyboard_layout_data;
+        return quadra_keyboard_layout_data;
     return 0;
 }
 
@@ -7014,12 +7014,12 @@ int UCKeyTranslate(const void* layout, unsigned short key_code,
                    unsigned long max_length,
                    unsigned long* actual_length,
                    unsigned short* unicode_string) {
-    if (macoblox_is_keyboard_labels(layout))
-        return macoblox_translate_keyboard_label(layout, key_code, key_action, modifiers,
+    if (quadra_is_keyboard_labels(layout))
+        return quadra_translate_keyboard_label(layout, key_code, key_action, modifiers,
             dead_key_state, max_length, actual_length, unicode_string);
     int (*real_translate)(const void*, unsigned short, unsigned short, unsigned int,
         unsigned int, unsigned int, unsigned int*, unsigned long, unsigned long*, unsigned short*) =
-        MACOBLOX_NEXT(int (*)(const void*, unsigned short, unsigned short, unsigned int,
+        QUADRA_NEXT(int (*)(const void*, unsigned short, unsigned short, unsigned int,
             unsigned int, unsigned int, unsigned int*, unsigned long, unsigned long*, unsigned short*),
             "UCKeyTranslate");
     if (real_translate && real_translate != UCKeyTranslate && layout && actual_length &&

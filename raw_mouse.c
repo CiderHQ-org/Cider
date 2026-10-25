@@ -4,7 +4,7 @@
  * now they came from Darling, computed from pointer positions: after the X
  * server's pointer acceleration, merged by motion compression, and mixed
  * with the warps that keep the hidden pointer inside the window (the "Mouse
- * lock" part of libMacOBloxShims.m had to recognise and drop those). XI2
+ * lock" part of libQuadraShims.m had to recognise and drop those). XI2
  * raw events carry the device's own deltas, before acceleration, at the
  * mouse's report rate, independent of where the pointer is, and warps do not
  * generate them. Under Xwayland they come from the compositor's relative
@@ -14,8 +14,8 @@
  * Darling wraps libX11 but not libXi, so XIQueryVersion and XISelectEvents
  * come from the host's libXi.so.6 through Darling's elfcalls table (host
  * functions with the same calling convention). Darling's X11Display hands
- * every X event to postXEvent:, where the shim asks macoblox_raw_mouse_event
- * whether it is a raw motion. MACOBLOX_RAW_MOUSE=0 uses pointer deltas. */
+ * every X event to postXEvent:, where the shim asks quadra_raw_mouse_event
+ * whether it is a raw motion. QUADRA_RAW_MOUSE=0 uses pointer deltas. */
 
 extern void *dlsym(void *, const char *);
 extern int write(int, const void *, unsigned long);
@@ -68,7 +68,7 @@ static unsigned long raw_event_timestamp;
 
 /* Read on the event owner immediately after a decoded raw motion. Core and
  * XI2 events from the same physical report carry the same server timestamp. */
-unsigned long macoblox_raw_mouse_event_timestamp(void) {
+unsigned long quadra_raw_mouse_event_timestamp(void) {
     return raw_event_timestamp;
 }
 
@@ -111,7 +111,7 @@ static int resolve(void) {
 /* Select (or deselect) raw motion of all master pointers on this
  * connection's root window. Returns 1 when raw motion is selected. Call it
  * from the thread that reads events from `display`. */
-int macoblox_raw_mouse_select(void *display, int enabled) {
+int quadra_raw_mouse_select(void *display, int enabled) {
     if (!display || !resolve())
         return 0;
     if (xi_opcode < 0 || xi_display != display) {
@@ -137,7 +137,7 @@ int macoblox_raw_mouse_select(void *display, int enabled) {
 /* Consume XI2 cookies on the selected connection and release their data.
  * Raw motion stores device deltas (x right, y down); other XI2 events store
  * zero deltas. Events outside this extension return 0 untouched. */
-int macoblox_raw_mouse_event(void *display, void *event, double *dx, double *dy) {
+int quadra_raw_mouse_event(void *display, void *event, double *dx, double *dy) {
     struct generic_cookie *cookie = event;
     if (!display || !event || !dx || !dy || cookie->type != GENERIC_EVENT ||
         xi_opcode < 0 || cookie->extension != xi_opcode ||

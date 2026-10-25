@@ -17,7 +17,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "launcher"))
-from macoblox import display, graphics, runtime
+from quadra import display, graphics, runtime
 
 
 def main():
@@ -35,12 +35,12 @@ def main():
     output.mkdir(parents=True, exist_ok=True)
     build = output / "test-helper"
     build.mkdir(exist_ok=True)
-    shutil.copy2(args.build_dir.resolve() / "libMacOBloxShims.dylib", build / "libMacOBloxShims.dylib")
+    shutil.copy2(args.build_dir.resolve() / "libQuadraShims.dylib", build / "libQuadraShims.dylib")
     libraries = shlex.split(subprocess.check_output(
         ["pkg-config", "--cflags", "--libs", "sdl2", "wayland-client", "wayland-egl", "wayland-cursor"], text=True))
     subprocess.run(["clang++", "-std=c++17", "-O2", "-fPIC", "-shared", "-pthread",
                     str(ROOT / "tests/wayland_keyboard_host_fixture.cpp"), *libraries,
-                    "-o", str(build / "libmacoblox-wayland.so")], check=True, timeout=30)
+                    "-o", str(build / "libquadra-wayland.so")], check=True, timeout=30)
     literal_flags = []
     if subprocess.run(["clang", "-target", "x86_64-apple-darwin", "-fno-objc-constant-literals",
                        "-x", "objective-c", "-fsyntax-only", "/dev/null"],
@@ -61,14 +61,14 @@ def main():
     prefix = Path(tempfile.mkdtemp(prefix="quadra-keyboard-prefix-")) / "prefix"
     values = graphics.renderer_environment("opengl")
     values.update(display.window_environment({"renderer": "opengl", "display_backend": "wayland"},
-                                             build / "libmacoblox-wayland.so"))
+                                             build / "libquadra-wayland.so"))
     values.update({"DYLD_FORCE_FLAT_NAMESPACE": "1",
-                   "DYLD_INSERT_LIBRARIES": "/Volumes/SystemRoot" + str(build / "libMacOBloxShims.dylib")})
+                   "DYLD_INSERT_LIBRARIES": "/Volumes/SystemRoot" + str(build / "libQuadraShims.dylib")})
     environment = {key: value for key, value in os.environ.items() if key not in
-                   ("DPREFIX", "DISPLAY", "DYLD_INSERT_LIBRARIES", "MACOBLOX_WEB_SOCKET")}
+                   ("DPREFIX", "DISPLAY", "DYLD_INSERT_LIBRARIES", "QUADRA_WEB_SOCKET")}
     environment.update(values, DPREFIX=str(prefix))
     command = [client, "shell", "/bin/bash", "-c",
-               'unset DISPLAY MACOBLOX_WEB_SOCKET LD_PRELOAD; exec /usr/bin/env "$@"', "keyboard-test",
+               'unset DISPLAY QUADRA_WEB_SOCKET LD_PRELOAD; exec /usr/bin/env "$@"', "keyboard-test",
                *[f"{key}={value}" for key, value in values.items()], "/Volumes/SystemRoot" + str(binary)]
     log_path = output / "keyboard.log"
     try:

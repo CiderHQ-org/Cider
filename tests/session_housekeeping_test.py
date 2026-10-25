@@ -9,7 +9,7 @@ import time
 import unittest
 from unittest.mock import Mock, patch
 
-from macoblox import core
+from quadra import core
 from session_fixture import bare_session
 
 
@@ -144,34 +144,34 @@ class SessionHousekeepingTests(unittest.TestCase):
     def test_ciderdarling_settings_reach_only_ciderdarling(self):
         with patch.dict(os.environ, {}, clear=True):
             _session, variables = self.ciderdarling(cider_thread_kicks=True)
-            self.assertEqual(variables, ["MACOBLOX_KICK=1"])
+            self.assertEqual(variables, ["QUADRA_KICK=1"])
             _session, variables = self.ciderdarling("regular", cider_thread_kicks=True, cider_trace=True)
             self.assertEqual(variables, [])
-        with patch.dict(os.environ, {"MACOBLOX_KICK": "1"}, clear=True):
-            self.assertEqual(self.ciderdarling("regular")[1], ["MACOBLOX_KICK=1"])
-            self.assertEqual(self.ciderdarling(cider_thread_kicks=True)[1].count("MACOBLOX_KICK=1"), 1)
+        with patch.dict(os.environ, {"QUADRA_KICK": "1"}, clear=True):
+            self.assertEqual(self.ciderdarling("regular")[1], ["QUADRA_KICK=1"])
+            self.assertEqual(self.ciderdarling(cider_thread_kicks=True)[1].count("QUADRA_KICK=1"), 1)
 
     def test_allow_debugger_setting_reaches_the_game(self):
         for settings, environment, expected in (({}, {}, False), ({"allow_debugger": True}, {}, True),
-                                                ({}, {"MACOBLOX_ALLOW_DEBUGGER": "1"}, True)):
+                                                ({}, {"QUADRA_ALLOW_DEBUGGER": "1"}, True)):
             session = bare_session(dict(core.DEFAULT_SETTINGS, **settings))
             with self.subTest(settings=settings, environment=environment), \
                     patch.dict(os.environ, environment, clear=True), \
                     patch.object(core, "host_vram_bytes", return_value=0), \
                     patch.object(core, "icon_argb_file", side_effect=OSError):
                 variables = session.shim_variables()
-            self.assertEqual("MACOBLOX_ALLOW_DEBUGGER=1" in variables, expected)
+            self.assertEqual("QUADRA_ALLOW_DEBUGGER=1" in variables, expected)
 
     def test_kevent_poll_setting_reaches_the_game_only_when_it_is_a_positive_number(self):
         self.assertEqual(core.DEFAULT_SETTINGS["kevent_poll_ms"], 100)  # on unless turned off
-        for value, expected in ((0, None), (100, "MACOBLOX_KEVENT_POLL_MS=100"), (5000, "MACOBLOX_KEVENT_POLL_MS=1000"),
+        for value, expected in ((0, None), (100, "QUADRA_KEVENT_POLL_MS=100"), (5000, "QUADRA_KEVENT_POLL_MS=1000"),
                                 (-5, None), ("100", None), (True, None)):
             session = bare_session(dict(core.DEFAULT_SETTINGS, kevent_poll_ms=value))
             with self.subTest(value=value), patch.dict(os.environ, {}, clear=True), \
                     patch.object(core, "host_vram_bytes", return_value=0), \
                     patch.object(core, "icon_argb_file", side_effect=OSError):
                 variables = session.shim_variables()
-            found = [variable for variable in variables if variable.startswith("MACOBLOX_KEVENT_POLL_MS=")]
+            found = [variable for variable in variables if variable.startswith("QUADRA_KEVENT_POLL_MS=")]
             self.assertEqual(found, [expected] if expected else [])
 
     def test_trace_file_is_private_and_reaches_the_guest(self):
@@ -294,7 +294,7 @@ class SessionHousekeepingTests(unittest.TestCase):
     def test_server_lookup_caches_failures_and_skips_private_addresses(self):
         self.patch("_server_location_cache", {})
         with patch.object(core.urllib.request, "urlopen", side_effect=OSError("offline")) as urlopen, \
-                self.assertLogs("macoblox", level="WARNING"):
+                self.assertLogs("quadra", level="WARNING"):
             self.assertIsNone(core.query_server_location("8.8.8.8"))
             self.assertIsNone(core.query_server_location("8.8.8.8"))
             self.assertEqual(urlopen.call_count, 1)

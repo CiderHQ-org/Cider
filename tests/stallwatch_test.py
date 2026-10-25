@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from macoblox import stallwatch
+from quadra import stallwatch
 
 CODE = ("/lib/libwork.dylib", 0x1000, 0x2000)  # path, start, end
 

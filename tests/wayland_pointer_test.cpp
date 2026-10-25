@@ -25,7 +25,7 @@ static void button(unsigned id,bool down) {
     SDL_Event event{};event.type=down?SDL_MOUSEBUTTONDOWN:SDL_MOUSEBUTTONUP;
     event.button.windowID=id;event.button.button=3;translate(event);
 }
-static void clear_events(){macoblox_wayland_event event{};while(poll(&event)){};}
+static void clear_events(){quadra_wayland_event event{};while(poll(&event)){};}
 int main() {
     const unsigned id=17;
     auto &window=windows.emplace(id,decltype(windows)::mapped_type{}).first->second;
@@ -35,7 +35,7 @@ int main() {
     SDL_Event motion{};motion.type=SDL_MOUSEMOTION;motion.motion.windowID=id;
     motion.motion.xrel=7;motion.motion.yrel=-9;translate(motion);
     command(id,MW_WARP,160,120);
-    macoblox_wayland_event event{};
+    quadra_wayland_event event{};
     assert(poll(&event) && event.type==MW_MOTION && event.x==160 && event.y==120);
     assert(event.dx==7 && event.dy==-9 && !poll(&event));
     assert(window.anchor_x==160 && window.anchor_y==120 && warp_count==1);

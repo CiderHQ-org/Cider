@@ -90,10 +90,10 @@ size_t CVPixelBufferGetWidthOfPlane(const void *buffer, size_t plane) {
     (void)buffer; (void)plane; return 0;
 }
 uint32_t CVPixelBufferGetPixelFormatType(const void *buffer) { (void)buffer; return 0; }
-typedef struct { double width, height; } MacOBloxCGSize;
-MacOBloxCGSize CVImageBufferGetEncodedSize(const void *buffer) {
+typedef struct { double width, height; } QuadraCGSize;
+QuadraCGSize CVImageBufferGetEncodedSize(const void *buffer) {
     (void)buffer;
-    MacOBloxCGSize size = {0, 0};
+    QuadraCGSize size = {0, 0};
     return size;
 }
 CVReturn CVMetalTextureCacheCreate(const void *allocator, const void *attributes,

@@ -9,7 +9,7 @@ import time
 import unittest
 from unittest.mock import patch
 
-from macoblox import core, graphics, metal_preload
+from quadra import core, graphics, metal_preload
 from session_fixture import bare_session
 
 FAKE = r'''

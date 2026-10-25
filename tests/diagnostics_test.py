@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from macoblox import diagnostics
+from quadra import diagnostics
 
 
 class DiagnosticSymbolsTests(unittest.TestCase):

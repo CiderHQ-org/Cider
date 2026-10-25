@@ -5,7 +5,7 @@
  * Keep the manager usable as an empty manager until native HID discovery
  * is implemented. The matching dictionaries/arrays are borrowed here.
  */
-extern int macoblox_wayland_enabled(void);
+extern int quadra_wayland_enabled(void);
 extern long write(int, const void *, unsigned long);
 extern void IOHIDManagerSetDeviceMatching(void *, const void *);
 extern void IOHIDManagerSetDeviceMatchingMultiple(void *, const void *);
@@ -18,7 +18,7 @@ extern unsigned char CFEqual(const void *, const void *);
 extern void CFRelease(const void *);
 
 static int native_matching_class(const void *matching, const char *name) {
-    if (!macoblox_wayland_enabled() || !matching ||
+    if (!quadra_wayland_enabled() || !matching ||
         CFGetTypeID(matching) != CFDictionaryGetTypeID()) return 0;
     const void *key = CFStringCreateWithCString(0, "IOProviderClass", 0x08000100);
     const void *hid = CFStringCreateWithCString(0, name, 0x08000100);
@@ -61,7 +61,7 @@ static unsigned int native_platform_service(unsigned int master, const void *mat
 }
 
 static int native_input(void) {
-    if (!macoblox_wayland_enabled()) return 0;
+    if (!quadra_wayland_enabled()) return 0;
     static unsigned reported;
     if (!__atomic_exchange_n(&reported, 1, __ATOMIC_RELAXED)) {
         static const char message[] = "[Quadra Wayland] Using SDL input; unsupported IOKit HID discovery skipped\n";

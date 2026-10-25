@@ -2,11 +2,12 @@
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import unittest
 
-from macoblox import runtime
+from quadra import runtime
 from runtime_update_fixture import release_fixture
 
 
@@ -106,6 +107,42 @@ printf '%s|%s|%s|%s' "$CIDER_DARLING_REVISION" "$CIDER_DARLING_INSTALL" "$CIDER_
         self.assertEqual(result.returncode, 71, result.stdout + result.stderr)
         self.assertFalse(legacy.exists())
         self.assertEqual((self.base / 'data/QuadraHQ/saved-session').read_text(), 'keep this')
+
+    def test_earlier_repository_urls_move_to_the_quadrahq_repository(self):
+        checkout = self.base / 'data/QuadraHQ'
+        subprocess.run(['git', 'init', '-q', str(checkout)], check=True)
+        current = 'https://github.com/QuadraHQ/Quadra.git'
+        for url, moves in [('https://github.com/CiderHQ-org/Cider.git', True),
+                           ('https://github.com/CiderHQ-org/Cider', True),
+                           ('git@github.com:CiderHQ-org/Cider.git', True),
+                           ('ssh://git@github.com/CiderHQ-org/Cider', True),
+                           ('https://github.com/narezy/MacOBlox.git', True),
+                           ('https://github.com/someone/their-fork.git', False),
+                           ('https://github.com/CiderHQ-org/CiderDarling.git', False)]:
+            with self.subTest(url=url):
+                subprocess.run(['git', '-C', str(checkout), 'remote', 'remove', 'origin'], capture_output=True)
+                subprocess.run(['git', '-C', str(checkout), 'remote', 'add', 'origin', url], check=True)
+                self.checked('migrate_origin_remote')
+                origin = subprocess.check_output(['git', '-C', str(checkout), 'remote', 'get-url', 'origin'], text=True)
+                self.assertEqual(origin.strip(), current if moves else url)
+
+    def test_checkout_is_recognized_with_either_package_layout(self):
+        # An existing checkout still has launcher/macoblox until this update
+        # replaces it; the installer must not take it for a foreign directory.
+        checkout = self.base / 'data/QuadraHQ'
+        (checkout / '.git').mkdir(parents=True)
+        for package in ('macoblox', 'quadra'):
+            with self.subTest(package=package):
+                (checkout / 'launcher' / package).mkdir(parents=True)
+                (checkout / 'launcher' / package / 'core.py').touch()
+                (checkout / 'launcher' / package / '__init__.py').write_text('__version__ = "0.36"\n')
+                self.assertEqual(self.checked(f'launcher_package "{checkout}"'), f'{checkout}/launcher/{package}')
+                result = self.shell('step() { :; }; install_tools() { return 71; }; do_install')
+                self.assertEqual(result.returncode, 71, result.stdout + result.stderr)
+                shutil.rmtree(checkout / 'launcher' / package)
+        result = self.shell('step() { :; }; install_tools() { return 71; }; do_install')
+        self.assertNotEqual(result.returncode, 71)
+        self.assertIn('without a Git checkout', result.stdout + result.stderr)
 
     def test_default_and_cli_choices_and_invalid_values(self):
         body = '''
@@ -416,7 +453,7 @@ setcap() { printf 'setcap %s\\n' "$*" >> "$FIXTURE/commands"; }
         self.assertEqual(list((self.base / 'cache/quadrahq/installer').glob('prebuilt-*')), [])
         downloads = (self.base / 'downloads').read_text().split()
         self.assertEqual(downloads, [
-            f'https://github.com/CiderHQ-org/CiderDarling/releases/download/bin-{revision[:12]}/'
+            f'https://github.com/QuadraHQ/CiderDarling/releases/download/bin-{revision[:12]}/'
             f'ciderdarling-{revision}-x86_64-arch.{suffix}' for suffix in ('json', 'tar.xz')])
         self.assertIn('cap_sys_admin=ep', (self.base / 'commands').read_text())
 

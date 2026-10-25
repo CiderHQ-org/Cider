@@ -51,7 +51,7 @@ pkgbase = quadrahq-git
 	conflicts = macoblox-git
 	replaces = ciderhq-git
 	replaces = macoblox-git
-	source = Quadra::git+https://github.com/CiderHQ-org/Cider.git
+	source = Quadra::git+https://github.com/QuadraHQ/Quadra.git
 	sha256sums = SKIP
 
 pkgname = quadrahq-git

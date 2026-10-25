@@ -84,10 +84,10 @@ let
     buildPhase = ''
       runHook preBuild
       export DARLING_SYSROOT=${darling}/libexec/darling
-      export MACOBLOX_BUILD_DIR="$PWD/native-build"
+      export QUADRA_BUILD_DIR="$PWD/native-build"
       bash build_debug_shim.sh
       QUADRA_METAL_HOST_LIBRARY=${metalHost}/lib/libquadra_metal_host.so bash packaging/build-metal.sh
-      $CC -shared -fPIC -O2 -DMACOBLOX_NIX_STORE flatpak/darling-noroot.c -ldl -o native-build/darling-noroot.so
+      $CC -shared -fPIC -O2 -DQUADRA_NIX_STORE flatpak/darling-noroot.c -ldl -o native-build/darling-noroot.so
       ${llvmPackages.clang-unwrapped}/bin/clang -target x86_64-apple-darwin -fuse-ld=lld \
         -isysroot "$DARLING_SYSROOT" -mmacosx-version-min=11.0 -dynamiclib -O2 \
         flatpak/launchd_pid1.c -o native-build/launchd_pid1.dylib
@@ -107,10 +107,10 @@ let
     preFixup = ''
       makeWrapper ${python}/bin/python3 "$out/bin/quadrahq" \
         --add-flags "$out/share/quadrahq/launcher/quadrahq-launcher" \
-        --set MACOBLOX_PREBUILT_SHIM "$out/lib/quadrahq/shim" \
-        --set MACOBLOX_BUNDLED_DARLING ${darling} \
-        --set MACOBLOX_NOROOT_LIB "$out/lib/quadrahq/darling-noroot.so" \
-        --set MACOBLOX_PID1_DYLIB "$out/lib/quadrahq/launchd_pid1.dylib" \
+        --set QUADRA_PREBUILT_SHIM "$out/lib/quadrahq/shim" \
+        --set QUADRA_BUNDLED_DARLING ${darling} \
+        --set QUADRA_NOROOT_LIB "$out/lib/quadrahq/darling-noroot.so" \
+        --set QUADRA_PID1_DYLIB "$out/lib/quadrahq/launchd_pid1.dylib" \
         "''${gappsWrapperArgs[@]}"
     '';
     doInstallCheck = true;

@@ -1,5 +1,5 @@
-#ifndef MACOBLOX_VR_XR_H
-#define MACOBLOX_VR_XR_H
+#ifndef QUADRA_VR_XR_H
+#define QUADRA_VR_XR_H
 
 /* An OpenXR session presenting a GL renderer's two eye framebuffers. The
  * same code runs inside Darling (host libraries through _elfcalls, GL through

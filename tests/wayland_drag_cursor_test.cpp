@@ -11,7 +11,7 @@ static SDL_Event button(unsigned id,unsigned number,bool down) {
 }
 int main() {
     alarm(15);
-    auto host=macoblox_wayland_host_api();assert(host);
+    auto host=quadra_wayland_host_api();assert(host);
     unsigned id=host->create(320,240);assert(id);
     host->action(id,MW_TITLE,0,0,"Quadra cursor test");
     bool focused=false;
@@ -46,7 +46,7 @@ int main() {
         blur.window.event=SDL_WINDOWEVENT_FOCUS_LOST;translate(blur);
         assert(!window.cursor_mapped && !window.capture && !window.drag_cursor.buttons);
     });
-    macoblox_wayland_event event{};bool delta=false;
+    quadra_wayland_event event{};bool delta=false;
     while(host->poll(&event))if(event.type==MW_MOTION && event.window==id && event.dx==7 && event.dy==-9)delta=true;
     assert(delta);
     host->action(id,MW_DESTROY,0,0,nullptr);sync([]{});

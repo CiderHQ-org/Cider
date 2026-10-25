@@ -1,6 +1,6 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: Quadra
-Source: https://github.com/CiderHQ-org/Cider
+Source: https://github.com/QuadraHQ/Quadra
 
 Files: *
 Copyright: 2026 CiderHQ maintainers and Cider contributors
@@ -10,15 +10,54 @@ Comment: Quadra is distributed under the GNU GPL version 3. It is based on
  Mac O' Blox by Narezany, released under the MIT License; that notice is kept
  in LICENSES/MIT-MacOBlox.txt and reproduced below.
 
-Files: launcher/macoblox/assets/fonts/Archivo.ttf
- launcher/macoblox/assets/fonts/Archivo-OFL.txt
+Files: launcher/quadra/assets/fonts/Archivo.ttf
+ launcher/quadra/assets/fonts/Archivo-OFL.txt
 Copyright: 2020 The Archivo Project Authors
 License: OFL-1.1
 
-Files: launcher/macoblox/assets/fonts/JetBrainsMono.ttf
- launcher/macoblox/assets/fonts/JetBrainsMono-OFL.txt
+Files: launcher/quadra/assets/fonts/JetBrainsMono.ttf
+ launcher/quadra/assets/fonts/JetBrainsMono-OFL.txt
 Copyright: 2020 The JetBrains Mono Project Authors
 License: OFL-1.1
+
+Files: studio_layer/vk_layer.h
+Copyright: 2015-2016 The Khronos Group Inc.
+ 2015-2016 Valve Corporation
+ 2015-2016 LunarG, Inc.
+License: Apache-2.0
+
+Files: studio_layer/quadra_studio_layer.cpp
+Copyright: Vinegar contributors (tunis, V3L0C1T13S)
+ 2016 Baldur Karlsson
+License: GPL-3 and BSD-2-Clause
+Comment: Vinegar's Vulkan layer (https://github.com/vinegarhq/vinegar), itself
+ based on Baldur Karlsson's sample_layer.
+
+License: Apache-2.0
+ On Debian systems, the complete text of the Apache License version 2.0 can be
+ found in "/usr/share/common-licenses/Apache-2.0".
+
+License: BSD-2-Clause
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are met:
+ .
+ * Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+ .
+ * Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+ .
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 License: GPL-3
  This program is free software: you can redistribute it and/or modify it

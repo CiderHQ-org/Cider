@@ -1,6 +1,6 @@
 """Local DNS forwarder for Roblox only.
 
-The shim sends Roblox's lookups to 127.0.0.1:<port> (MACOBLOX_DNS), and this
+The shim sends Roblox's lookups to 127.0.0.1:<port> (QUADRA_DNS), and this
 forwards them over DNS-over-TLS (or plain UDP for a custom server). Some
 Roblox image hosts do not resolve through ISP or system resolvers in some
 regions, and plain UDP DNS to public resolvers is often tampered with there;

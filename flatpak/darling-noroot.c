@@ -11,7 +11,7 @@
  *  - unshare() and the mounts report success and keep the sandbox's own
  *    /dev/shm; the prefix's /proc becomes a link to the host /proc;
  *  - launchd starts as an ordinary child (clone without CLONE_NEWPID) and
- *    sees itself as PID 1 through launchd_pid1.dylib (MACOBLOX_PID1_DYLIB),
+ *    sees itself as PID 1 through launchd_pid1.dylib (QUADRA_PID1_DYLIB),
  *    which the server copies into the prefix; Mach-O programs load from
  *    the prefix (a full copy of the macOS root here) instead of the
  *    read-only system copy, so such additions are visible;
@@ -80,7 +80,7 @@ DECLARE_REAL(mount);
 DECLARE_REAL(syscall);
 DECLARE_REAL(setenv);
 DECLARE_REAL(exit);
-#ifdef MACOBLOX_NIX_STORE
+#ifdef QUADRA_NIX_STORE
 DECLARE_REAL(mkdir);
 DECLARE_REAL(chmod);
 DECLARE_REAL(fchmod);
@@ -197,7 +197,7 @@ int mount(const char *source, const char *target, const char *type, unsigned lon
           const void *data) {
     if (current_role() == OTHER)
         return REAL(mount)(source, target, type, flags, data);
-    const char *keep_proc = getenv("MACOBLOX_KEEP_PREFIX_PROC");
+    const char *keep_proc = getenv("QUADRA_KEEP_PREFIX_PROC");
     if (type && strcmp(type, "proc") == 0 && target && !(keep_proc && keep_proc[0] == '1')) {
         /* launchd's /proc: the host one, seen through Darling's path
          * translation. The child execs launchd next; it must not inherit
@@ -252,7 +252,7 @@ __attribute__((constructor(101))) static void resolve_real_functions(void) {
     RESOLVE(syscall);
     RESOLVE(setenv);
     RESOLVE(exit);
-#ifdef MACOBLOX_NIX_STORE
+#ifdef QUADRA_NIX_STORE
     RESOLVE(mkdir);
     RESOLVE(chmod);
     RESOLVE(fchmod);
@@ -280,7 +280,7 @@ static const char *server_prefix(void) {
 /* darlingserver points Mach-O loading at the read-only system root; with a
  * copied prefix, load from the prefix. */
 int setenv(const char *name, const char *value, int overwrite) {
-    const char *keep_root = getenv("MACOBLOX_KEEP_DYLD_ROOT");
+    const char *keep_root = getenv("QUADRA_KEEP_DYLD_ROOT");
     if (current_role() == SERVER && strcmp(name, "__mldr_DYLD_ROOT_PATH") == 0 && server_prefix()[0] &&
         !(keep_root && keep_root[0] == '1'))
         value = server_prefix();
@@ -318,11 +318,11 @@ static int copy_file(const char *source, const char *target) {
 
 static void install_pid1_library(void) {
     static int installed;
-    const char *source = getenv("MACOBLOX_PID1_DYLIB");
+    const char *source = getenv("QUADRA_PID1_DYLIB");
     if (installed || !source || !server_prefix()[0])
         return;
     char target[4096];
-    if (snprintf(target, sizeof target, "%s/usr/lib/macoblox_launchd_pid1.dylib", server_prefix()) >=
+    if (snprintf(target, sizeof target, "%s/usr/lib/quadra_launchd_pid1.dylib", server_prefix()) >=
         (int)sizeof target)
         return;
     if (!copy_file(source, target)) {
@@ -335,7 +335,7 @@ static void install_pid1_library(void) {
     /* Inherited by launchd, the only process this server starts. launchd
      * removes it from its own environment (launchd_pid1.c), so the
      * daemons and programs it starts do not load the library. */
-    setenv("DYLD_INSERT_LIBRARIES", "/usr/lib/macoblox_launchd_pid1.dylib", 1);
+    setenv("DYLD_INSERT_LIBRARIES", "/usr/lib/quadra_launchd_pid1.dylib", 1);
 }
 
 __attribute__((constructor)) static void setup(void) {
@@ -349,7 +349,7 @@ __attribute__((constructor)) static void setup(void) {
          * below) gets it back. */
         const char *preload = getenv("LD_PRELOAD");
         if (preload) {
-            real_setenv("MACOBLOX_NOROOT_PRELOAD", preload, 1);
+            real_setenv("QUADRA_NOROOT_PRELOAD", preload, 1);
             unsetenv("LD_PRELOAD");
         }
     }
@@ -366,16 +366,16 @@ int execl(const char *path, const char *arg, ...) {
         count++;
     va_end(args);
     argv[count] = NULL;
-    const char *preload = getenv("MACOBLOX_NOROOT_PRELOAD");
+    const char *preload = getenv("QUADRA_NOROOT_PRELOAD");
     const char *name = strrchr(path, '/');
     if (preload && name && strcmp(name + 1, "darlingserver") == 0)
         real_setenv("LD_PRELOAD", preload, 1);
     return execv(path, argv);
 }
 
-/* MACOBLOX_NOROOT_DEBUG=1: say where the client exits from. */
+/* QUADRA_NOROOT_DEBUG=1: say where the client exits from. */
 void exit(int status) {
-    if (current_role() == CLIENT && getenv("MACOBLOX_NOROOT_DEBUG")) {
+    if (current_role() == CLIENT && getenv("QUADRA_NOROOT_DEBUG")) {
         void *caller = __builtin_return_address(0);
         Dl_info info;
         if (dladdr(caller, &info) && info.dli_fname)

@@ -92,7 +92,7 @@ ciderdarling_entry=$data_home/applications/org.quadrahq.Quadra.CiderDarling.desk
 ciderdarling_state=0
 PYTHONPATH=$launcher_dir python3 -c '
 import sys
-from macoblox import runtime
+from quadra import runtime
 try:
     installed = "ciderdarling" in runtime.installed_runtimes()
 except Exception:

@@ -1,7 +1,7 @@
 """RobloxSession objects for tests: the constructor's state, nothing started."""
 from unittest.mock import patch
 
-from macoblox import core
+from quadra import core
 
 
 def bare_session(settings=None):

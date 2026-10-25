@@ -6,7 +6,7 @@
  * gave up on "unknown property", so Roblox fell back to "NoSound Driver".
  * This answers the missing device and stream properties with the format
  * Darling's stream really uses (44.1 kHz, stereo, 32-bit float, interleaved)
- * and passes everything else through. MACOBLOX_TRACE_AUDIO=1 logs the calls.
+ * and passes everything else through. QUADRA_TRACE_AUDIO=1 logs the calls.
  *
  * Imports are weak: RobloxCrashHandler loads this library but not CoreAudio. */
 
@@ -78,7 +78,7 @@ extern unsigned long long mach_absolute_time(void);
 static int tracing(void) {
     static int value = -1;
     if (value < 0) {
-        const char *text = getenv("MACOBLOX_TRACE_AUDIO");
+        const char *text = getenv("QUADRA_TRACE_AUDIO");
         value = text && text[0] && text[0] != '0';
     }
     return value;
@@ -143,11 +143,11 @@ static OSStatus put_u32(UInt32 value, UInt32 *io_size, void *out) {
     return put(&value, sizeof value, io_size, out);
 }
 
-/* MACOBLOX_AUDIO=0 turns the additions off (FMOD then uses "NoSound"). */
+/* QUADRA_AUDIO=0 turns the additions off (FMOD then uses "NoSound"). */
 static int additions_enabled(void) {
     static int value = -1;
     if (value < 0) {
-        const char *text = getenv("MACOBLOX_AUDIO");
+        const char *text = getenv("QUADRA_AUDIO");
         value = text && text[0] == '0' ? 0 : 1;
     }
     return value;
@@ -411,7 +411,7 @@ extern int pthread_create(void **, const void *, void *(*)(void *), void *);
 extern int pthread_join(void *, void **);
 extern int pthread_attr_init(void *);
 extern int pthread_attr_setstacksize(void *, unsigned long);
-extern void macoblox_sleep_us(unsigned int); /* darling_fixes.c: no darlingserver request */
+extern void quadra_sleep_us(unsigned int); /* darling_fixes.c: no darlingserver request */
 
 static UInt32 unit_frame_bytes(OutputUnit *unit) {
     UInt32 channels = unit->format.channels_per_frame ? unit->format.channels_per_frame : 2;
@@ -462,7 +462,7 @@ static void *unit_render_thread(void *context) {
     while (unit->producing) {
         unsigned long used = unit->ring_written - unit->ring_read;
         if (unit->ring_bytes - used < chunk) {
-            macoblox_sleep_us(2000);
+            quadra_sleep_us(2000);
             continue;
         }
         unit_render(unit, block, RENDER_FRAMES);
@@ -476,7 +476,7 @@ static void *unit_render_thread(void *context) {
     return 0;
 }
 
-/* Preferred output: MACOBLOX_AUDIO_FIFO names a FIFO that the launcher plays
+/* Preferred output: QUADRA_AUDIO_FIFO names a FIFO that the launcher plays
  * on the host with pw-cat (raw float32 stereo 44.1 kHz). Darling's own audio
  * path runs PulseAudio on GCD, and Darling's workqueue nests every work item
  * on the same thread stack until it overflows; with sound playing that took
@@ -488,7 +488,7 @@ static void *unit_render_thread(void *context) {
  * bursts came back silent (heard as dropouts of 11-35 ms; pw-cat takes 40 ms
  * of sound at once, so filling the pipe back up at once meant 3-4 calls
  * within 3 ms). That pace is corrected by up to 5% to keep about 50 ms of
- * sound in the pipe on average (MACOBLOX_AUDIO_BUFFER_MS), measured with
+ * sound in the pipe on average (QUADRA_AUDIO_BUFFER_MS), measured with
  * FIONREAD through a direct Linux ioctl: pw-cat drains it at the pace of the
  * sound card's clock, so the delay stays the same all session. Pacing by mach_absolute_time instead, as
  * before, never saw pw-cat: every cycle pw-cat skipped stayed in the pipe as
@@ -515,7 +515,7 @@ extern int vsnprintf(char *, unsigned long, const char *, __builtin_va_list);
 /* The pipe's capacity in frames after asking Linux for room for `wanted`
  * frames (F_SETPIPE_SZ, up to /proc/sys/fs/pipe-max-size, 1 MB by default,
  * for users); 0 if Linux does not say. A pipe holds 64 KB (186 ms) unless
- * enlarged, too little for a large MACOBLOX_AUDIO_BUFFER_MS. */
+ * enlarged, too little for a large QUADRA_AUDIO_BUFFER_MS. */
 static long fifo_capacity_frames(int fd, UInt32 frame_bytes, long wanted) {
     long size;
     __asm__ volatile("syscall" : "=a"(size) : "a"(72L /* Linux fcntl */), "D"((long)fd), "S"(1032L /* F_GETPIPE_SZ */)
@@ -556,7 +556,7 @@ static int fifo_write(OutputUnit *unit, int fd, const unsigned char *data, unsig
         } else if (written < 0 && *__error() == DARWIN_EAGAIN) {
             if (waited_ms >= 250)
                 return 1;
-            macoblox_sleep_us(2000);
+            quadra_sleep_us(2000);
             waited_ms += 2;
         } else {
             return 0;
@@ -660,7 +660,7 @@ static void *unit_fifo_thread(void *context) {
         if (fd < 0) {
             fd = open(path, DARWIN_O_WRONLY | DARWIN_O_NONBLOCK);
             if (fd < 0) {
-                macoblox_sleep_us(200000);
+                quadra_sleep_us(200000);
                 continue;
             }
             by_fill = fifo_queued_frames(fd, frame_bytes) >= 0;
@@ -695,7 +695,7 @@ static void *unit_fifo_thread(void *context) {
                         audio_event("the player stopped reading %llu ms ago (before the first block)",
                                     (now - full_since) / 1000000ULL);
                 }
-                macoblox_sleep_us(2000);
+                quadra_sleep_us(2000);
                 continue;
             }
             if (player_stuck)
@@ -706,7 +706,7 @@ static void *unit_fifo_thread(void *context) {
             /* Not before the block is due, unless the pipe is nearly empty. */
             if (next_due && now < next_due && queued >= target / 3) {
                 unsigned long long wait = (next_due - now) / 1000;
-                macoblox_sleep_us(wait < 2000 ? (unsigned int)wait : 2000);
+                quadra_sleep_us(wait < 2000 ? (unsigned int)wait : 2000);
                 continue;
             }
             if (queued == 0 && last_write && now - last_write > 30000000ULL)
@@ -724,7 +724,7 @@ static void *unit_fifo_thread(void *context) {
             double elapsed = (double)(mach_absolute_time() - start) / 1e9;
             double ahead = (double)frames_written - elapsed * rate;
             if (ahead > FIFO_AHEAD_FRAMES) {
-                macoblox_sleep_us(3000);
+                quadra_sleep_us(3000);
                 continue;
             }
             if (ahead < -rate / 4) { /* fell far behind (stall): restart the clock */
@@ -801,7 +801,7 @@ static void unit_stop_producer(OutputUnit *unit) {
 /* The microphone (voice chat). Roblox's voice code drives an AUHAL unit the
  * way WebRTC does: input enabled on bus 1, an input callback, and inside
  * that callback AudioUnitRender pulls the captured frames. The launcher
- * records with pw-cat into MACOBLOX_AUDIO_INPUT_FIFO as float32 at the
+ * records with pw-cat into QUADRA_AUDIO_INPUT_FIFO as float32 at the
  * rate and channel count the client asked for, but only while the request
  * file next to the FIFO exists (written at start here, removed at stop, so
  * the microphone is open only while the game listens). A thread reads
@@ -842,13 +842,13 @@ static void *unit_capture_thread(void *context) {
         if (fd < 0) {
             fd = open(unit->input_fifo_path, DARWIN_O_RDONLY | DARWIN_O_NONBLOCK);
             if (fd < 0) {
-                macoblox_sleep_us(200000);
+                quadra_sleep_us(200000);
                 continue;
             }
         }
         long n = read(fd, block + filled, block_bytes - filled);
         if (n <= 0) { /* no recorder yet, or nothing new */
-            macoblox_sleep_us(5000);
+            quadra_sleep_us(5000);
             continue;
         }
         filled += (unsigned long)n;
@@ -877,7 +877,7 @@ static void *unit_capture_thread(void *context) {
 }
 
 static int unit_start_capture(OutputUnit *unit) {
-    const char *fifo = getenv("MACOBLOX_AUDIO_INPUT_FIFO");
+    const char *fifo = getenv("QUADRA_AUDIO_INPUT_FIFO");
     if (unit->capturing)
         return 1;
     if (!fifo || !fifo[0] || __builtin_strlen(fifo) + 16 >= sizeof unit->input_fifo_path)
@@ -1188,10 +1188,10 @@ static OSStatus t_start(void *instance) {
     /* An input-only unit (voice chat) has no render callback: nothing to play. */
     if (unit->running || !unit->output_enabled || !unit->render)
         return NO_ERROR;
-    const char *fifo = getenv("MACOBLOX_AUDIO_FIFO");
+    const char *fifo = getenv("QUADRA_AUDIO_FIFO");
     if (fifo && fifo[0] && __builtin_strlen(fifo) < sizeof unit->fifo_path) {
         __builtin_memcpy(unit->fifo_path, fifo, __builtin_strlen(fifo) + 1);
-        const char *buffer_ms = getenv("MACOBLOX_AUDIO_BUFFER_MS");
+        const char *buffer_ms = getenv("QUADRA_AUDIO_BUFFER_MS");
         unit->buffer_ms = buffer_ms && buffer_ms[0] ? atoi(buffer_ms) : 0;
         if ((unit->format.format_flags & 0x20) && !unit->scratch)
             unit->scratch = malloc((unsigned long)RENDER_FRAMES * unit_frame_bytes(unit));

@@ -104,7 +104,7 @@ class WebBridge:
         self.launcher = launcher
         self.user_agent = self.WebKit.Settings.new().get_user_agent()
         # Unix socket paths are limited to 104 bytes, prefix included.
-        name = f"macoblox-web-{os.getpid()}.sock"
+        name = f"quadra-web-{os.getpid()}.sock"
         candidates = [os.path.join(d, name) for d in (GLib.get_user_runtime_dir(), "/tmp") if d]
         fitting = [p for p in candidates if len(GUEST_PREFIX + p) < 104]
         if not fitting:

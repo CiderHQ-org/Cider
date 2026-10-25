@@ -1,5 +1,5 @@
-#ifndef MACOBLOX_KEYBOARD_LABELS_H
-#define MACOBLOX_KEYBOARD_LABELS_H
+#ifndef QUADRA_KEYBOARD_LABELS_H
+#define QUADRA_KEYBOARD_LABELS_H
 
 /* A valid Carbon 'uchr' ANSI fallback resource. Key labels are independent
  * of AppKit's actual text-input events. The former zero-filled layout and
@@ -21,9 +21,9 @@ typedef struct {
         unsigned int count, offsets[4];
     } index;
     unsigned short characters[4][128];
-} MacOBloxKeyboardLabels;
+} QuadraKeyboardLabels;
 
-static unsigned short macoblox_ansi_character(unsigned int key, int shifted, int caps) {
+static unsigned short quadra_ansi_character(unsigned int key, int shifted, int caps) {
     static const unsigned short plain[128] = {
         [0]='a', [1]='s', [2]='d', [3]='f', [4]='h', [5]='g',
         [6]='z', [7]='x', [8]='c', [9]='v', [10]=0x00a7, [11]='b',
@@ -63,13 +63,13 @@ static unsigned short macoblox_ansi_character(unsigned int key, int shifted, int
     }
 }
 
-static void macoblox_build_keyboard_labels(MacOBloxKeyboardLabels *layout) {
-    *layout = (MacOBloxKeyboardLabels){0};
+static void quadra_build_keyboard_labels(QuadraKeyboardLabels *layout) {
+    *layout = (QuadraKeyboardLabels){0};
     layout->format = 0x1002;
     layout->keyboard_count = 1;
     layout->keyboard.last = 0xffffffffU;
-    layout->keyboard.modifiers = __builtin_offsetof(MacOBloxKeyboardLabels, modifiers);
-    layout->keyboard.tables = __builtin_offsetof(MacOBloxKeyboardLabels, index);
+    layout->keyboard.modifiers = __builtin_offsetof(QuadraKeyboardLabels, modifiers);
+    layout->keyboard.tables = __builtin_offsetof(QuadraKeyboardLabels, index);
     layout->modifiers.format = 0x3001;
     layout->modifiers.count = 256;
     layout->index.format = 0x4001;
@@ -82,27 +82,27 @@ static void macoblox_build_keyboard_labels(MacOBloxKeyboardLabels *layout) {
                                             ((modifiers & 4) ? 2 : 0);
     }
     for (unsigned int table = 0; table < 4; table++) {
-        layout->index.offsets[table] = __builtin_offsetof(MacOBloxKeyboardLabels, characters) +
+        layout->index.offsets[table] = __builtin_offsetof(QuadraKeyboardLabels, characters) +
                                       table * sizeof layout->characters[0];
         for (unsigned int key = 0; key < 128; key++)
-            layout->characters[table][key] = macoblox_ansi_character(key, table & 1, !!(table & 2));
+            layout->characters[table][key] = quadra_ansi_character(key, table & 1, !!(table & 2));
     }
 }
 
 /* Recognize the resource shape before interpreting any of its offsets.
  * CFData copies of our resource have the same layout. Other real resources
  * are handled by the underlying Carbon implementation. */
-static int macoblox_is_keyboard_labels(const void *data) {
-    const MacOBloxKeyboardLabels *layout = data;
+static int quadra_is_keyboard_labels(const void *data) {
+    const QuadraKeyboardLabels *layout = data;
     return layout && layout->format == 0x1002 && !layout->version &&
         layout->keyboard_count == 1 && !layout->feature_offset &&
         layout->keyboard.first == 0 && layout->keyboard.last == 0xffffffffU &&
-        layout->keyboard.modifiers == __builtin_offsetof(MacOBloxKeyboardLabels, modifiers) &&
-        layout->keyboard.tables == __builtin_offsetof(MacOBloxKeyboardLabels, index) &&
+        layout->keyboard.modifiers == __builtin_offsetof(QuadraKeyboardLabels, modifiers) &&
+        layout->keyboard.tables == __builtin_offsetof(QuadraKeyboardLabels, index) &&
         !layout->keyboard.states && !layout->keyboard.terminators && !layout->keyboard.sequences;
 }
 
-static int macoblox_translate_keyboard_label(const MacOBloxKeyboardLabels *layout,
+static int quadra_translate_keyboard_label(const QuadraKeyboardLabels *layout,
         unsigned short key, unsigned short action, unsigned int modifiers,
         unsigned int *dead_state, unsigned long capacity,
         unsigned long *length, unsigned short *output) {
@@ -114,7 +114,7 @@ static int macoblox_translate_keyboard_label(const MacOBloxKeyboardLabels *layou
         return -50;
     unsigned int table = layout->modifiers.table[modifiers & 255];
     if (table >= 4 || layout->index.offsets[table] !=
-        __builtin_offsetof(MacOBloxKeyboardLabels, characters) + table * sizeof layout->characters[0])
+        __builtin_offsetof(QuadraKeyboardLabels, characters) + table * sizeof layout->characters[0])
         return -50;
     *dead_state = 0;
     unsigned short character = layout->characters[table][key];

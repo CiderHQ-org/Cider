@@ -14,11 +14,11 @@ temporary = tempfile.TemporaryDirectory()
 base = Path(temporary.name)
 os.environ.update(XDG_CONFIG_HOME=str(base / "config"), XDG_CACHE_HOME=str(base / "cache"),
                   XDG_DATA_HOME=str(base / "data"))
-for name in ("DPREFIX", "FLATPAK_ID", "MACOBLOX_PAGE"):
+for name in ("DPREFIX", "FLATPAK_ID", "QUADRA_PAGE"):
     os.environ.pop(name, None)
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "launcher"))
 threading.Thread.start = lambda self: None  # no unrelated startup/avatar workers
-from macoblox import app, core
+from quadra import app, core
 from session_fixture import bare_session
 from gi.repository import Adw, Gio, GLib
 

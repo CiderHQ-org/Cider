@@ -2,7 +2,7 @@
 extern void *malloc(unsigned long);
 extern void free(void *);
 
-char* macoblox_fix_shader_indices(char* source, unsigned long* source_length) {
+char* quadra_fix_shader_indices(char* source, unsigned long* source_length) {
     /* Generated array indices multiply by signed 1 and add signed 0.
      * GLSL 1.50 rejects this when the index is uint (NVIDIA C7011),
      * including Grass's CB3 index and material CB12 indices. Removing the

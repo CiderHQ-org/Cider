@@ -122,7 +122,7 @@ time spent by the caller; these observations are not a frame-time or FPS measure
 are separate. Vulkan driver allocations and wrapped external images are excluded.
 Working-set recommendations come from `host/src/memory.rs`: the device-local heap budget the driver reports,
 polled about once a second, the largest such heap for a discrete card and a low cap for a unified-memory GPU.
-`MACOBLOX_VRAM_BYTES` can only lower the answer.
+`QUADRA_VRAM_BYTES` can only lower the answer.
 
 Presentation defaults to mailbox when the surface supports it, keeping vblank synchronization
 while replacing obsolete queued frames. It falls back to FIFO when mailbox is unavailable.
@@ -159,7 +159,7 @@ from the environment, and an unset, empty or misspelled value is the default:
 | `MACOBLOX_METAL_MEMORY_PRIORITY` | `0` | leaves memory priority and pageable memory off |
 | `MACOBLOX_METAL_COMPILE_THREADS` | 1-32 (default from CPUs and memory) | pipeline compilations at once |
 | `MACOBLOX_METAL_WARM_STATES` | 0-1024 (default 256) | the most learned states kept warm, within a quarter of the available memory |
-| `MACOBLOX_VRAM_BYTES` | bytes | a cap on the graphics memory the game is told it has |
+| `QUADRA_VRAM_BYTES` | bytes | a cap on the graphics memory the game is told it has |
 
 The runtime enables `VK_EXT_memory_priority` and `VK_EXT_pageable_device_local_memory` on a device
 that has them and gives its blocks priorities (render targets and buffers above pooled textures).
@@ -229,7 +229,7 @@ bridge. Recheck them with the modified framework and host before distributing th
 | `host/examples/pack_census.rs` | Every library of a pack as the game loads them (`--compute`: kernels too) |
 | `host/examples/air_census.rs` | AIR decode of `.bc` files |
 | `build.sh` | Builds `build/metal/Metal.framework` and `build/metal/libquadra_metal_host.so` |
-| `../../launcher/macoblox/{core,graphics}.py` | Lazy build, host device validation and renderer environment |
+| `../../launcher/quadra/{core,graphics}.py` | Lazy build, host device validation and renderer environment |
 | `../../wayland_{bridge.h,host.cpp,appkit.m}` | Wayland helper ABI 4, native Metal subsurfaces |
 | `../../tests/metal_host_test.c` | GPU clear, MSAA resolve and exact readback through the C ABI |
 | `tools/run_metal_test.py` | Starts the repository's launcher session (web bridge included) without saving settings |

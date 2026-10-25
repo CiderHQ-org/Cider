@@ -2,9 +2,9 @@
  * clang -target x86_64-apple-darwin -fuse-ld=lld -isysroot /usr/libexec/darling \
  *   -mmacosx-version-min=11.0 -fobjc-exceptions tests/darling_cursor_lock_test.m \
  *   -framework AppKit -framework Foundation -framework CoreGraphics \
- *   -o /tmp/macoblox-cursor-lock-test
- * DPREFIX=/tmp/macoblox-test-prefix darling shell /bin/bash -c \
- *   'export DYLD_FORCE_FLAT_NAMESPACE=1 DYLD_INSERT_LIBRARIES=/Volumes/SystemRoot/PATH/TO/build/libMacOBloxShims.dylib; exec /Volumes/SystemRoot/tmp/macoblox-cursor-lock-test'
+ *   -o /tmp/quadra-cursor-lock-test
+ * DPREFIX=/tmp/quadra-test-prefix darling shell /bin/bash -c \
+ *   'export DYLD_FORCE_FLAT_NAMESPACE=1 DYLD_INSERT_LIBRARIES=/Volumes/SystemRoot/PATH/TO/build/libQuadraShims.dylib; exec /Volumes/SystemRoot/tmp/quadra-cursor-lock-test'
  */
 extern int printf(const char *, ...);
 extern int fflush(void *);

@@ -2,9 +2,9 @@
 # Own prefix and X server only; timeout keeps a broken wait bounded.
 set -euo pipefail
 project_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
-test_dir=$(mktemp -d /tmp/macoblox-event-wakeup.XXXXXX)
+test_dir=$(mktemp -d /tmp/quadra-event-wakeup.XXXXXX)
 test_prefix="$test_dir/prefix"
-test_shim=${MACOBLOX_TEST_SHIM:-$project_dir/build/libMacOBloxShims.dylib}
+test_shim=${QUADRA_TEST_SHIM:-$project_dir/build/libQuadraShims.dylib}
 cleanup() {
   DPREFIX="$test_prefix" darling shutdown >/dev/null 2>&1 || true
   [[ -z ${xvfb_pid:-} ]] || kill "$xvfb_pid" 2>/dev/null || true
@@ -25,11 +25,11 @@ test_display=":$(cat "$test_dir/display")"
 for run_mode in default tracking modal; do
 for mode in source wake none timer; do
   DISPLAY="$test_display" DPREFIX="$test_prefix" timeout 10s darling shell /bin/bash -c '
-    unset WAYLAND_DISPLAY MACOBLOX_WAYLAND_SOCKET MACOBLOX_WEB_SOCKET
-    export MACOBLOX_WAYLAND=0 DYLD_FORCE_FLAT_NAMESPACE=1
+    unset WAYLAND_DISPLAY QUADRA_WAYLAND_SOCKET QUADRA_WEB_SOCKET
+    export QUADRA_WAYLAND=0 DYLD_FORCE_FLAT_NAMESPACE=1
     export DYLD_INSERT_LIBRARIES="/Volumes/SystemRoot$1"
     exec "/Volumes/SystemRoot$2/wakeup-test" "$3" "$4" "$5"
-  ' wakeup-test "$test_shim" "$test_dir" "$mode" "${MACOBLOX_REQUIRE_EVENT_WAKEUP:-}" "$run_mode" >"$test_dir/$mode-$run_mode.log" 2>&1 || {
+  ' wakeup-test "$test_shim" "$test_dir" "$mode" "${QUADRA_REQUIRE_EVENT_WAKEUP:-}" "$run_mode" >"$test_dir/$mode-$run_mode.log" 2>&1 || {
     cat "$test_dir/$mode-$run_mode.log"; exit 1;
   }
   tail -n 1 "$test_dir/$mode-$run_mode.log"

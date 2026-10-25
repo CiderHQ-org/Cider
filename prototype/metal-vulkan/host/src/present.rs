@@ -3,7 +3,7 @@
 //! - X11: a child window of the game window, made on this library's own Xlib connection,
 //!   input-transparent (its input shape is empty), so the game window keeps every event.
 //! - Wayland: the subsurface the shim's Wayland host made for the view
-//!   (`macoblox_wayland_metal_surface`); the guest passes its `wl_display` and `wl_surface`.
+//!   (`quadra_wayland_metal_surface`); the guest passes its `wl_display` and `wl_surface`.
 //!
 //! A drawable is a swapchain image the runtime wraps (`Device::new_texture_with_vk_image`,
 //! homed in `PRESENT_SRC_KHR`). `nextDrawable` acquires with a fence and waits for it, as

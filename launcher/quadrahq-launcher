@@ -5,13 +5,24 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from quadra import paths  # noqa: E402
+paths.migrate_environment()
+
 # `quadrahq --studio [link or file]` opens Roblox Studio directly; the system
 # calls it for roblox-studio: and roblox-studio-auth: links (sign in).
 if sys.argv[1:2] == ["--studio"]:
-    from macoblox import studio  # noqa: E402
+    from quadra import studio  # noqa: E402
     if not studio.needs_install():
-        studio.launch(sys.argv[2:])
-        sys.exit(0)
+        # This process stays until Studio closes: it looks after GameMode, Discord
+        # presence and the sign-in backup. The launcher window starts it with
+        # --no-update after it has updated Studio itself.
+        arguments = sys.argv[2:]
+        update = arguments[:1] != ["--no-update"]
+        try:
+            sys.exit(studio.run(arguments if update else arguments[1:], update=update))
+        except (OSError, RuntimeError) as error:
+            print(f"Roblox Studio could not start: {error}", file=sys.stderr)
+            sys.exit(1)
 
 # Linux has no LaunchServices. Keep the browser's Roblox argument opaque and
 # let the normal launcher process consume it once Darling is ready. Writing it
@@ -19,21 +30,21 @@ if sys.argv[1:2] == ["--studio"]:
 # launch is still preparing the prefix. Desktop entries pass the URI directly;
 # retain --uri as a compatibility spelling for older local entries.
 if len(sys.argv) == 2 and not sys.argv[1].startswith("-"):
-    from macoblox import uri  # noqa: E402
+    from quadra import uri  # noqa: E402
     uri.receive(sys.argv[1])
 
 if sys.argv[1:2] == ["--uri"]:
     if len(sys.argv) != 3:
         print("quadrahq --uri requires one URI", file=sys.stderr)
         sys.exit(2)
-    from macoblox import uri  # noqa: E402
+    from quadra import uri  # noqa: E402
     uri.receive(sys.argv[2])
 
 # `quadrahq --collect-diagnostics [options]` writes a report archive without
 # the interface (see `quadrahq --collect-diagnostics --help`).
 if sys.argv[1:2] == ["--collect-diagnostics"]:
     try:
-        from macoblox import diagnostics  # noqa: E402
+        from quadra import diagnostics  # noqa: E402
     except ImportError as error:
         print(f"Diagnostics are unavailable in this Quadra build: {error}", file=sys.stderr)
         sys.exit(1)
@@ -42,11 +53,11 @@ if sys.argv[1:2] == ["--collect-diagnostics"]:
 # `quadrahq --watch-stalls` records what the game's threads do while it hangs
 # (see `quadrahq --watch-stalls --help`); start it before or during the game.
 if sys.argv[1:2] == ["--watch-stalls"]:
-    from macoblox import stallwatch  # noqa: E402
+    from quadra import stallwatch  # noqa: E402
     sys.exit(stallwatch.cli(sys.argv[2:]))
 
 if sys.argv[1:2] == ['--hardware-report']:
-    from macoblox import hardware_report
+    from quadra import hardware_report
     sys.exit(hardware_report.cli(sys.argv[2:]))
 
 # `quadrahq --ciderdarling-settings` opens Settings -> CiderDarling, also in an
@@ -55,6 +66,6 @@ page = None
 if sys.argv[1:2] == ["--ciderdarling-settings"]:
     page = "ciderdarling"
 
-from macoblox.app import main  # noqa: E402
+from quadra.app import main  # noqa: E402
 
 sys.exit(main(page))

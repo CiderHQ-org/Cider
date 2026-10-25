@@ -20,7 +20,7 @@ INSTALLER = Path(__file__).resolve().parents[2] / "install.sh"
 def is_bundled(environment=None):
     """Whether the package owns the client, sysroot and runtime updates."""
     env = os.environ if environment is None else environment
-    return bool(env.get("FLATPAK_ID") or env.get("MACOBLOX_BUNDLED_DARLING"))
+    return bool(env.get("FLATPAK_ID") or env.get("QUADRA_BUNDLED_DARLING"))
 
 
 def _validate_selection(data):
@@ -193,7 +193,7 @@ def installed_runtimes(current=None, environment=None, selection_file=None,
     `pinned` is a revision; the default reads it from install.sh.
     """
     env = os.environ if environment is None else environment
-    if env.get("MACOBLOX_BUNDLED_DARLING") and not env.get("FLATPAK_ID"):
+    if env.get("QUADRA_BUNDLED_DARLING") and not env.get("FLATPAK_ID"):
         bundled = resolve_runtime(env, selection_file)
         return {bundled["runtime"]: bundled}
     if env.get("FLATPAK_ID"):
@@ -272,11 +272,11 @@ def resolve_runtime(environment=None, selection_file=None):
     env = os.environ if environment is None else environment
     # Nix pins the whole runtime alongside the shim. Ignore saved host paths,
     # including store paths from an older generation, without changing them.
-    bundled = env.get("MACOBLOX_BUNDLED_DARLING") if not env.get("FLATPAK_ID") else None
+    bundled = env.get("QUADRA_BUNDLED_DARLING") if not env.get("FLATPAK_ID") else None
     if bundled:
         root = Path(bundled)
         if not root.is_absolute():
-            raise RuntimeError("MACOBLOX_BUNDLED_DARLING must be an absolute runtime directory")
+            raise RuntimeError("QUADRA_BUNDLED_DARLING must be an absolute runtime directory")
         sysroot = root / "libexec/darling"
         data = metadata(sysroot)
         variant = "ciderdarling" if data else "regular"
@@ -320,5 +320,5 @@ def guest_variables(runtime_metadata):
     # replacing the stack restart already fixed and tested in CiderDarling.
     fixes = runtime_metadata.get("source_fixes", [])
     if isinstance(fixes, list) and "workqueue_stack_reset_x86_64" in fixes:
-        return ["MACOBLOX_NATIVE_WORKQUEUE=1"]
+        return ["QUADRA_NATIVE_WORKQUEUE=1"]
     return []

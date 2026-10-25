@@ -8,8 +8,8 @@ Build-Depends: debhelper-compat (= 13), dh-python, python3, clang, lld,
 Standards-Version: 4.7.2
 Rules-Requires-Root: no
 Homepage: https://quadrahq.org
-Vcs-Git: https://github.com/CiderHQ-org/Cider.git
-Vcs-Browser: https://github.com/CiderHQ-org/Cider
+Vcs-Git: https://github.com/QuadraHQ/Quadra.git
+Vcs-Browser: https://github.com/QuadraHQ/Quadra
 
 Package: quadrahq
 Provides: ciderhq, macoblox

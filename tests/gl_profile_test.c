@@ -34,7 +34,7 @@ const unsigned char *glGetString(unsigned int name) {
     return name == 0x1F01 ? mock_renderer : (const unsigned char *)"4.6";
 }
 unsigned long long mach_absolute_time(void) { return clock_ticks; }
-int mach_timebase_info(macoblox_timebase *info) {
+int mach_timebase_info(quadra_timebase *info) {
     info->numer = time_numer;
     info->denom = time_denom;
     return 0;
@@ -53,7 +53,7 @@ unsigned int eglSwapInterval(void *display, int interval) {
 int CGLSetParameter(void *context, int parameter, const int *value) {
     (void)context;
     if (parameter != 222) return 0;
-    return macoblox_eglSwapInterval(mock_display, *value) ? 0 : 10008;
+    return quadra_eglSwapInterval(mock_display, *value) ? 0 : 10008;
 }
 void *eglCreateContext(void *display, void *config, void *share, const int *attributes) {
     (void)display; (void)config; (void)share; (void)attributes;
@@ -74,10 +74,10 @@ int eglGetError(void) { int error = mock_egl_error; mock_egl_error = 0x3000; ret
 unsigned int eglBindAPI(unsigned int api) { assert(api == 0x30A2); return 1; }
 void *CGLGetCurrentContext(void) { return mock_context; }
 int CGLSetCurrentContext(void *context) { mock_context = context; return 0; }
-int macoblox_raw_x_visuals(unsigned int window, unsigned int *root, unsigned int *visual) {
+int quadra_raw_x_visuals(unsigned int window, unsigned int *root, unsigned int *visual) {
     (void)window; (void)root; (void)visual; return 0;
 }
-int macoblox_wayland_enabled(void) { return 0; }
+int quadra_wayland_enabled(void) { return 0; }
 
 static int x_attributes(void *display, XID window, void *output) {
     (void)display;
@@ -125,109 +125,109 @@ static void clear_log(void) { log_length = 0; logged[0] = 0; }
 
 int main(int argc, char **argv) {
     if (argc == 2 && !strcmp(argv[1], "--fps-drop")) {
-        setenv("MACOBLOX_FPS_LOG", "0", 1);
+        setenv("QUADRA_FPS_LOG", "0", 1);
         time_numer = time_denom = 1;
         clock_ticks = 1;
-        macoblox_frame_presented(mock_display, mock_surface, 1);
+        quadra_frame_presented(mock_display, mock_surface, 1);
         for (int i=0;i<300;i++) {
             clock_ticks += 16666667;
-            macoblox_frame_presented(mock_display, mock_surface, 1);
+            quadra_frame_presented(mock_display, mock_surface, 1);
         }
         assert(!log_length); /* Normal play is quiet without verbose FPS logs. */
         for (int i=0;i<75;i++) {
             clock_ticks += 66666667;
-            macoblox_frame_presented(mock_display, mock_surface, 1);
+            quadra_frame_presented(mock_display, mock_surface, 1);
         }
         assert(strstr(logged,"[Quadra FPS drop] fps=15.0 baseline=60.0"));
         clear_log();
         for (int i=0;i<75;i++) {
             clock_ticks += 66666667;
-            macoblox_frame_presented(mock_display, mock_surface, 1);
+            quadra_frame_presented(mock_display, mock_surface, 1);
         }
         assert(!log_length); /* One marker per drop, rather than per slow frame. */
         forget_configured_surface(mock_surface);
-        macoblox_frame_presented(mock_display, mock_surface, 1);
+        quadra_frame_presented(mock_display, mock_surface, 1);
         for (int i=0;i<75;i++) {
             clock_ticks += 66666667;
-            macoblox_frame_presented(mock_display, mock_surface, 1);
+            quadra_frame_presented(mock_display, mock_surface, 1);
         }
         assert(!log_length); /* A new surface has no inherited fast baseline. */
         puts("PASS: automatic 60-to-15 FPS evidence without verbose logging, no spam or inherited baseline");
         return 0;
     }
-    unsetenv("MACOBLOX_GL_COMPAT");
-    const unsigned char *first = macoblox_glGetString(0x1F01);
+    unsetenv("QUADRA_GL_COMPAT");
+    const unsigned char *first = quadra_glGetString(0x1F01);
     assert(!strcmp((const char *)first, "Radeon A"));
-    assert(first == macoblox_glGetString(0x1F01));
+    assert(first == quadra_glGetString(0x1F01));
     mock_context = (void *)5;
     mock_renderer = (const unsigned char *)"AMD Radeon B";
-    const unsigned char *second = macoblox_glGetString(0x1F01);
+    const unsigned char *second = quadra_glGetString(0x1F01);
     assert(!strcmp((const char *)second, "Radeon B"));
     assert(!strcmp((const char *)first, "Radeon A"));
     mock_renderer = (const unsigned char *)"NVIDIA GPU";
-    assert(macoblox_glGetString(0x1F01) == mock_renderer);
-    macoblox_forget_gl_context((void *)1);
-    macoblox_forget_gl_context((void *)5);
+    assert(quadra_glGetString(0x1F01) == mock_renderer);
+    quadra_forget_gl_context((void *)1);
+    quadra_forget_gl_context((void *)5);
 
     clear_log();
-    assert(macoblox_replace_gl_subwindow((void *)1, 10, 20) == 30);
+    assert(quadra_replace_gl_subwindow((void *)1, 10, 20) == 30);
     assert(selected_screen == 7 && mapped == 1 && destroyed == 1 && colormap_queries == 1);
     assert(log_length == strlen(logged)); /* No NUL inserted into launch logs. */
     old_map_state = 0;
-    assert(macoblox_replace_gl_subwindow((void *)1, 10, 20) == 30);
+    assert(quadra_replace_gl_subwindow((void *)1, 10, 20) == 30);
     assert(mapped == 1 && destroyed == 2 && colormap_queries == 2);
 
     clear_log();
-    macoblox_frame_presenting(NULL);
-    macoblox_frame_presenting(NULL);
+    quadra_frame_presenting(NULL);
+    quadra_frame_presenting(NULL);
     assert(swaps == 1);
     forget_configured_surface(mock_surface);
-    macoblox_frame_presenting(NULL);
+    quadra_frame_presenting(NULL);
     assert(swaps == 2);
 
     const int vsync_on = 1;
     assert(!CGLSetParameter(mock_context, 222, &vsync_on));
     assert(swap_interval == 1 && swaps == 3);
-    macoblox_frame_presenting(NULL);
+    quadra_frame_presenting(NULL);
     assert(swap_interval == 0 && swaps == 4); /* A later setter cannot bypass the policy cache. */
-    macoblox_frame_presenting(NULL);
+    quadra_frame_presenting(NULL);
     assert(swaps == 4); /* Normal frames still avoid redundant driver calls. */
     fail_interval = 1;
     assert(CGLSetParameter(mock_context, 222, &vsync_on) == 10008);
     assert(eglGetError() == 0x300D); /* Observation doesn't consume caller error state. */
     fail_interval = 0;
-    macoblox_frame_presenting(NULL);
+    quadra_frame_presenting(NULL);
     assert(swaps == 5); /* A failed setter leaves the successful zero setting cached. */
 
     mock_surface = (void *)8;
-    macoblox_frame_presenting(NULL);
+    quadra_frame_presenting(NULL);
     assert(swaps == 6);
     assert(!CGLSetParameter(mock_context, 222, &vsync_on));
     assert(swaps == 7);
     mock_surface = (void *)3;
-    macoblox_frame_presenting(NULL);
+    quadra_frame_presenting(NULL);
     assert(swaps == 7); /* Changing another drawable doesn't invalidate this one. */
     assert(!CGLSetParameter(mock_context, 999, &vsync_on));
-    macoblox_frame_presenting(NULL);
+    quadra_frame_presenting(NULL);
     assert(swaps == 7); /* Unrelated CGL properties leave the swap cache intact. */
 
-    setenv("MACOBLOX_FPS_LOG", "1", 1);
+    setenv("QUADRA_FPS_LOG", "1", 1);
     clear_log();
     clock_ticks = 100;
-    macoblox_frame_presented(mock_display, mock_surface, 1);
+    quadra_frame_presented(mock_display, mock_surface, 1);
     for (int i = 0; i < 5; i++) {
         clock_ticks += 1000000000;
-        macoblox_frame_presented(mock_display, mock_surface, 0);
+        quadra_frame_presented(mock_display, mock_surface, 0);
     }
     assert(!log_length); /* Failed swaps do not increment FPS or trigger reports. */
     clock_ticks = 100 + 4000000000ULL;
-    macoblox_frame_presented(mock_display, mock_surface, 1);
+    quadra_frame_presented(mock_display, mock_surface, 1);
     assert(strstr(logged, "0.2 surface=0x3")); /* 1 successful interval / 6 seconds. */
     clear_log();
     forget_configured_surface(mock_surface);
-    macoblox_frame_presented(mock_display, mock_surface, 1);
+    quadra_frame_presented(mock_display, mock_surface, 1);
     clock_ticks += 4000000000ULL;
-    macoblox_frame_presented(mock_display, (void *)99, 1);
+    quadra_frame_presented(mock_display, (void *)99, 1);
     assert(!log_length); /* Different/recreated surfaces start their own windows. */
     puts("PASS: immutable GPU strings, subwindow resources and successful presentation timing");
     return 0;

@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
-from macoblox import core
+from quadra import core
 from session_fixture import bare_session
 
 

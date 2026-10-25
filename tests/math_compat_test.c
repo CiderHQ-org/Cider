@@ -19,14 +19,14 @@ extern float __exp10f(float);
 #define PAIR_COSINE __cosval
 #else
 #include "../math_compat.h"
-#define EXP10 macoblox_exp10
-#define EXP10F macoblox_exp10f
-#define SINCOSF macoblox_sincosf
-#define SINCOS macoblox_sincos
-#define SINCOSPIF macoblox_sincospif
-#define SINCOSPI macoblox_sincospi
-#define FloatPair struct MacOBloxFloat2
-#define DoublePair struct MacOBloxDouble2
+#define EXP10 quadra_exp10
+#define EXP10F quadra_exp10f
+#define SINCOSF quadra_sincosf
+#define SINCOS quadra_sincos
+#define SINCOSPIF quadra_sincospif
+#define SINCOSPI quadra_sincospi
+#define FloatPair struct QuadraFloat2
+#define DoublePair struct QuadraDouble2
 #define PAIR_SINE sine
 #define PAIR_COSINE cosine
 #endif

@@ -3,7 +3,7 @@
  * clang -target x86_64-apple-darwin -fuse-ld=lld -isysroot /usr/libexec/darling \
  *   -mmacosx-version-min=11.0 -fobjc-exceptions tests/darling_cursor_selection_test.m \
  *   -framework AppKit -framework Foundation -framework CoreGraphics \
- *   -o /tmp/macoblox-cursor-selection-native
+ *   -o /tmp/quadra-cursor-selection-native
  * Alarm bounds the fixture; it does not run Roblox or touch the desktop.
  */
 extern int printf(const char *, ...), fflush(void *), usleep(unsigned int);

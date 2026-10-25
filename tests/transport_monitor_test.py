@@ -3,8 +3,8 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from macoblox import core
-from macoblox.transport_monitor import TransportMonitor
+from quadra import core
+from quadra.transport_monitor import TransportMonitor
 from session_fixture import bare_session
 
 

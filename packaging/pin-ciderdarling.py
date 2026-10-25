@@ -18,7 +18,7 @@ import urllib.error
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
-RELEASES = "https://github.com/CiderHQ-org/CiderDarling/releases/download"
+RELEASES = "https://github.com/QuadraHQ/CiderDarling/releases/download"
 FLAVORS = {"arch": "CIDER_DARLING_PREBUILT_ARCH", "ubuntu24.04": "CIDER_DARLING_PREBUILT_UBUNTU2404"}
 
 

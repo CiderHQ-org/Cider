@@ -1,4 +1,4 @@
-"""Mods and resource patching system for MacOBlox.
+"""Mods and resource patching system for Quadra.
 
 Allows custom fonts, classic sound presets (OOF, old movement), cursor presets,
 and user-defined file overlays onto RobloxPlayer.app/Contents/Resources/content.
@@ -15,7 +15,7 @@ from typing import Any
 
 from . import core
 
-log = logging.getLogger("macoblox.mods")
+log = logging.getLogger("quadra.mods")
 
 MODS_DIR = core.DATA_DIR / "modifications"
 MODS_BACKUP_DIR = core.DATA_DIR / "mods_backup"

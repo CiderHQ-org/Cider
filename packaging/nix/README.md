@@ -35,7 +35,7 @@ nix build .                            # ./result/bin/quadrahq
 nix profile add .#quadrahq              # Install with menu and URI handlers
 ```
 
-You can replace `.` with `github:CiderHQ-org/Cider` once this support is
+You can replace `.` with `github:QuadraHQ/Quadra` once this support is
 published in that repository. The flake lock pins Nixpkgs, and runtime
 downloads have fixed SHA-256 checksums. Builds do not fetch the mutable
 CiderDarling update feed.
@@ -48,7 +48,7 @@ Add Quadra to your system flake inputs, then import its module:
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    quadra.url = "github:CiderHQ-org/Cider";
+    quadra.url = "github:QuadraHQ/Quadra";
   };
 
   outputs = { nixpkgs, quadra, ... }: {

@@ -87,19 +87,19 @@ submitting and presenting the game window.
 
 ## Settings and environment
 
-The launcher (`launcher/macoblox/vr.py`) finds the host's active OpenXR runtime
+The launcher (`launcher/quadra/vr.py`) finds the host's active OpenXR runtime
 the way the loader would (`XR_RUNTIME_JSON`, `~/.config/openxr/1/`, `/etc/xdg`,
 known WiVRn/Monado manifests) and passes it, because the loader runs inside
 Darling with the guest's HOME:
 
 | Variable | Meaning |
 |---|---|
-| `MACOBLOX_VR` | `openxr`, or `openxr-headset` without the window mirror |
-| `MACOBLOX_VR_SCALE` | percent of the headset's recommended eye size (default 70) |
-| `MACOBLOX_XR_RUNTIME_JSON` | runtime manifest, set as the host's `XR_RUNTIME_JSON` |
-| `MACOBLOX_VR_FOLLOW_RATE=1` | let Roblox's display-rate requests (90 Hz) reach the headset |
+| `QUADRA_VR` | `openxr`, or `openxr-headset` without the window mirror |
+| `QUADRA_VR_SCALE` | percent of the headset's recommended eye size (default 70) |
+| `QUADRA_XR_RUNTIME_JSON` | runtime manifest, set as the host's `XR_RUNTIME_JSON` |
+| `QUADRA_VR_FOLLOW_RATE=1` | let Roblox's display-rate requests (90 Hz) reach the headset |
 
-Development modes: `MACOBLOX_VR=1` attaches the emulator with its own head
+Development modes: `QUADRA_VR=1` attaches the emulator with its own head
 (eyes mirrored into the window), `debug` also turns on the client's emulator
 mirror, and `-lag0` submits the views a frame opened with.
 

@@ -1,4 +1,4 @@
-MacOBlox background library sources and redistribution license files
+Quadra background library sources and redistribution license files
 
 p5.js v1.1.9
 License: GNU Lesser General Public License, Version 2.1

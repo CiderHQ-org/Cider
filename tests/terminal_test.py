@@ -1,6 +1,6 @@
 import unittest
 
-from macoblox import terminal
+from quadra import terminal
 
 ARGV = ["bash", "-c", "exit 0", "quadra-runtime-install"]
 

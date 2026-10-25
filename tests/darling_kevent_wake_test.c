@@ -1,4 +1,4 @@
-// Fixture: does a blocked kevent() notice work posted by another thread, and does MACOBLOX_KEVENT_POLL_MS cut
+// Fixture: does a blocked kevent() notice work posted by another thread, and does QUADRA_KEVENT_POLL_MS cut
 // an idle wait short on a thread named like Roblox's I/O loops (and only on those)? Each wake case blocks the
 // "RBX IoEvLoop 0" thread in kevent() with a long timeout, posts work from a second thread after 200 ms and reports
 // how long the waiter took; then an empty kqueue is waited on under that name and under another one. argv[1] is

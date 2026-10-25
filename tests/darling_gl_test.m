@@ -1,9 +1,9 @@
 /* Optional Darling integration regression on an X11 GPU display:
  * clang -target x86_64-apple-darwin -fuse-ld=lld -isysroot /usr/libexec/darling \
  *   -mmacosx-version-min=11.0 tests/darling_gl_test.m -framework AppKit \
- *   -framework Foundation -framework OpenGL -o /tmp/macoblox-darling-gl-test
- * DPREFIX=/tmp/macoblox-test-prefix EGL_PLATFORM=x11 darling shell /bin/bash -c \
- *   'export DYLD_FORCE_FLAT_NAMESPACE=1 DYLD_INSERT_LIBRARIES=/Volumes/SystemRoot/PATH/TO/build/libMacOBloxShims.dylib; exec /Volumes/SystemRoot/tmp/macoblox-darling-gl-test'
+ *   -framework Foundation -framework OpenGL -o /tmp/quadra-darling-gl-test
+ * DPREFIX=/tmp/quadra-test-prefix EGL_PLATFORM=x11 darling shell /bin/bash -c \
+ *   'export DYLD_FORCE_FLAT_NAMESPACE=1 DYLD_INSERT_LIBRARIES=/Volumes/SystemRoot/PATH/TO/build/libQuadraShims.dylib; exec /Volumes/SystemRoot/tmp/quadra-darling-gl-test'
  * For Zink, also export renderer_environment("vulkan") variables in the guest.
  * Tests context creation and shaders, not gameplay or presentation.
  * Darling's sysroot has no AppKit/OpenGL headers, as for the shim itself. */

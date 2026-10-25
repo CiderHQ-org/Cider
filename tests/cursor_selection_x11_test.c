@@ -35,13 +35,13 @@ int main(void) {
     XWarpPointer(display, None, child, 0, 0, 0, 0, 80, 90); XSync(display, False);
     assert(!opaque_pixels(display)); /* Reproduce the stale child cursor. */
 
-    MacOBloxCursorApplyAPI api = {(void *)XUndefineCursor, (void *)XQueryTree,
+    QuadraCursorApplyAPI api = {(void *)XUndefineCursor, (void *)XQueryTree,
                                  (void *)XFree, (void *)XSync};
-    assert(macoblox_cursor_selection_apply(&api, display, game));
+    assert(quadra_cursor_selection_apply(&api, display, game));
     assert(opaque_pixels(display) > 0);
     /* A newer hide wins even when an older worker update runs afterward. */
     XDefineCursor(display, game, blank); XSync(display, False);
-    assert(macoblox_cursor_selection_apply(&api, display, game));
+    assert(quadra_cursor_selection_apply(&api, display, game));
     assert(!opaque_pixels(display));
     XDefineCursor(display, game, arrow); XSync(display, False);
     assert(opaque_pixels(display) > 0); /* Unhide follows the parent immediately. */

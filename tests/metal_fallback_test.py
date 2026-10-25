@@ -2,7 +2,7 @@
 import unittest
 from unittest.mock import patch
 
-from macoblox import core, graphics
+from quadra import core, graphics
 from session_fixture import bare_session
 
 

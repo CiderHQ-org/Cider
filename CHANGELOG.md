@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+- Run Roblox Studio on Kombucha, the Wine build Vinegar patches for Studio, instead of Kron4ek's staging build. Studio
+  now follows the newest stable Kombucha release as well as Roblox's newest Studio: each start checks both, and an
+  existing install moves to Kombucha in place (prefix, sign-in and the installed Studio are kept; DXVK is installed
+  again for the new build). Without a connection the installed Wine is used.
+- Give Roblox Studio a section of its own in the launcher (Studio, Graphics, Wine and updates, Fast flags):
+  - Install Microsoft's WebView2 runtime in Studio's prefix (version 144.0.3719.92, checked against the SHA-256 Microsoft
+    publishes). Without it Studio stopped at "Launch Failed" when it tried to show its login; now it shows the login,
+    Toolbox and Creator Hub pages itself.
+  - Choose the renderer: DXVK (as before), DXVK-Sarek 1.11.0 for older graphics cards, Wine's Direct3D through OpenGL
+    (also at feature level 10), or Vulkan with Vinegar's layer for the swapchain errors Studio does not handle (built
+    with the shim when the Vulkan headers are installed). DXVK's DLLs now sit next to Studio instead of in the prefix's
+    `system32`, so the renderer can change without recreating the prefix; an install from before has them moved.
+  - Choose the graphics card Studio draws on, and ask GameMode to optimise it while it runs.
+  - Show the place you are building and whether you are in a script as Discord presence, read from Studio's log.
+  - Keep Studio's sign-in and settings in `studio/backup` (mode 0600) and restore them into a new prefix; give a new
+    prefix Studio's Local AppData, Documents and Pictures in your own folders; follow the system light/dark theme.
+  - Stay on a Kombucha release or use a Wine of your own, stay on one Studio version or channel (the signed-in
+    account's own channel by default, found with the saved Roblox login), and edit Studio's fast flags.
+  - Copy the files in `~/.config/quadrahq/studio-overlay` over Studio's at every start.
+  - Fetch Studio's packages from Roblox's alternate hosts when `setup.rbxcdn.com` refuses or fails.
+  - Start Studio through a `quadrahq --studio` process that stays until Studio closes (GameMode, presence and the
+    backup need one); a second start, such as the browser handing over a sign-in, only launches.
+- Show Quadra's current logo in Discord presence: the application's own `ciderhq` image is still the old apple, so the
+  logo is now served from quadrahq.org.
+- Finish the MacOBlox/Cider to Quadra rename inside the code: the launcher's Python package is `quadra`, the shim is
+  `libQuadraShims.dylib` (native Wayland helper `libquadra-wayland.so`), and the settings variables are `QUADRA_*`.
+  `MACOBLOX_*` variables set by hand are still read as `QUADRA_*`. `MACOBLOX_METAL*` (read by Quadra M2VK) and the
+  `CIDER_*` names and CiderDarling identifiers that the Darling runtime reads keep their names until those projects
+  are renamed.
+- Move to the `QuadraHQ/Quadra` repository. The installer and the updater move an existing checkout's `origin` from
+  `CiderHQ-org/Cider`, and the installer still recognises checkouts that have `launcher/macoblox`. Runtime update
+  feeds that name `CiderHQ-org/CiderDarling` are accepted next to `QuadraHQ/CiderDarling`.
 
 ## 0.36.p1 — 2026-10-24
 

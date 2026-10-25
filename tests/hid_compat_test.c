@@ -7,7 +7,7 @@ static int wayland, services, single, multiple, released_matching, fail_strings;
 static int platform_services;
 static const char *provider;
 static const int matching_dictionary;
-int macoblox_wayland_enabled(void) { return wayland; }
+int quadra_wayland_enabled(void) { return wayland; }
 void IOHIDManagerSetDeviceMatching(void *m, const void *d) {
     assert(m == (void *)1 && d == &matching_dictionary); single++;
 }

@@ -15,7 +15,7 @@
 
 set -euo pipefail
 
-REPO=https://github.com/CiderHQ-org/Cider.git
+REPO=https://github.com/QuadraHQ/Quadra.git
 DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
 DIR=$DATA_HOME/QuadraHQ
 LEGACY_CIDER_DIR=$DATA_HOME/CiderHQ
@@ -29,7 +29,7 @@ PREFIX=${DPREFIX:-$HOME/.darling}
 # installs before the shim was tested with it.
 DARLING_TAG=v0.1.20260608
 DARLING_DEBS_SHA256=27469ef3932da2e91dd7fb34b70e3628a3e54b7af9fb5480051f44af35eca1fd
-CIDER_DARLING_REPO=https://github.com/CiderHQ-org/CiderDarling.git
+CIDER_DARLING_REPO=https://github.com/QuadraHQ/CiderDarling.git
 # Offline/source fallback. The launcher reads these literal assignments;
 # complete CI releases are discovered through the stable update feed below.
 CIDER_DARLING_REVISION=a8dae5f8e6daf6ec0245f94a9ba97c0d0cc4aeb7
@@ -40,7 +40,7 @@ CIDER_DARLING_INSTALL=/opt/ciderdarling/$CIDER_DARLING_REVISION
 # packaging/pin-ciderdarling.py sets these lines with the two above.
 CIDER_DARLING_PREBUILT_ARCH=''
 CIDER_DARLING_PREBUILT_UBUNTU2404=''
-CIDER_DARLING_RELEASES=https://github.com/CiderHQ-org/CiderDarling/releases/download
+CIDER_DARLING_RELEASES=https://github.com/QuadraHQ/CiderDarling/releases/download
 CIDER_DARLING_UPDATE_URL=$CIDER_DARLING_RELEASES/runtime-updates/stable.json
 CIDER_DARLING_RELEASE_FILE=''
 CIDER_DARLING_PINNED=''
@@ -895,7 +895,9 @@ try:
     require(data['schema_version'] == 1 and data['name'] == 'CiderDarling')
     require(data['architecture'] == 'x86_64' and data['channel'] == 'stable')
     require(re.fullmatch('[0-9a-f]{40}', revision) and re.fullmatch('[0-9a-f]{64}', series))
-    require(data['release_url'] == f'https://github.com/CiderHQ-org/CiderDarling/releases/tag/bin-{revision[:12]}')
+    # The feed's CI still names the repository by its previous owner.
+    require(data['release_url'] in [f'https://github.com/{owner}/releases/tag/bin-{revision[:12]}'
+                                    for owner in ('QuadraHQ/CiderDarling', 'CiderHQ-org/CiderDarling')])
     require(type(data['source_date']) is int and data['source_date'] > 0)
     minimum = data['minimum_cider']
     require(re.fullmatch(r'[0-9]+(?:\.[0-9]+)*', minimum))
@@ -1238,6 +1240,22 @@ do_install_runtime() {
   say "$(darling_runtime_name) is installed. Return to Quadra and apply the runtime choice when ready."
 }
 
+# Moves a recognized earlier repository URL (the upstream MacOBlox repositories,
+# or Cider's CiderHQ-org/Cider before the QuadraHQ organization) to $REPO.
+# Other user-configured remotes are kept.
+migrate_origin_remote() {
+  case $(git -C "$DIR" remote get-url origin 2>/dev/null) in
+    https://github.com/narezy/MacOBlox | https://github.com/narezy/MacOBlox.git | \
+    https://github.com/aubree-lat/MacOBlox | https://github.com/aubree-lat/MacOBlox.git | \
+    git@github.com:aubree-lat/MacOBlox | git@github.com:aubree-lat/MacOBlox.git | \
+    ssh://git@github.com/aubree-lat/MacOBlox | ssh://git@github.com/aubree-lat/MacOBlox.git | \
+    https://github.com/CiderHQ-org/Cider | https://github.com/CiderHQ-org/Cider.git | \
+    git@github.com:CiderHQ-org/Cider | git@github.com:CiderHQ-org/Cider.git | \
+    ssh://git@github.com/CiderHQ-org/Cider | ssh://git@github.com/CiderHQ-org/Cider.git)
+      git -C "$DIR" remote set-url origin "$REPO" ;;
+  esac
+}
+
 do_install() {
   [[ $(uname -m) == x86_64 ]] || die "Darling runs only on x86_64."
   local legacy=''
@@ -1246,7 +1264,7 @@ do_install() {
     mv -T --no-clobber -- "$legacy" "$DIR"
     [[ ! -e $legacy ]] || die "Quadra's destination appeared during migration; no files were replaced."
   fi
-  [[ ! -e $DIR || ( -d $DIR/.git && -f $DIR/launcher/macoblox/core.py ) ]] ||
+  [[ ! -e $DIR ]] || { [[ -d $DIR/.git ]] && launcher_package "$DIR" >/dev/null; } ||
     die "$DIR already exists without a Git checkout. Move it aside before installing."
   step 1 "Prepare the system tools"
   install_tools
@@ -1257,15 +1275,7 @@ do_install() {
   if [[ -d $DIR/.git ]]; then
     say "Updating Quadra"
 
-    # Migrate recognized upstream/fork URLs after the Quadra organization move.
-    # Other user-configured remotes are kept.
-    case $(git -C "$DIR" remote get-url origin 2>/dev/null) in
-      https://github.com/narezy/MacOBlox | https://github.com/narezy/MacOBlox.git | \
-      https://github.com/aubree-lat/MacOBlox | https://github.com/aubree-lat/MacOBlox.git | \
-      git@github.com:aubree-lat/MacOBlox | git@github.com:aubree-lat/MacOBlox.git | \
-      ssh://git@github.com/aubree-lat/MacOBlox | ssh://git@github.com/aubree-lat/MacOBlox.git)
-        git -C "$DIR" remote set-url origin "$REPO" ;;
-    esac
+    migrate_origin_remote
 
     # Fetch first, then preserve local repairs before replacing tracked files.
     # Session data, downloads and backups stay in the checkout unchanged.
@@ -1303,13 +1313,26 @@ do_install() {
 
 # ---------------------------------------------------------------- uninstall
 
+# The launcher's Python package in a checkout: launcher/quadra, or
+# launcher/macoblox in a checkout from before the rename.
+launcher_package() {
+  local name
+  for name in quadra macoblox; do
+    if [[ -f $1/launcher/$name/core.py ]]; then
+      printf '%s' "$1/launcher/$name"
+      return 0
+    fi
+  done
+  return 1
+}
+
 # The checkout this script makes: nothing is deleted unless $DIR is one.
 existing_checkout() {
   local checkout
   for checkout in "$DIR" "$LEGACY_CIDER_DIR" "$LEGACY_DIR"; do
-    if [[ -f $checkout/build_debug_shim.sh && -f $checkout/launcher/macoblox/core.py &&
-          ( -f $checkout/launcher/quadrahq-launcher || -f $checkout/launcher/ciderhq-launcher ||
-            -f $checkout/launcher/macoblox-launcher ) ]]; then
+    if [[ -f $checkout/build_debug_shim.sh ]] && launcher_package "$checkout" >/dev/null &&
+       [[ -f $checkout/launcher/quadrahq-launcher || -f $checkout/launcher/ciderhq-launcher ||
+          -f $checkout/launcher/macoblox-launcher ]]; then
       printf '%s' "$checkout"
       return 0
     fi
@@ -1320,9 +1343,10 @@ is_installed() {
   existing_checkout >/dev/null
 }
 installed_version() {
-  local checkout
+  local checkout package
   checkout=$(existing_checkout) || return 0
-  sed -n 's/^__version__ = "\(.*\)"/\1/p' "$checkout/launcher/macoblox/__init__.py" 2>/dev/null
+  package=$(launcher_package "$checkout") || return 0
+  sed -n 's/^__version__ = "\(.*\)"/\1/p' "$package/__init__.py" 2>/dev/null
 }
 
 # Removes what do_install and the launcher put on this computer; with an

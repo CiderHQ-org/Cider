@@ -3,7 +3,7 @@
 set -euo pipefail
 base=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 project=$(cd -- "$base/../.." && pwd -P)
-cache=${XDG_CACHE_HOME:-$HOME/.cache}/macoblox-vulkan/src
+cache=${XDG_CACHE_HOME:-$HOME/.cache}/quadra-vulkan/src
 darling_source=${DARLING_SOURCE:-$cache/darling}
 vulkan_headers=${VULKAN_HEADERS:-$cache/Vulkan-Headers-1.3.290/include}
 sysroot=${DARLING_SYSROOT:-/usr/libexec/darling}

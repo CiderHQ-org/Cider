@@ -12,8 +12,8 @@
 #endif
 .text
 .p2align 4
-.globl SYMBOL(macoblox_sparse_map_insert_asm)
-SYMBOL(macoblox_sparse_map_insert_asm):
+.globl SYMBOL(quadra_sparse_map_insert_asm)
+SYMBOL(quadra_sparse_map_insert_asm):
     pushq %rbp
     movq %rsp, %rbp
     subq $64, %rsp
@@ -38,15 +38,15 @@ LOCAL(insert_success):
 LOCAL(insert_fail):
     movl $-1, %eax
     jmp LOCAL(insert_epilog)
-    .org SYMBOL(macoblox_sparse_map_insert_asm)+0x13f, 0x90
+    .org SYMBOL(quadra_sparse_map_insert_asm)+0x13f, 0x90
 LOCAL(insert_epilog):
     addq $64, %rsp
     popq %rbp
     retq
 
 .p2align 4
-.globl SYMBOL(macoblox_sparse_map_foreach_asm)
-SYMBOL(macoblox_sparse_map_foreach_asm):
+.globl SYMBOL(quadra_sparse_map_foreach_asm)
+SYMBOL(quadra_sparse_map_foreach_asm):
     pushq %rbp
     movq %rsp, %rbp
     subq $32, %rsp
@@ -74,7 +74,7 @@ LOCAL(foreach_loop):
 LOCAL(foreach_next):
     incq -32(%rbp)
     jmp LOCAL(foreach_loop)
-    .org SYMBOL(macoblox_sparse_map_foreach_asm)+0x74, 0x90
+    .org SYMBOL(quadra_sparse_map_foreach_asm)+0x74, 0x90
 LOCAL(foreach_epilog):
     addq $32, %rsp
     popq %rbp

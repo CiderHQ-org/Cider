@@ -12,7 +12,7 @@ function Y for 14 s" or "X waited in futex from the moment of leaving".
 
 Reading another process's stacks needs ptrace permission. Under Yama
 (kernel.yama.ptrace_scope=1) the game must allow it: the shim does when the
-game was started with MACOBLOX_ALLOW_DEBUGGER=1 (Settings -> Environment ->
+game was started with QUADRA_ALLOW_DEBUGGER=1 (Settings -> Environment ->
 allow freeze diagnostics). Without that only the CPU timeline is recorded.
 Each stop lasts about a tenth of a millisecond, at most three threads per
 tenth of a second.
@@ -955,7 +955,7 @@ def cli(argv):
     stacks = capture(pid, path, interval=arguments.interval, trace=not arguments.no_stacks,
                      stop=lambda: bool(stopping), servers=core._darlingservers())
     if not stacks and not arguments.no_stacks:
-        print("Stacks were not readable: start the game with MACOBLOX_ALLOW_DEBUGGER=1 "
+        print("Stacks were not readable: start the game with QUADRA_ALLOW_DEBUGGER=1 "
               "(Settings -> Environment -> allow freeze diagnostics).", file=sys.stderr)
     text = report(path, arguments.log, **options)
     path.with_suffix(".txt").write_text(text)

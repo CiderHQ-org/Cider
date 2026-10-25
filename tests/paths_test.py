@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from macoblox import paths
+from quadra import paths
 
 
 class UserDirectoryMigrationTests(unittest.TestCase):
@@ -59,3 +59,22 @@ class UserDirectoryMigrationTests(unittest.TestCase):
         self.assertEqual(result, cider)
         self.assertEqual((cider / 'settings.json').read_text(), 'current settings')
         self.assertEqual((older / 'settings.json').read_text(), 'older settings')
+
+
+class EnvironmentMigrationTests(unittest.TestCase):
+    def test_variables_set_before_the_rename_are_still_read(self):
+        environment = {'MACOBLOX_TRACE_KEYS': '1', 'MACOBLOX_WAYLAND': '0', 'HOME': '/home/user'}
+        paths.migrate_environment(environment)
+        self.assertEqual(environment['QUADRA_TRACE_KEYS'], '1')
+        self.assertEqual(environment['QUADRA_WAYLAND'], '0')
+        self.assertEqual(environment['MACOBLOX_TRACE_KEYS'], '1')
+
+    def test_a_variable_that_is_already_renamed_wins(self):
+        environment = {'MACOBLOX_WAYLAND': '0', 'QUADRA_WAYLAND': '1'}
+        paths.migrate_environment(environment)
+        self.assertEqual(environment['QUADRA_WAYLAND'], '1')
+
+    def test_metal_variables_keep_their_names_for_the_metal_runtime(self):
+        environment = {'MACOBLOX_METAL': '1', 'MACOBLOX_METAL_SHADER_CACHE': '/cache'}
+        paths.migrate_environment(environment)
+        self.assertEqual(sorted(environment), ['MACOBLOX_METAL', 'MACOBLOX_METAL_SHADER_CACHE'])

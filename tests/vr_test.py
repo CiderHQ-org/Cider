@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from macoblox import core, vr
+from quadra import core, vr
 
 
 def manifest(directory, name, library):
@@ -83,8 +83,8 @@ class ShimVariableTests(unittest.TestCase):
                 patch.object(vr, "active_runtime", return_value=runtime), \
                 patch.object(vr, "runtime_name", return_value="WiVRn"):
             variables, line = vr.shim_variables({"vr": True, "vr_render_scale": 85, "vr_mirror": False})
-        self.assertEqual(variables, ["MACOBLOX_VR=openxr-headset", "MACOBLOX_VR_SCALE=85",
-                                     f"MACOBLOX_XR_RUNTIME_JSON={runtime}"])
+        self.assertEqual(variables, ["QUADRA_VR=openxr-headset", "QUADRA_VR_SCALE=85",
+                                     f"QUADRA_XR_RUNTIME_JSON={runtime}"])
         self.assertIn("WiVRn", line)
         self.assertIn("headset only", line)
 

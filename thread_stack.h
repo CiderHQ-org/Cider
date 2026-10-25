@@ -1,5 +1,5 @@
-#ifndef MACOBLOX_THREAD_STACK_H
-#define MACOBLOX_THREAD_STACK_H
+#ifndef QUADRA_THREAD_STACK_H
+#define QUADRA_THREAD_STACK_H
 
 typedef struct { long opaque[8]; } darwin_pthread_attr_t;
 extern int pthread_attr_setstacksize(darwin_pthread_attr_t *, unsigned long);
@@ -9,7 +9,7 @@ extern int pthread_attr_getstackaddr(const darwin_pthread_attr_t *, void **);
 
 /* Darwin attributes contain their settings directly. Keep the caller's
  * const value intact, including when it is shared or in read-only memory. */
-static int macoblox_larger_stack_attributes(const darwin_pthread_attr_t *attr,
+static int quadra_larger_stack_attributes(const darwin_pthread_attr_t *attr,
                                            darwin_pthread_attr_t *copy) {
     void *address = 0;
     unsigned long size = 0;

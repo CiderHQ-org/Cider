@@ -118,8 +118,8 @@ int main(void) {
     for(int i=0;i<30;i++){[[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:.01]];pump(app);}
     CHECK([window makeFirstResponder:view]);
     struct ElfHead **elf=dlsym((void *)-2,"_elfcalls");CHECK(elf && *elf);
-    void *host=(*elf)->open(getenv("MACOBLOX_WAYLAND_HELPER"),2);CHECK(host);
-    void (*inject)(unsigned,int)=(*elf)->symbol(host,"macoblox_wayland_keyboard_fixture");CHECK(inject);
+    void *host=(*elf)->open(getenv("QUADRA_WAYLAND_HELPER"),2);CHECK(host);
+    void (*inject)(unsigned,int)=(*elf)->symbol(host,"quadra_wayland_keyboard_fixture");CHECK(inject);
     unsigned handle=[[window platformWindow] windowHandle];CHECK(handle);
     inject(handle,1);pump(app);
     CHECK([[view string] isEqual:@"a"] && insertions==1 && physical_downs==1);
@@ -202,10 +202,10 @@ int main(void) {
     inject(handle,22);pump(app);CHECK(motion_kind==6 && motion_button==0);
     inject(handle,23);pump(app);CHECK(motion_kind==5);
     puts("PASS: real AppKit captured RMB+LMB keeps right-drag deltas and both release orders restore ordinary motion");
-    int (*captured)(void)=dlsym((void *)-2,"macoblox_wayland_captured");CHECK(captured);
+    int (*captured)(void)=dlsym((void *)-2,"quadra_wayland_captured");CHECK(captured);
     int width,height;double hz;
-    const struct macoblox_wayland_api *(*host_api)(void)=(*elf)->symbol(host,"macoblox_wayland_host_api");
-    CHECK(host_api);const struct macoblox_wayland_api *api=host_api();api->screen(&width,&height,&hz);
+    const struct quadra_wayland_api *(*host_api)(void)=(*elf)->symbol(host,"quadra_wayland_host_api");
+    CHECK(host_api);const struct quadra_wayland_api *api=host_api();api->screen(&width,&height,&hz);
     // Lock and warp before polling the capture acknowledgement, then let the
     // event queue settle. Old motion must not replace the requested center.
     CHECK(!CGAssociateMouseAndMouseCursorPosition(0));

@@ -33,7 +33,7 @@ static std::vector<unsigned char> packet(uint32_t count = 1) {
     return result;
 }
 int main() {
-    char temporary[] = "/tmp/macoblox-metal-adapter-XXXXXX";
+    char temporary[] = "/tmp/quadra-metal-adapter-XXXXXX";
     const char *directory = mkdtemp(temporary);
     assert(directory);
     setenv("MACOBLOX_METAL_SHADER_CACHE", directory, 1);

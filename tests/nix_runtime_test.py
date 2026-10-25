@@ -41,7 +41,7 @@ class NixRuntimeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             library = root / 'noroot.so'
-            subprocess.run(['clang', '-shared', '-fPIC', '-O2', '-DMACOBLOX_NIX_STORE',
+            subprocess.run(['clang', '-shared', '-fPIC', '-O2', '-DQUADRA_NIX_STORE',
                             str(source), '-ldl', '-o', str(library)], check=True, capture_output=True)
             probe = root / 'permissions.c'
             probe.write_text('''

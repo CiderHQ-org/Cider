@@ -6,6 +6,131 @@ LANGUAGES = {"en": "English", "ru": "Русский"}
 _language = "en"
 
 RU = {
+    # Roblox Studio section
+    "The Studio channel {channel} does not exist or is not open to this account":
+        "Канала Studio {channel} не существует, или он недоступен этой учётной записи",
+    "Idling":
+        "Бездействует",
+    "Developing {name}":
+        "Разрабатывает {name}",
+    "Developing a place":
+        "Разрабатывает плейс",
+    "Editing a script":
+        "Редактирует скрипт",
+    "Microsoft has no WebView2 runtime {version}":
+        "У Microsoft нет среды WebView2 версии {version}",
+    "Installing WebView2 {version}":
+        "Установка WebView2 {version}",
+    "Removing WebView2 {version}":
+        "Удаление WebView2 {version}",
+    "WebView2 {version} did not install":
+        "WebView2 {version} не удалось установить",
+    "The WebView2 download failed its checksum":
+        "Загрузка WebView2 не прошла проверку контрольной суммы",
+    "Remove all Studio flags":
+        "Удалить все флаги Studio",
+    "All Studio flags have been removed":
+        "Все флаги Studio удалены",
+    "Wine and updates":
+        "Wine и обновления",
+    "Launch Roblox Studio":
+        "Запустить Roblox Studio",
+    "Studio's sign-in, Toolbox and Creator Hub pages need it. Installed on the next start.":
+        "Нужен для входа в Studio, Toolbox и страниц Creator Hub. Устанавливается при следующем запуске.",
+    "Discord presence":
+        "Статус в Discord",
+    "Shows the place you are building and whether you are editing a script.":
+        "Показывает, над каким плейсом вы работаете и редактируете ли вы скрипт.",
+    "Follow the system theme":
+        "Следовать системной теме",
+    "Light or dark, like the rest of your desktop. Applies on the next start.":
+        "Светлая или тёмная, как и остальной рабочий стол. Применяется при следующем запуске.",
+    "Back up sign-in and settings":
+        "Сохранять вход и настройки",
+    "Keeps them outside Wine's prefix, so recreating the prefix does not sign you out.":
+        "Хранит их вне префикса Wine: пересоздание префикса не выйдет из вашей учётной записи.",
+    "DXVK (recommended)":
+        "DXVK (рекомендуется)",
+    "DXVK-Sarek (older graphics cards)":
+        "DXVK-Sarek (для старых видеокарт)",
+    "Wine's Direct3D (OpenGL)":
+        "Direct3D из Wine (OpenGL)",
+    "Wine's Direct3D, feature level 10 (OpenGL)":
+        "Direct3D из Wine, уровень функций 10 (OpenGL)",
+    "Asks Feral GameMode to tune your system while Studio runs, if it is installed.":
+        "Просит Feral GameMode оптимизировать систему, пока работает Studio, если он установлен.",
+    "Wine folder of your own":
+        "Собственная папка Wine",
+    "That folder has no bin/wine":
+        "В этой папке нет bin/wine",
+    "Stay on version":
+        "Оставаться на версии",
+    "A Studio version looks like version-0123456789abcdef":
+        "Версия Studio выглядит так: version-0123456789abcdef",
+    "Channel":
+        "Канал",
+    "A channel name has letters, digits, . _ - only":
+        "Имя канала может содержать только буквы, цифры и символы . _ -",
+    "Newest stable":
+        "Новейшая стабильная",
+    "Studio flags":
+        "Флаги Studio",
+    "Studio only applies flags from Roblox's allowlist. The renderer chosen under Graphics sets the graphics flags and wins over these.":
+        "Studio применяет только флаги из списка разрешённых Roblox. Графические флаги задаёт режим отрисовки с вкладки «Графика»; он главнее этих.",
+    "Import Studio flags":
+        "Импорт флагов Studio",
+    "Export Studio flags":
+        "Экспорт флагов Studio",
+    "Copy the flags to the clipboard.":
+        "Скопировать флаги в буфер обмена.",
+    "The Windows version of Studio, run through Wine. Quadra keeps Wine and Studio up to date when you start it.":
+        "Windows-версия Studio, запущенная через Wine. Quadra обновляет Wine и Studio при запуске.",
+    "Behavior":
+        "Поведение",
+    "Files":
+        "Файлы",
+    "Overlay folder":
+        "Папка наложения",
+    "Files here are copied over Studio's own at every start, such as cursors or sounds.":
+        "Файлы отсюда копируются поверх файлов Studio при каждом запуске, например курсоры или звуки.",
+    "Studio's output, newest ten starts.":
+        "Вывод Studio, последние десять запусков.",
+    "Studio folder":
+        "Папка Studio",
+    "Wine, its prefix and Studio itself.":
+        "Wine, его префикс и сама Studio.",
+    "Rendering":
+        "Отрисовка",
+    "Applies the next time Studio starts. DXVK draws Direct3D 11 through Vulkan.":
+        "Применяется при следующем запуске Studio. DXVK рисует Direct3D 11 через Vulkan.",
+    "The Vulkan fix is not built":
+        "Исправление для Vulkan не собрано",
+    "Studio's Vulkan renderer needs a small Vulkan layer that is built with the shim, which needs the Vulkan development headers. Rebuild the shim after installing them.":
+        "Для режима Vulkan в Studio нужен небольшой слой Vulkan, который собирается вместе с шимом и требует заголовков разработки Vulkan. Пересоберите шим после их установки.",
+    "Performance":
+        "Производительность",
+    "Studio runs on Kombucha, the Wine build Vinegar patches for Studio. It is updated when you start Studio, unless you choose a release.":
+        "Studio работает на Kombucha, сборке Wine, которую Vinegar дорабатывает для Studio. Она обновляется при запуске Studio, если вы не выбрали конкретный выпуск.",
+    "Kombucha release":
+        "Выпуск Kombucha",
+    "Recommended: the newest stable one, as Vinegar publishes it.":
+        "Рекомендуется: новейший стабильный выпуск от Vinegar.",
+    "Studio version":
+        "Версия Studio",
+    "Leave both empty to follow the newest Studio on your account's channel. A version looks like version-0123456789abcdef; channels are Roblox's, such as zintegration.":
+        "Оставьте оба поля пустыми, чтобы следовать новейшей Studio на канале вашей учётной записи. Версия выглядит как version-0123456789abcdef; каналы задаёт Roblox, например zintegration.",
+    "Applies on next launch. Automatic keeps your desktop's GPU selection.":
+        "Применяется при следующем запуске. «Автоматически» сохраняет выбор GPU вашего рабочего стола.",
+    "Could not list the releases: {error}":
+        "Не удалось получить список выпусков: {error}",
+    "Not installed yet":
+        "Ещё не установлено",
+    "Your own: {path}":
+        "Своя: {path}",
+    "Could not open the folder":
+        "Не удалось открыть папку",
+    "may break Studio":
+        "может сломать Studio",
     "Prepare client shader libraries": "Подготовка библиотек шейдеров клиента",
     "Quadra M2VK: prepare installed shader libraries before playing, including the first launch.":
         "Quadra M2VK: подготовка установленных библиотек шейдеров перед игрой, включая первый запуск.",
@@ -230,9 +355,9 @@ RU = {
     "Roblox Studio is already running": "Roblox Studio уже запущен",
     "Install Roblox Studio?": "Установить Roblox Studio?",
     "Studio runs in its Windows version through Wine. Quadra downloads Wine, "
-    "DXVK and Studio, about 800 MB.":
+    "DXVK, Microsoft's WebView2 and Studio, about 800 MB.":
         "Studio запускается в Windows-версии через Wine. Quadra скачает Wine, "
-        "DXVK и Studio, это около 800 МБ.",
+        "DXVK, Microsoft WebView2 и Studio, это около 800 МБ.",
     "Install": "Установить",
     "Could not start Roblox Studio": "Не удалось запустить Roblox Studio",
     "Starting Roblox Studio…": "Запускаю Roblox Studio…",
@@ -540,9 +665,9 @@ RU = {
     "Graphics": "Графика",
     "Threads": "Потоки",
     "Watchdog thread kicks": "Пробуждение зависших потоков",
-    "MACOBLOX_KICK. Interrupts threads stuck in long waits. Off by default: "
+    "QUADRA_KICK. Interrupts threads stuck in long waits. Off by default: "
     "each kick costs time. Applies on next launch.":
-        "MACOBLOX_KICK. Прерывает потоки, надолго застрявшие в ожидании. По умолчанию выключено: "
+        "QUADRA_KICK. Прерывает потоки, надолго застрявшие в ожидании. По умолчанию выключено: "
         "каждое прерывание стоит времени. Применяется при следующем запуске.",
     "Record runtime trace": "Записывать трассировку среды",
     "CIDER_TRACE_FILE. Numeric timings, no game text, in a private file in the logs "
@@ -562,9 +687,9 @@ RU = {
     # Diagnostics archive
     "Collect diagnostics": "Собрать диагностику",
     "Allow freeze diagnostics": "Разрешить диагностику зависаний",
-    "MACOBLOX_ALLOW_DEBUGGER. Lets Collect diagnostics read the game's thread stacks; "
+    "QUADRA_ALLOW_DEBUGGER. Lets Collect diagnostics read the game's thread stacks; "
     "turn on before starting the game.":
-        "MACOBLOX_ALLOW_DEBUGGER. Позволяет сбору диагностики читать стеки потоков игры; "
+        "QUADRA_ALLOW_DEBUGGER. Позволяет сбору диагностики читать стеки потоков игры; "
         "включите до запуска игры.",
     "Diagnostics are being collected…": "Диагностика уже собирается…",
     "Collecting diagnostics… This can take up to a minute.": "Сбор диагностики… Это может занять до минуты.",

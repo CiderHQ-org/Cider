@@ -10,11 +10,11 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "launcher"))
 # Suppress unrelated startup update/avatar workers in this UI fixture.
 threading.Thread.start = lambda self: None
-from macoblox import app, core, graphics
+from quadra import app, core, graphics
 from gi.repository import Adw, Gio
 
 saved, pending, errors = [], [], []
-application = Adw.Application(application_id="wtf.aubree.MacOBlox.RendererTest",
+application = Adw.Application(application_id="org.quadrahq.Quadra.RendererTest",
                               flags=Gio.ApplicationFlags.NON_UNIQUE)
 application.register(None)
 

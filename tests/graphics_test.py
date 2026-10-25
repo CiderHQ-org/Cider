@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from macoblox import core, graphics
+from quadra import core, graphics
 from session_fixture import bare_session
 
 
@@ -365,7 +365,7 @@ class GraphicsTests(unittest.TestCase):
         # Off is explicit: an overlay inherited from the desktop or an earlier
         # Darling session must not turn itself on.
         self.assertFalse(core.DEFAULT_SETTINGS["mangohud"])
-        off = {"MANGOHUD": "0", "MACOBLOX_MANGOHUD_OPENGL": ""}
+        off = {"MANGOHUD": "0", "QUADRA_MANGOHUD_OPENGL": ""}
         for inherited in ({}, {"MANGOHUD": "1", "MANGOHUD_CONFIG": "fps"}):
             with self.subTest(inherited=inherited), patch.dict(graphics.os.environ, inherited, clear=True):
                 self.assertEqual(graphics.mangohud_environment("opengl"), off)
@@ -378,7 +378,7 @@ class GraphicsTests(unittest.TestCase):
                 patch.object(graphics.Path, "is_file", return_value=True):
             env = graphics.mangohud_environment("opengl", True)
         self.assertEqual(env["MANGOHUD"], "1")
-        self.assertTrue(env["MACOBLOX_MANGOHUD_OPENGL"].endswith("libMangoHud_opengl.so"))
+        self.assertTrue(env["QUADRA_MANGOHUD_OPENGL"].endswith("libMangoHud_opengl.so"))
         self.assertEqual(env["MANGOHUD_CONFIG"], settings["MANGOHUD_CONFIG"])
         self.assertEqual(env["MANGOHUD_CONFIGFILE"], settings["MANGOHUD_CONFIGFILE"])
         self.assertNotIn("LD_PRELOAD", env)
@@ -387,7 +387,7 @@ class GraphicsTests(unittest.TestCase):
         with patch.dict(graphics.os.environ, {}, clear=True), \
                 patch.object(graphics.Path, "is_file", return_value=False):
             self.assertEqual(graphics.mangohud_environment("vulkan", True),
-                             {"MANGOHUD": "1", "MACOBLOX_MANGOHUD_OPENGL": ""})
+                             {"MANGOHUD": "1", "QUADRA_MANGOHUD_OPENGL": ""})
             with self.assertRaisesRegex(RuntimeError, "Install MangoHud or turn it off"):
                 graphics.mangohud_environment("opengl", True)
 
@@ -401,7 +401,7 @@ class GraphicsTests(unittest.TestCase):
                 patch.object(core, "icon_argb_file", side_effect=OSError):
             host = session.environment()
             guest = dict(item.split("=", 1) for item in session.shim_variables())
-        for name in ("MANGOHUD", "MACOBLOX_MANGOHUD_OPENGL"):
+        for name in ("MANGOHUD", "QUADRA_MANGOHUD_OPENGL"):
             self.assertEqual(host[name], guest[name])
         self.assertEqual(guest["MANGOHUD"], "1")
 

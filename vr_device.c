@@ -18,13 +18,13 @@
  * state the engine reads (getState copies it from the object), while Quadra's
  * methods fill that state from OpenXR and submit the eyes (vr_xr.c).
  *
- *   MACOBLOX_VR=openxr  present on the host OpenXR runtime (WiVRn, Monado...)
+ *   QUADRA_VR=openxr  present on the host OpenXR runtime (WiVRn, Monado...)
  *                       and mirror both eyes into the game window
- *   MACOBLOX_VR=openxr-headset  the headset only; the window is not presented
+ *   QUADRA_VR=openxr-headset  the headset only; the window is not presented
  *   ...-lag0            (development) submit the views the frame opened with,
  *                       instead of the previous frame's (see vr_xr.c)
- *   MACOBLOX_VR=1       emulated head only, eyes mirrored into the window
- *   MACOBLOX_VR=debug   also the client's own emulator mirror
+ *   QUADRA_VR=1       emulated head only, eyes mirrored into the window
+ *   QUADRA_VR=debug   also the client's own emulator mirror
  *                       (FFlagDebugEnableVREmulator)
  *
  * Classes are found by their RTTI names, and every patched function must
@@ -495,8 +495,8 @@ static int vr_prepare_host(void) {
     if (!host_getenv || !host_setenv || !host_getuid || !host_access || !vr_egl_get_current_display ||
         !vr_egl_get_current_context || !vr_egl_get_proc_address || !vr_egl_query_context || !vr_egl_choose_config)
         return 0;
-    /* The launcher finds the host's active runtime (launcher/macoblox/vr.py). */
-    const char *runtime = getenv("MACOBLOX_XR_RUNTIME_JSON");
+    /* The launcher finds the host's active runtime (launcher/quadra/vr.py). */
+    const char *runtime = getenv("QUADRA_XR_RUNTIME_JSON");
     if (runtime && *runtime) host_setenv("XR_RUNTIME_JSON", runtime, 1);
     char directory[64];
     snprintf(directory, sizeof directory, "/run/user/%u", host_getuid());
@@ -757,7 +757,7 @@ static int vr_patch_slot(const VrImage *image, void **slot, void *replacement) {
 
 __attribute__((constructor)) static void vr_install(void) {
     char mode[16] = {0};
-    const char *requested = getenv("MACOBLOX_VR"); /* from the launcher's VR setting */
+    const char *requested = getenv("QUADRA_VR"); /* from the launcher's VR setting */
     if (!requested) return;
     unsigned long length = strlen(requested);
     if (length >= sizeof mode) return;
@@ -771,15 +771,15 @@ __attribute__((constructor)) static void vr_install(void) {
     if (!debug && !vr_openxr && !vr_bytes((const unsigned char *)mode, (const unsigned char *)"1", 2)) return;
     VrImage image = {0};
     if (!vr_image(&image)) return; /* not RobloxPlayer */
-    const char *size = getenv("MACOBLOX_VR_EYE_SIZE");
+    const char *size = getenv("QUADRA_VR_EYE_SIZE");
     if (size) {
         int value = 0;
         for (const char *digit = size; *digit >= '0' && *digit <= '9' && value < 100000; ++digit)
             value = value * 10 + (*digit - '0');
         if (value >= 256 && value <= 4096) vr_eye_size = value;
     }
-    /* MACOBLOX_VR_SCALE: percent of the headset's recommended eye size. */
-    const char *scale = getenv("MACOBLOX_VR_SCALE");
+    /* QUADRA_VR_SCALE: percent of the headset's recommended eye size. */
+    const char *scale = getenv("QUADRA_VR_SCALE");
     int percent = 70;
     if (scale) {
         int value = 0;
@@ -788,7 +788,7 @@ __attribute__((constructor)) static void vr_install(void) {
         if (value >= 25 && value <= 200) percent = value;
     }
     vr_xr_set_render_scale(percent / 100.0f);
-    const char *follow = getenv("MACOBLOX_VR_FOLLOW_RATE");
+    const char *follow = getenv("QUADRA_VR_FOLLOW_RATE");
     vr_xr_follow_requested_rate(follow && follow[0] == '1');
     vr_gl_vtable = vr_rtti_vtable(&image, "N3RBX8Graphics8DeviceGLE");
     vr_debug_vtable = vr_rtti_vtable(&image, "N3RBX8Graphics13DebugDeviceVRE");

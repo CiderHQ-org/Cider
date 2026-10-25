@@ -15,7 +15,7 @@ buildFHSEnv (
       export XDG_CACHE_HOME="$test_root/cache"
       export XDG_DATA_HOME="$test_root/data"
       export DPREFIX="$test_root/prefix"
-      export MACOBLOX_PID1_DYLIB=${quadrahq.payload}/lib/quadrahq/launchd_pid1.dylib
+      export QUADRA_PID1_DYLIB=${quadrahq.payload}/lib/quadrahq/launchd_pid1.dylib
       export LIBGL_ALWAYS_SOFTWARE=1
       command=(env LD_PRELOAD=${quadrahq.payload}/lib/quadrahq/darling-noroot.so /usr/bin/darling)
       cleanup() {

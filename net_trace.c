@@ -19,10 +19,10 @@
  *
  * A watchdog thread (every 100 ms) also reports reader threads that leave
  * queued datagrams unread (see check_stalls) and mutex waits that take too
- * long, and with MACOBLOX_KICK=1 kicks them (thread_kick.c).
+ * long, and with QUADRA_KICK=1 kicks them (thread_kick.c).
  *
- * MACOBLOX_TRACE_UDP=1 also prints socket activity every two seconds;
- * MACOBLOX_TRACE_UDP=2 also logs the first 6000 UDP packets one by one (time,
+ * QUADRA_TRACE_UDP=1 also prints socket activity every two seconds;
+ * QUADRA_TRACE_UDP=2 also logs the first 6000 UDP packets one by one (time,
  * size, peer), to see where a handshake waits. */
 typedef unsigned int socklen_t;
 typedef long ssize_t;
@@ -53,13 +53,13 @@ static int enabled = -1;
 static volatile long udp_recv_calls, udp_recv_ok, udp_recv_bytes, udp_recv_eagain;
 static volatile long udp_send_calls, udp_send_ok, udp_send_fail;
 static volatile long poll_calls, kevent_calls;
-extern long macoblox_thread_id(void);
-extern int macoblox_kick(long, int);
-extern int macoblox_located(long, char *, size_t);
-extern void macoblox_kick_stuck_waiters(unsigned long long);
-extern int macoblox_kicks_enabled(void);
-extern long macoblox_lock_kick_count(void);
-extern void macoblox_sleep_us(unsigned int);
+extern long quadra_thread_id(void);
+extern int quadra_kick(long, int);
+extern int quadra_located(long, char *, size_t);
+extern void quadra_kick_stuck_waiters(unsigned long long);
+extern int quadra_kicks_enabled(void);
+extern long quadra_lock_kick_count(void);
+extern void quadra_sleep_us(unsigned int);
 static volatile long reader_tid[1024];
 static volatile unsigned long long last_read_time[1024];
 static volatile long synthesized_events;
@@ -68,7 +68,7 @@ static volatile int last_send_errno;
 
 static int trace_enabled(void) {
     if (enabled < 0) {
-        const char *value = getenv("MACOBLOX_TRACE_UDP");
+        const char *value = getenv("QUADRA_TRACE_UDP");
         enabled = value && value[0] && value[0] != '0' ? (value[0] == '2' ? 2 : 1) : 0;
     }
     return enabled;
@@ -218,7 +218,7 @@ static void check_stalls(unsigned long long now) {
         }
         if (stall_since[fd]) {
             char where[1200], line[1400];
-            if (stall_locating[fd] && macoblox_located(stall_tid[fd], where, sizeof where)) {
+            if (stall_locating[fd] && quadra_located(stall_tid[fd], where, sizeof where)) {
                 stall_locating[fd] = 0;
                 say(line, sizeof line,
                     snprintf(line, sizeof line, "[Quadra UDP] fd=%d reader thread was at: %s\n", fd, where));
@@ -228,14 +228,14 @@ static void check_stalls(unsigned long long now) {
                     snprintf(line, sizeof line,
                              "[Quadra UDP] fd=%d read again ~%llu ms after its data came (%d kick(s))\n", fd,
                              last > pending_since[fd] ? (last - pending_since[fd]) / 1000000ULL : 0ULL,
-                             macoblox_kicks_enabled() ? stall_kicks[fd] : 0));
+                             quadra_kicks_enabled() ? stall_kicks[fd] : 0));
                 stall_since[fd] = 0;
                 stall_locating[fd] = 0;
                 pending_since[fd] = 0;
                 continue;
             }
             if (stall_kicks[fd] < STALL_KICKS && now >= stall_next_kick[fd] && now - last <= STALL_MAX_NS) {
-                macoblox_kick(stall_tid[fd], 0);
+                quadra_kick(stall_tid[fd], 0);
                 stall_next_kick[fd] = now + (STALL_NS << stall_kicks[fd]);
                 stall_kicks[fd]++;
             }
@@ -268,8 +268,8 @@ static void check_stalls(unsigned long long now) {
             snprintf(line, sizeof line,
                      "[Quadra UDP] STALL fd=%d: data unread for %llu ms (last read %llu ms ago), %s thread %ld\n",
                      fd, (now - pending_since[fd]) / 1000000ULL, (now - last) / 1000000ULL,
-                     macoblox_kicks_enabled() ? "kicking" : "not kicking (MACOBLOX_KICK=1 enables)", stall_tid[fd]));
-        macoblox_kick(stall_tid[fd], stall_locating[fd]);
+                     quadra_kicks_enabled() ? "kicking" : "not kicking (QUADRA_KICK=1 enables)", stall_tid[fd]));
+        quadra_kick(stall_tid[fd], stall_locating[fd]);
     }
 }
 
@@ -277,10 +277,10 @@ static void *watchdog(void *unused) {
     (void)unused;
     long previous[9] = {0};
     for (unsigned long tick = 1;; tick++) {
-        macoblox_sleep_us(WATCHDOG_TICK_US); /* not usleep: see darling_fixes.c */
+        quadra_sleep_us(WATCHDOG_TICK_US); /* not usleep: see darling_fixes.c */
         unsigned long long now = mach_absolute_time();
         check_stalls(now);
-        macoblox_kick_stuck_waiters(now);
+        quadra_kick_stuck_waiters(now);
         if (!trace_enabled() || tick % 20)
             continue;
         long current[9] = {udp_recv_calls, udp_recv_ok, udp_recv_bytes, udp_recv_eagain,
@@ -293,7 +293,7 @@ static void *watchdog(void *unused) {
             tick / 10, current[0] - previous[0], current[1] - previous[1], current[2] - previous[2],
             current[3] - previous[3], current[4] - previous[4], current[5] - previous[5],
             current[6] - previous[6], last_send_errno, current[7] - previous[7], current[8] - previous[8],
-            synthesized_events, emulated_blocking_receives, stalls_seen, macoblox_lock_kick_count());
+            synthesized_events, emulated_blocking_receives, stalls_seen, quadra_lock_kick_count());
         if (length > 0)
             write(2, line, (size_t)length);
         for (int index = 0; index < 9; index++)
@@ -314,7 +314,7 @@ static void count_receive(int fd, ssize_t result) {
     if (trace_enabled())
         __sync_add_and_fetch(&udp_recv_calls, 1);
     if (fd >= 0 && fd < 1024) {
-        reader_tid[fd] = macoblox_thread_id();
+        reader_tid[fd] = quadra_thread_id();
         if (result > 0)
             last_read_time[fd] = mach_absolute_time();
     }
@@ -389,7 +389,7 @@ static int emulate_blocking(int fd, int flags, long long *timeout_ns) {
  * game join). Pass the Linux layout with the padding cleared instead. */
 extern int setsockopt(int, int, int, const void *, socklen_t);
 
-static int macoblox_setsockopt(int fd, int level, int name, const void *value, socklen_t length) {
+static int quadra_setsockopt(int fd, int level, int name, const void *value, socklen_t length) {
     if (level == 0xffff /* SOL_SOCKET */ && (name == 0x1005 /* SO_SNDTIMEO */ || name == 0x1006 /* SO_RCVTIMEO */) &&
         value && length == sizeof(struct darwin_timeval)) {
         const struct darwin_timeval *timeout = value;
@@ -398,7 +398,7 @@ static int macoblox_setsockopt(int fd, int level, int name, const void *value, s
     }
     return setsockopt(fd, level, name, value, length);
 }
-DYLD_INTERPOSE(macoblox_setsockopt, setsockopt)
+DYLD_INTERPOSE(quadra_setsockopt, setsockopt)
 
 static ssize_t traced_recvfrom(int fd, void *buffer, size_t size, int flags, void *from,
                                socklen_t *from_length) {
@@ -590,9 +590,9 @@ static volatile int watched_count;
 static volatile long synthesized_by_fd[1024];
 
 static void lock_watched(void) {
-    macoblox_lock(&watched_lock);
+    quadra_lock(&watched_lock);
 }
-static void unlock_watched(void) { macoblox_unlock(&watched_lock); }
+static void unlock_watched(void) { quadra_unlock(&watched_lock); }
 
 static void drop_watch(int slot) { /* with the lock held */
     watched[slot].fd = 0;
@@ -663,17 +663,17 @@ static void forget_fd(int fd) {
 extern int close(int);
 extern int close_nocancel(int) __asm__("_close$NOCANCEL");
 
-static int macoblox_close(int fd) {
+static int quadra_close(int fd) {
     forget_fd(fd);
     return close(fd);
 }
-DYLD_INTERPOSE(macoblox_close, close)
+DYLD_INTERPOSE(quadra_close, close)
 
-static int macoblox_close_nocancel(int fd) {
+static int quadra_close_nocancel(int fd) {
     forget_fd(fd);
     return close_nocancel(fd);
 }
-DYLD_INTERPOSE(macoblox_close_nocancel, close_nocancel)
+DYLD_INTERPOSE(quadra_close_nocancel, close_nocancel)
 
 /* Read events for watched UDP sockets of this queue that have data waiting,
  * up to `capacity`, written to `found` (not to the caller's array: that may
@@ -754,7 +754,7 @@ static int queue_has_watched(int queue) {
     return found;
 }
 
-/* MACOBLOX_KEVENT_POLL_MS=N (milliseconds; the launcher sets 100, 0 or unset is off): a kevent() wait by one of
+/* QUADRA_KEVENT_POLL_MS=N (milliseconds; the launcher sets 100, 0 or unset is off): a kevent() wait by one of
  * Roblox's I/O loop threads (named "RBX IoEvLoop ...", the only threads seen making timed waits over 100 ms) on a
  * kqueue without watched UDP sockets that would last longer than N ms returns after N ms with no events, which
  * is what a timeout looks like, so the loops (up to 10 s per wait) look at their queues every N ms instead of
@@ -764,7 +764,7 @@ static int queue_has_watched(int queue) {
 static long kevent_poll_ms(void) {
     static long cap = -1;
     if (cap < 0) {
-        const char *value = getenv("MACOBLOX_KEVENT_POLL_MS");
+        const char *value = getenv("QUADRA_KEVENT_POLL_MS");
         long parsed = 0;
         for (; value && *value >= '0' && *value <= '9'; value++)
             parsed = parsed * 10 + (*value - '0');

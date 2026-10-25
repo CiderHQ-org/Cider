@@ -68,30 +68,30 @@ static void check_restored(void) {
            unpack[2] == 10 && unpack[3] == 11);
 }
 int main(void) {
-    macoblox_CATexImage2DCGImage(0);
+    quadra_CATexImage2DCGImage(0);
     assert(uploaded_width == 1 && uploaded_height == 1 && !copy_calls);
     assert(!memcmp(copied_pixels, "\0\0\0\0", 4));
     check_restored();
     for(int i = 0; i < 24; ++i) image_bytes[i] = (unsigned char)i;
-    macoblox_CATexImage2DCGImage((void *)1);
+    quadra_CATexImage2DCGImage((void *)1);
     assert(copy_calls == 1 && releases == 1 && !draws && uploaded_format == 0x80E1);
     assert(!memcmp(copied_pixels, image_bytes, 8));
     assert(!memcmp(copied_pixels + 8, image_bytes + 12, 8));
     check_restored();
     data_length = 19;
-    macoblox_CATexImage2DCGImage((void *)1);
+    quadra_CATexImage2DCGImage((void *)1);
     assert(releases == 2 && !draws && uploaded_width == 1);
     check_restored();
     provider_present = 0;
-    macoblox_CATexImage2DCGImage((void *)1);
+    quadra_CATexImage2DCGImage((void *)1);
     assert(copy_calls == 2 && draws == 1 && uploaded_width == 2);
     check_restored();
     provider_present = 1; bits = 8;
-    macoblox_CATexImage2DCGImage((void *)1);
+    quadra_CATexImage2DCGImage((void *)1);
     assert(copy_calls == 2 && draws == 2);
     check_restored();
     width = ~0UL;
-    macoblox_CATexImage2DCGImage((void *)1);
+    quadra_CATexImage2DCGImage((void *)1);
     assert(uploaded_width == 1 && draws == 2);
     check_restored();
     puts("layer image upload tests passed");

@@ -6,7 +6,7 @@ import time
 import unittest
 from unittest.mock import patch
 
-from macoblox import uri
+from quadra import uri
 
 
 class PendingUriTests(unittest.TestCase):

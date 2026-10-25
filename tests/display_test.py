@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from macoblox import core, display, graphics
+from quadra import core, display, graphics
 from session_fixture import bare_session
 
 
@@ -46,7 +46,7 @@ class DisplayTests(unittest.TestCase):
                         patch.object(core, "icon_argb_file", side_effect=OSError):
                     guest = dict(item.split("=", 1) for item in session.shim_variables())
                     host = session.environment()
-                self.assertEqual(guest["MACOBLOX_DPI_SCALE"], "1.250")
+                self.assertEqual(guest["QUADRA_DPI_SCALE"], "1.250")
                 self.assertNotIn("GDK_SCALE", host)
                 self.assertNotIn("QT_SCALE_FACTOR", host)
 
@@ -58,10 +58,10 @@ class DisplayTests(unittest.TestCase):
                 patch.object(core, "host_vram_bytes", return_value=0), \
                 patch.object(core, "icon_argb_file", side_effect=OSError):
             guest = dict(item.split("=", 1) for item in session.shim_variables())
-        self.assertEqual(guest["MACOBLOX_DPI_SCALE"], "1.000")
+        self.assertEqual(guest["QUADRA_DPI_SCALE"], "1.000")
 
     def test_texture_preset_does_not_disable_dpi(self):
-        tree = ast.parse((core.PROJECT / "launcher/macoblox/app.py").read_text())
+        tree = ast.parse((core.PROJECT / "launcher/quadra/app.py").read_text())
         presets = next(ast.literal_eval(node.value) for node in tree.body
                        if isinstance(node, ast.Assign) and any(
                            isinstance(target, ast.Name) and target.id == "PRESETS"
@@ -80,7 +80,7 @@ class DisplayTests(unittest.TestCase):
     def test_default_keeps_x11(self):
         with patch.dict(os.environ, {}, clear=True):
             self.assertEqual(display.window_environment({}, Path("missing")),
-                             {"MACOBLOX_WAYLAND": "0", "EGL_PLATFORM": "x11"})
+                             {"QUADRA_WAYLAND": "0", "EGL_PLATFORM": "x11"})
             self.assertEqual(core.DEFAULT_SETTINGS["display_backend"], "x11")
 
     def test_wayland_requires_session_and_helper(self):
@@ -95,10 +95,10 @@ class DisplayTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             helper = Path(directory) / "helper.so"
             helper.touch()
-            with patch.dict(os.environ, {"WAYLAND_DISPLAY": "wayland-0", "MACOBLOX_WAYLAND": "1"}, clear=True):
+            with patch.dict(os.environ, {"WAYLAND_DISPLAY": "wayland-0", "QUADRA_WAYLAND": "1"}, clear=True):
                 values = display.window_environment({}, helper)
                 self.assertEqual(values["EGL_PLATFORM"], "wayland")
-                self.assertEqual(values["MACOBLOX_WAYLAND_HELPER"], str(helper))
+                self.assertEqual(values["QUADRA_WAYLAND_HELPER"], str(helper))
 
     def test_unknown_backend_is_rejected(self):
         with patch.dict(os.environ, {}, clear=True):

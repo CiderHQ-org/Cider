@@ -9,11 +9,11 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "launcher"))
 threading.Thread.start = lambda self: None
-from macoblox import app, core
+from quadra import app, core
 from gi.repository import Adw, Gio
 
 saved = []
-application = Adw.Application(application_id="wtf.aubree.MacOBlox.DpiTest",
+application = Adw.Application(application_id="org.quadrahq.Quadra.DpiTest",
                               flags=Gio.ApplicationFlags.NON_UNIQUE)
 application.register(None)
 

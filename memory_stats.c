@@ -107,21 +107,21 @@ static void fill(int flavor, int *info, natural_t count) {
     }
 }
 
-static kern_return_t macoblox_host_statistics64(host_t host, int flavor, int *info, natural_t *count) {
+static kern_return_t quadra_host_statistics64(host_t host, int flavor, int *info, natural_t *count) {
     kern_return_t result = host_statistics64(host, flavor, info, count);
     if (result == 0 && flavor == HOST_VM_INFO64 && count)
         fill(flavor, info, *count);
     return result;
 }
-DYLD_INTERPOSE(macoblox_host_statistics64, host_statistics64)
+DYLD_INTERPOSE(quadra_host_statistics64, host_statistics64)
 
-static kern_return_t macoblox_host_statistics(host_t host, int flavor, int *info, natural_t *count) {
+static kern_return_t quadra_host_statistics(host_t host, int flavor, int *info, natural_t *count) {
     kern_return_t result = host_statistics(host, flavor, info, count);
     if (result == 0 && flavor == HOST_VM_INFO && count)
         fill(flavor, info, *count);
     return result;
 }
-DYLD_INTERPOSE(macoblox_host_statistics, host_statistics)
+DYLD_INTERPOSE(quadra_host_statistics, host_statistics)
 
 /* Roblox's own memory ("Mem" in the performance stats) comes from
  * task_info(TASK_VM_INFO). Darling fills in the resident size but leaves
@@ -157,7 +157,7 @@ static int own_memory_kb(unsigned long long *anonymous, unsigned long long *swap
     return cached_anonymous != 0;
 }
 
-static kern_return_t macoblox_task_info(unsigned int task, int flavor, int *info, natural_t *count) {
+static kern_return_t quadra_task_info(unsigned int task, int flavor, int *info, natural_t *count) {
     kern_return_t result = task_info(task, flavor, info, count);
     if (result != 0 || flavor != TASK_VM_INFO || task != mach_task_self_ || !info || !count ||
         *count < TASK_VM_INFO_REV1_COUNT)
@@ -173,4 +173,4 @@ static kern_return_t macoblox_task_info(unsigned int task, int flavor, int *info
     }
     return result;
 }
-DYLD_INTERPOSE(macoblox_task_info, task_info)
+DYLD_INTERPOSE(quadra_task_info, task_info)

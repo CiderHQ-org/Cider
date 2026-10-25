@@ -1,9 +1,9 @@
-#ifndef MACOBLOX_X_MODIFIER_STATE_H
-#define MACOBLOX_X_MODIFIER_STATE_H
+#ifndef QUADRA_X_MODIFIER_STATE_H
+#define QUADRA_X_MODIFIER_STATE_H
 
 /* XKeyEvent.state precedes the transition. Keep raw motion in event order;
  * asking the server here could observe later keys already waiting in Xlib. */
-static unsigned int macoblox_x_modifier_transition(unsigned int state,
+static unsigned int quadra_x_modifier_transition(unsigned int state,
         unsigned int keycode, int pressed, const unsigned char key_masks[256],
         unsigned char key_down[256]) {
     if (keycode >= 256) return state;

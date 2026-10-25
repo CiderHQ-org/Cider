@@ -15,7 +15,7 @@ int main() {
     const unsigned id=17;
     windows.emplace(id,decltype(windows)::mapped_type{});
     SDL_SetModState(KMOD_NONE);
-    macoblox_wayland_event event{};
+    quadra_wayland_event event{};
     translate(key(id,SDL_SCANCODE_LCTRL,SDLK_LCTRL,KMOD_LCTRL));
     assert(poll(&event) && event.type==MW_KEY_DOWN && event.key==59);
     assert((event.modifiers&(1u<<18)) && !(event.modifiers&(1u<<20)));

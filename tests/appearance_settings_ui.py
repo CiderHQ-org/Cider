@@ -20,7 +20,7 @@ os.environ.update(XDG_CONFIG_HOME=str(base / "config"), XDG_DATA_HOME=str(base /
                   XDG_CACHE_HOME=str(base / "cache"), GSETTINGS_BACKEND="memory")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "launcher"))
 threading.Thread.start = lambda self: None
-from macoblox import app, core, theme
+from quadra import app, core, theme
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
 Gtk.init()

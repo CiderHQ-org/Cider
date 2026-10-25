@@ -2,8 +2,8 @@
  * where no OpenXR headers are installed. Names and layouts follow the
  * Khronos openxr.h (Apache-2.0); tests/vr_openxr_abi_test.c checks every
  * struct against the real header. */
-#ifndef MACOBLOX_VR_OPENXR_H
-#define MACOBLOX_VR_OPENXR_H
+#ifndef QUADRA_VR_OPENXR_H
+#define QUADRA_VR_OPENXR_H
 #include <stdint.h>
 
 typedef int32_t XrResult;

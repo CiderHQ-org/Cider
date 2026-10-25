@@ -9,17 +9,23 @@ mirror files remain tracked.
 
 A signed GitHub push webhook at
 `https://vps.korona.lat/quadra/site-hook` queues a deployment for
-`CiderHQ-org/Cider`, branch `main`. The receiver verifies the SHA-256 HMAC and
+`QuadraHQ/Quadra`, branch `main`. The receiver verifies the SHA-256 HMAC and
 the repository and branch before accepting it. The secret is stored only in
 `/etc/quadra-reports.env` and the GitHub hook configuration.
 
 `quadra-site-sync.path` starts `quadra-site-sync.service` after a valid push.
 `quadra-site-sync.timer` also checks every minute so missed deliveries recover.
-The sync service fetches the trusted main branch, prepares static files in a
+The sync service fetches the trusted main branch from
+`https://github.com/QuadraHQ/Quadra.git` (the repository was `CiderHQ-org/Cider`
+before the organization move; the webhook payload names the repository, so the
+receiver accepts only the current name), prepares static files in a
 new release directory, and atomically switches `/var/www/quadrahq/current`.
 It copies the root `install.sh` over the site's installer copy. It never runs
 repository build scripts or changes private report data. An invalid deployment
 leaves the preceding site in place; the five newest static releases are kept.
+A fetch killed at its 60 second limit leaves a Git lock in
+`/var/lib/quadra-site-sync/repository.git`; the next run removes locks older than
+five minutes instead of failing on them for ever.
 
 The deployed commit is visible at `/deployment.json`. To inspect or retry:
 

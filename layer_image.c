@@ -62,7 +62,7 @@ static void upload_empty_layer(void) {
     upload_layer_pixels(1, 1, 4, 0x1908 /* GL_RGBA */, &transparent);
 }
 
-void macoblox_CATexImage2DCGImage(void *image) {
+void quadra_CATexImage2DCGImage(void *image) {
     if (!image) {
         upload_empty_layer();
         return;
@@ -126,6 +126,6 @@ void macoblox_CATexImage2DCGImage(void *image) {
 extern void CATexImage2DCGImage(void *);
 __attribute__((used)) static struct { const void *replacement; const void *replacee; }
     layer_image_interpose __attribute__((section("__DATA,__interpose"))) = {
-        (const void *)&macoblox_CATexImage2DCGImage, (const void *)&CATexImage2DCGImage
+        (const void *)&quadra_CATexImage2DCGImage, (const void *)&CATexImage2DCGImage
     };
 #endif

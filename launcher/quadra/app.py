@@ -16,7 +16,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 from pathlib import Path  # noqa: E402
 
-from . import __version__, author, core, discord, dns, i18n, mods, runtime, runtime_install, runtime_updates, studio, terminal, theme, uri as uri_handoff  # noqa: E402
+from . import __version__, author, core, discord, dns, gpus, i18n, mods, runtime, runtime_install, runtime_updates, studio, terminal, theme, uri as uri_handoff  # noqa: E402
 from .i18n import _  # noqa: E402
 from .setup import SetupWizard  # noqa: E402
 
@@ -73,7 +73,7 @@ def _toast(overlay, text):
 def _restart_launcher():
     # Start the normal entry point without replaying an original Roblox URI.
     # A fresh process loads the selected client, sysroot and prefix together.
-    environment = dict(os.environ, MACOBLOX_PAGE="settings")
+    environment = dict(os.environ, QUADRA_PAGE="settings")
     entry = core.PROJECT / "launcher/quadrahq-launcher"
     if not entry.is_file():
         raise FileNotFoundError(_("Quadra's launcher files are missing. Reinstall Quadra before restarting."))
@@ -103,6 +103,27 @@ def _button_row(title):
     if hasattr(Adw, "ButtonRow"):
         return Adw.ButtonRow(title=title)
     return Adw.ActionRow(title=title, activatable=True)
+
+
+def _add_tabs(toolbar_view, stack):
+    """Puts `stack` into `toolbar_view` under a tab switcher: libadwaita's, or the
+    launcher's own tabs with the custom appearances. Returns the stack that swaps
+    between the two (see LauncherWindow.apply_launcher_appearance)."""
+    top_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+    top_box.set_margin_top(10)
+    top_box.set_margin_bottom(10)
+    switcher = Adw.ViewSwitcher(stack=stack, policy=Adw.ViewSwitcherPolicy.WIDE)
+    switcher.set_halign(Gtk.Align.CENTER)
+    top_box.append(switcher)
+    appearance_tabs = Gtk.Stack(hhomogeneous=False, vhomogeneous=False)
+    appearance_tabs.add_named(top_box, "gnome")
+    custom_tabs = Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.AUTOMATIC,
+                                     vscrollbar_policy=Gtk.PolicyType.NEVER,
+                                     propagate_natural_height=True, child=theme.tabs(stack))
+    appearance_tabs.add_named(custom_tabs, "custom")
+    toolbar_view.add_top_bar(appearance_tabs)
+    toolbar_view.set_content(stack)
+    return appearance_tabs
 
 
 def _error_dialog(window, heading, details):
@@ -280,7 +301,7 @@ class GameLogsView(Gtk.Box):
         self.tag_info = self.buffer.create_tag("log_info", foreground="#3584e4")
         self.tag_success = self.buffer.create_tag("log_success", foreground="#33d17a", weight=Pango.Weight.BOLD)
         self.tag_debug = self.buffer.create_tag("log_debug", foreground="#7f848e")
-        self.tag_macoblox = self.buffer.create_tag("log_macoblox", foreground="#c061cb", weight=Pango.Weight.BOLD)
+        self.tag_quadra = self.buffer.create_tag("log_quadra", foreground="#c061cb", weight=Pango.Weight.BOLD)
         self.tag_match = self.buffer.create_tag("search_match", background="#2a5c9a", foreground="#ffffff")
         self.tag_current = self.buffer.create_tag("search_current", background="#f6d32d", foreground="#000000")
         self._ts_re = re.compile(r"^(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}[^\s,]*)(.*)$")
@@ -307,7 +328,7 @@ class GameLogsView(Gtk.Box):
             "ln": ("#6e6e73", "#9a9a9a"), "time": ("#77767b", "#9a9a9a"),
             "err": ("#ed333b", "#ffffff"), "warn": ("#e5a50a", "#bdbdbd"),
             "info": ("#3584e4", "#e8e8e8"), "success": ("#33d17a", "#f0f0f0"),
-            "debug": ("#7f848e", "#9a9a9a"), "macoblox": ("#c061cb", "#e8e8e8"),
+            "debug": ("#7f848e", "#9a9a9a"), "quadra": ("#c061cb", "#e8e8e8"),
         }
         for name, pair in colors.items():
             getattr(self, "tag_" + name).set_property("foreground", pair[monochrome])
@@ -421,7 +442,7 @@ class GameLogsView(Gtk.Box):
             self.line_count += 1
             ll = line.lower()
             if "[quadra" in ll or "[macoblox" in ll:
-                tag = self.tag_macoblox
+                tag = self.tag_quadra
             elif any(k in ll for k in ("error", "crash", "fatal", "sigsegv", "exception", "abort")):
                 tag = self.tag_err
             elif any(k in ll for k in ("warning", "warn")):
@@ -816,6 +837,19 @@ class PlayPage(Adw.Bin):
         if self._darling_status_timer:
             GLib.source_remove(self._darling_status_timer)
             self._darling_status_timer = 0
+
+    # The Studio button's state, driven by LauncherWindow._update_and_start_studio.
+    def set_studio_busy(self, busy, label=None):
+        self.studio.set_sensitive(not busy)
+        self.studio.set_label(label if busy and label else _("Roblox Studio"))
+
+    def show_studio_progress(self, fraction, text):
+        self.studio_progress.set_visible(True)
+        self.studio_progress.set_fraction(fraction)
+        self.studio_progress.set_text(text)
+
+    def hide_studio_progress(self):
+        self.studio_progress.set_visible(False)
 
     def set_appearance(self, appearance):
         custom = appearance != "gnome"
@@ -1292,6 +1326,445 @@ class FlagsPage(Adw.PreferencesPage):
             self._save_now()
 
 
+class StudioFlagsPage(Adw.PreferencesPage):
+    """Fast flags for Roblox Studio (the Player's are under Settings -> Fast flags)."""
+
+    def __init__(self, window):
+        super().__init__(title=_("Fast flags"), icon_name="preferences-other-symbolic")
+        self.window = window
+        self.flags = dict(window.settings.get("studio_fflags") or {})
+        self.rows = []
+        self._save_timer = 0
+
+        self.group = Adw.PreferencesGroup(
+            title=_("Studio flags"),
+            description=_("Studio only applies flags from Roblox's allowlist. The renderer chosen under "
+                          "Graphics sets the graphics flags and wins over these."))
+        add_button = Gtk.Button(icon_name="list-add-symbolic", valign=Gtk.Align.CENTER, css_classes=["flat"])
+        add_button.set_tooltip_text(_("Add flag"))
+        add_button.connect("clicked", lambda *_args: self._add_row("", ""))
+        import_button = Gtk.Button(label=_("Import JSON"), valign=Gtk.Align.CENTER, css_classes=["flat"])
+        import_button.connect("clicked", lambda *_args: self._import_dialog())
+        export_button = Gtk.Button(label=_("Export JSON"), valign=Gtk.Align.CENTER, css_classes=["flat"])
+        export_button.connect("clicked", lambda *_args: self._export_dialog())
+        suffix = Gtk.Box(spacing=6)
+        for button in (import_button, export_button, add_button):
+            suffix.append(button)
+        self.group.set_header_suffix(suffix)
+        self.add(self.group)
+        for name, value in self.flags.items():
+            self._add_row(name, core.format_flag_value(value))
+
+        reset_group = Adw.PreferencesGroup()
+        reset = _button_row(_("Remove all Studio flags"))
+        reset.add_css_class("destructive-action")
+        reset.connect("activated", lambda *_args: self._reset())
+        reset_group.add(reset)
+        self.add(reset_group)
+
+    def _add_row(self, name, value):
+        row = Adw.ExpanderRow(title=name or _("New flag"), subtitle=value)
+        name_row = Adw.EntryRow(title=_("Name"))
+        name_row.set_text(name)
+        value_row = Adw.EntryRow(title=_("Value"))
+        value_row.set_text(value)
+        remove = Gtk.Button(label=_("Remove"), halign=Gtk.Align.END, margin_top=6, margin_bottom=6,
+                            margin_end=12, css_classes=["destructive-action"])
+        holder = Gtk.ListBoxRow(activatable=False, selectable=False, child=remove)
+        for child in (name_row, value_row, holder):
+            row.add_row(child)
+        entry = {"row": row, "name": name_row, "value": value_row}
+
+        def changed(*_args):
+            row.set_title(name_row.get_text() or _("New flag"))
+            row.set_subtitle(value_row.get_text())
+            self._sync()
+
+        def delete(*_args):
+            self.group.remove(row)
+            self.rows.remove(entry)
+            self._sync()
+
+        name_row.connect("changed", changed)
+        value_row.connect("changed", changed)
+        remove.connect("clicked", delete)
+        self.group.add(row)
+        self.rows.append(entry)
+        if not name:
+            row.set_expanded(True)
+
+    def _sync(self):
+        self.flags = {}
+        for entry in self.rows:
+            name = entry["name"].get_text().strip()
+            if name:
+                self.flags[name] = core.parse_flag_value(entry["value"].get_text())
+        self._save()
+
+    def _save(self):
+        """Save shortly after the last change: typing would otherwise rewrite the file on every key."""
+        if self._save_timer:
+            GLib.source_remove(self._save_timer)
+        self._save_timer = GLib.timeout_add(300, self._save_now)
+
+    def _save_now(self):
+        self._save_timer = 0
+        self.window.set_setting("studio_fflags", dict(self.flags))
+        return False
+
+    def flush(self):
+        """Write a pending change now (Studio reads the flags when it starts)."""
+        if self._save_timer:
+            GLib.source_remove(self._save_timer)
+            self._save_now()
+
+    def _import_dialog(self):
+        dialog = Adw.AlertDialog(
+            heading=_("Import Studio flags"),
+            body=_('Paste JSON like {"Flag": value}. Flags are added to the current ones.'))
+        view = Gtk.TextView(wrap_mode=Gtk.WrapMode.CHAR, monospace=True)
+        view.set_size_request(420, 220)
+        scroller = Gtk.ScrolledWindow(child=view, min_content_height=220)
+        scroller.add_css_class("card")
+        dialog.set_extra_child(scroller)
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("import", _("Import"))
+        dialog.set_response_appearance("import", Adw.ResponseAppearance.SUGGESTED)
+
+        def response(_dialog, result):
+            if result != "import":
+                return
+            buffer = view.get_buffer()
+            text = buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter(), False)
+            try:
+                data = json.loads(text)
+                if not isinstance(data, dict):
+                    raise ValueError
+            except ValueError:
+                _toast(self.window.toasts, _("This is not a JSON object with flags"))
+                return
+            existing = {entry["name"].get_text(): entry for entry in self.rows}
+            for name, value in data.items():
+                if name in existing:
+                    existing[name]["value"].set_text(core.format_flag_value(value))
+                else:
+                    self._add_row(name, core.format_flag_value(value))
+            self._sync()
+            _toast(self.window.toasts, _("Imported flags: {count}", count=len(data)))
+
+        dialog.connect("response", response)
+        dialog.present(self.window)
+
+    def _export_dialog(self):
+        text = json.dumps(self.flags, indent=2)
+        dialog = Adw.AlertDialog(heading=_("Export Studio flags"), body=_("Copy the flags to the clipboard."))
+        view = Gtk.TextView(wrap_mode=Gtk.WrapMode.NONE, monospace=True, editable=False)
+        view.set_size_request(420, 220)
+        view.get_buffer().set_text(text)
+        scroller = Gtk.ScrolledWindow(child=view, min_content_height=220)
+        scroller.add_css_class("card")
+        dialog.set_extra_child(scroller)
+        dialog.add_response("close", _("Close"))
+        dialog.add_response("copy", _("Copy"))
+        dialog.set_response_appearance("copy", Adw.ResponseAppearance.SUGGESTED)
+
+        def response(_dialog, result):
+            display = Gdk.Display.get_default()
+            if result == "copy" and display:
+                display.get_clipboard().set(text)
+                _toast(self.window.toasts, _("Flags copied to clipboard"))
+
+        dialog.connect("response", response)
+        dialog.present(self.window)
+
+    def _reset(self):
+        for entry in list(self.rows):
+            self.group.remove(entry["row"])
+        self.rows.clear()
+        self.flags = {}
+        self.window.set_setting("studio_fflags", {})
+        _toast(self.window.toasts, _("All Studio flags have been removed"))
+
+
+class StudioPage(Adw.Bin):
+    """Roblox Studio through Wine: a section of its own, with the settings that belong to it."""
+
+    def __init__(self, window):
+        super().__init__()
+        self.window = window
+        self._releases_loaded = False
+        settings = window.settings
+
+        toolbar_view = Adw.ToolbarView()
+        self.stack = Adw.ViewStack()
+        self.stack.add_titled_with_icon(self._general_page(settings), "general", _("Studio"),
+                                        "applications-development-symbolic")
+        self.stack.add_titled_with_icon(self._graphics_page(settings), "graphics", _("Graphics"),
+                                        "video-display-symbolic")
+        self.stack.add_titled_with_icon(self._updates_page(settings), "updates", _("Wine and updates"),
+                                        "software-update-available-symbolic")
+        self.flags_page = StudioFlagsPage(window)
+        self.stack.add_titled_with_icon(self.flags_page, "flags", _("Fast flags"), "preferences-other-symbolic")
+        self.appearance_tabs = _add_tabs(toolbar_view, self.stack)
+        self.set_child(toolbar_view)
+        self.connect("map", lambda *_args: self._shown())
+        self.refresh()
+
+    # -- helpers
+    def _in_thread(self, work, done):
+        def run():
+            try:
+                result = work()
+                GLib.idle_add(done, result, None)
+            except Exception as error:  # shown to the user
+                GLib.idle_add(done, None, error)
+        threading.Thread(target=run, daemon=True).start()
+
+    def _switch(self, group, key, title, subtitle):
+        row = Adw.SwitchRow(title=title, subtitle=subtitle,
+                            active=self.window.settings.get(key, core.DEFAULT_SETTINGS[key]))
+        row.connect("notify::active", lambda changed, _pspec: self.window.set_setting(key, changed.get_active()))
+        group.add(row)
+        return row
+
+    def _entry(self, group, key, title, valid, hint):
+        """A text setting that is saved when its apply button is pressed."""
+        row = Adw.EntryRow(title=title, show_apply_button=True)
+        row.set_text(self.window.settings.get(key, ""))
+
+        def apply(changed):
+            text = changed.get_text().strip()
+            if text and not valid(text):
+                changed.add_css_class("error")
+                _toast(self.window.toasts, hint)
+                return
+            changed.remove_css_class("error")
+            self.window.set_setting(key, text)
+            changed.set_text(text)
+
+        row.connect("apply", apply)
+        group.add(row)
+        return row
+
+    def _folder_row(self, title, subtitle, folder):
+        row = Adw.ActionRow(title=title, subtitle=subtitle, activatable=True)
+        row.add_suffix(Gtk.Image(icon_name="folder-open-symbolic"))
+
+        def open_folder(*_args):
+            try:
+                Path(folder()).mkdir(parents=True, exist_ok=True)
+            except OSError as error:
+                _error_dialog(self.window, _("Could not open the folder"), str(error))
+                return
+            _open_uri(self.window, Path(folder()).as_uri())
+
+        row.connect("activated", open_folder)
+        return row
+
+    # -- pages
+    def _general_page(self, settings):
+        page = Adw.PreferencesPage()
+
+        status = Adw.PreferencesGroup(
+            title="Roblox Studio",
+            description=_("The Windows version of Studio, run through Wine. Quadra keeps Wine and Studio "
+                          "up to date when you start it."))
+        self.version_row = Adw.ActionRow(title=_("Installed version"))
+        self.wine_status_row = Adw.ActionRow(title="Wine")
+        self.webview_status_row = Adw.ActionRow(title="WebView2")
+        for row in (self.version_row, self.wine_status_row, self.webview_status_row):
+            row.set_subtitle_selectable(True)
+            status.add(row)
+        self.launch_row = _button_row(_("Launch Roblox Studio"))
+        self.launch_row.add_css_class("suggested-action")
+        self.launch_row.connect("activated", lambda *_args: self.window.studio_clicked())
+        status.add(self.launch_row)
+        self.progress = Gtk.ProgressBar(show_text=True, margin_top=6, margin_bottom=6,
+                                        margin_start=12, margin_end=12, visible=False)
+        status.add(Gtk.ListBoxRow(activatable=False, selectable=False, child=self.progress))
+        page.add(status)
+
+        behaviour = Adw.PreferencesGroup(title=_("Behavior"))
+        self._switch(behaviour, "studio_webview", _("Microsoft WebView2"),
+                     _("Studio's sign-in, Toolbox and Creator Hub pages need it. Installed on the next start."))
+        self._switch(behaviour, "studio_discord", _("Discord presence"),
+                     _("Shows the place you are building and whether you are editing a script."))
+        self._switch(behaviour, "studio_theme", _("Follow the system theme"),
+                     _("Light or dark, like the rest of your desktop. Applies on the next start."))
+        self._switch(behaviour, "studio_backup", _("Back up sign-in and settings"),
+                     _("Keeps them outside Wine's prefix, so recreating the prefix does not sign you out."))
+        page.add(behaviour)
+
+        files = Adw.PreferencesGroup(title=_("Files"))
+        files.add(self._folder_row(
+            _("Overlay folder"), _("Files here are copied over Studio's own at every start, such as cursors or sounds."),
+            lambda: studio.OVERLAY))
+        files.add(self._folder_row(_("Logs"), _("Studio's output, newest ten starts."), lambda: core.LOGS))
+        files.add(self._folder_row(_("Studio folder"), _("Wine, its prefix and Studio itself."),
+                                   lambda: studio.ROOT))
+        page.add(files)
+        return page
+
+    def _graphics_page(self, settings):
+        page = Adw.PreferencesPage()
+
+        renderer = Adw.PreferencesGroup(
+            title=_("Rendering"),
+            description=_("Applies the next time Studio starts. DXVK draws Direct3D 11 through Vulkan."))
+        self.renderer_codes = list(studio.RENDERERS)
+        labels = [_("DXVK (recommended)"), _("DXVK-Sarek (older graphics cards)"), _("Wine's Direct3D (OpenGL)"),
+                  _("Wine's Direct3D, feature level 10 (OpenGL)"), "Vulkan"]
+        self.renderer_row = Adw.ComboRow(title=_("Renderer"), model=Gtk.StringList.new(labels))
+        current = studio.Options(settings).renderer
+        self.renderer_row.set_selected(self.renderer_codes.index(current))
+        self.renderer_row.connect("notify::selected", self._renderer_selected)
+        renderer.add(self.renderer_row)
+        self.renderer_note = Adw.ActionRow(
+            title=_("The Vulkan fix is not built"),
+            subtitle=_("Studio's Vulkan renderer needs a small Vulkan layer that is built with the shim, "
+                       "which needs the Vulkan development headers. Rebuild the shim after installing them."))
+        self.renderer_note.add_prefix(Gtk.Image(icon_name="dialog-warning-symbolic"))
+        renderer.add(self.renderer_note)
+        self.renderer_note.set_visible(current == "vulkan" and not studio.vulkan_layer_built())
+        page.add(renderer)
+
+        performance = Adw.PreferencesGroup(title=_("Performance"))
+        self._gpu_codes = [""]
+        self.gpu_row = Adw.ComboRow(
+            title=_("Graphics card"), subtitle=_("Detecting graphics cards… Applies on next launch."),
+            model=Gtk.StringList.new([_("Automatic")]), sensitive=False,
+            visible=settings.get("studio_gpu", "") not in ("", "auto"))
+        self._gpu_handler = self.gpu_row.connect("notify::selected", self._gpu_selected)
+        performance.add(self.gpu_row)
+        self._in_thread(gpus.enumerate_gpus, self._gpu_choices_loaded)
+        self._switch(performance, "studio_gamemode", "GameMode",
+                     _("Asks Feral GameMode to tune your system while Studio runs, if it is installed."))
+        page.add(performance)
+        return page
+
+    def _updates_page(self, settings):
+        page = Adw.PreferencesPage()
+
+        wine = Adw.PreferencesGroup(
+            title="Wine",
+            description=_("Studio runs on Kombucha, the Wine build Vinegar patches for Studio. It is updated "
+                          "when you start Studio, unless you choose a release."))
+        self.wine_tags = [""]
+        self.release_row = Adw.ComboRow(
+            title=_("Kombucha release"), subtitle=_("Recommended: the newest stable one, as Vinegar publishes it."),
+            model=Gtk.StringList.new([_("Newest stable")]))
+        self._release_handler = self.release_row.connect("notify::selected", self._release_selected)
+        wine.add(self.release_row)
+        self._entry(wine, "studio_wine_root", _("Wine folder of your own"),
+                    lambda text: (Path(text) / "bin" / "wine").is_file(),
+                    _("That folder has no bin/wine"))
+        page.add(wine)
+
+        deployment = Adw.PreferencesGroup(
+            title=_("Studio version"),
+            description=_("Leave both empty to follow the newest Studio on your account's channel. A version "
+                          "looks like version-0123456789abcdef; channels are Roblox's, such as zintegration."))
+        self._entry(deployment, "studio_version", _("Stay on version"),
+                    lambda text: studio.VERSION_PATTERN.fullmatch(text) is not None,
+                    _("A Studio version looks like version-0123456789abcdef"))
+        self._entry(deployment, "studio_channel", _("Channel"),
+                    lambda text: studio.CHANNEL_PATTERN.fullmatch(text) is not None,
+                    _("A channel name has letters, digits, . _ - only"))
+        page.add(deployment)
+        return page
+
+    # -- settings
+    def _renderer_selected(self, row, _pspec):
+        code = self.renderer_codes[row.get_selected()]
+        self.window.set_setting("studio_renderer", code)
+        self.renderer_note.set_visible(code == "vulkan" and not studio.vulkan_layer_built())
+
+    def _gpu_selected(self, row, _pspec):
+        selected = row.get_selected()
+        if selected < len(self._gpu_codes):
+            self.window.set_setting("studio_gpu", self._gpu_codes[selected])
+
+    def _gpu_choices_loaded(self, adapters, error):
+        selection = self.window.settings.get("studio_gpu", "")
+        adapters = adapters or []
+        codes = ["", *(adapter["id"] for adapter in adapters)]
+        labels = [_("Automatic"), *(adapter["label"] for adapter in adapters)]
+        if selection not in codes:
+            codes.append(selection)
+            labels.append(_("Selected graphics card unavailable"))
+        self._gpu_codes = codes
+        self.gpu_row.handler_block(self._gpu_handler)
+        try:
+            self.gpu_row.set_model(Gtk.StringList.new(labels))
+            self.gpu_row.set_selected(codes.index(selection))
+        finally:
+            self.gpu_row.handler_unblock(self._gpu_handler)
+        self.gpu_row.set_sensitive(True)
+        self.gpu_row.set_visible(len(adapters) > 1 or selection != "" or error is not None)
+        self.gpu_row.set_subtitle(
+            _("Could not detect graphics cards. Select Automatic to use the system default.") if error else
+            _("Applies on next launch. Automatic keeps your desktop's GPU selection."))
+        return False
+
+    def _release_selected(self, row, _pspec):
+        selected = row.get_selected()
+        if selected < len(self.wine_tags):
+            self.window.set_setting("studio_wine", self.wine_tags[selected])
+
+    def _shown(self):
+        """The release list is fetched once, when the page is first shown."""
+        if self._releases_loaded:
+            return
+        self._releases_loaded = True
+        self._in_thread(studio.wine_releases, self._releases_loaded_done)
+        self.refresh()
+
+    def _releases_loaded_done(self, tags, error):
+        chosen = self.window.settings.get("studio_wine", "")
+        tags = list(tags or [])
+        if chosen and chosen not in tags:
+            tags.append(chosen)
+        self.wine_tags = ["", *tags]
+        labels = [_("Newest stable"),
+                  *(f"{tag} ({_('may break Studio')})" if tag.startswith(("unstable", "proton")) else tag
+                    for tag in tags)]
+        self.release_row.handler_block(self._release_handler)
+        try:
+            self.release_row.set_model(Gtk.StringList.new(labels))
+            self.release_row.set_selected(self.wine_tags.index(chosen))
+        finally:
+            self.release_row.handler_unblock(self._release_handler)
+        if error:
+            self.release_row.set_subtitle(_("Could not list the releases: {error}", error=error))
+        return False
+
+    # -- state shown, and the busy state the window drives
+    def refresh(self):
+        state = studio._state()
+        self.version_row.set_subtitle(studio.installed_version() or _("Not installed yet"))
+        custom = studio.wine_root(studio.Options(self.window.settings)) != studio.WINE
+        self.wine_status_row.set_subtitle(
+            _("Your own: {path}", path=self.window.settings.get("studio_wine_root")) if custom
+            else state.get("wine") or _("Not installed yet"))
+        self.webview_status_row.set_subtitle(state.get("webview") or _("Not installed"))
+        return False
+
+    def set_studio_busy(self, busy, label=None):
+        self.launch_row.set_sensitive(not busy)
+        self.launch_row.set_title(label if busy and label else _("Launch Roblox Studio"))
+
+    def show_studio_progress(self, fraction, text):
+        self.progress.set_visible(True)
+        self.progress.set_fraction(fraction)
+        self.progress.set_text(text)
+
+    def hide_studio_progress(self):
+        self.progress.set_visible(False)
+
+    def flush(self):
+        self.flags_page.flush()
+
+
 class SettingsPage(Adw.Bin):
     def __init__(self, window):
         super().__init__()
@@ -1734,20 +2207,7 @@ class SettingsPage(Adw.Bin):
             self.cider_page, "ciderdarling", "CiderDarling", "applications-engineering-symbolic")
         self.refresh_ciderdarling()
 
-        top_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        top_box.set_margin_top(10)
-        top_box.set_margin_bottom(10)
-        switcher = Adw.ViewSwitcher(stack=self.stack, policy=Adw.ViewSwitcherPolicy.WIDE)
-        switcher.set_halign(Gtk.Align.CENTER)
-        top_box.append(switcher)
-        self.appearance_tabs = Gtk.Stack(hhomogeneous=False, vhomogeneous=False)
-        self.appearance_tabs.add_named(top_box, "gnome")
-        custom_tabs = Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.AUTOMATIC,
-                                         vscrollbar_policy=Gtk.PolicyType.NEVER,
-                                         propagate_natural_height=True, child=theme.tabs(self.stack))
-        self.appearance_tabs.add_named(custom_tabs, "custom")
-        toolbar_view.add_top_bar(self.appearance_tabs)
-        toolbar_view.set_content(self.stack)
+        self.appearance_tabs = _add_tabs(toolbar_view, self.stack)
 
         self.set_child(toolbar_view)
 
@@ -1809,7 +2269,7 @@ class SettingsPage(Adw.Bin):
                   installed=installed[:12], pinned=pinned[:12]))
         else:
             self.runtime_install_row.set_subtitle(_("Opens a separate terminal for the build and sudo prompts."))
-        if os.environ.get("MACOBLOX_BUNDLED_DARLING"):
+        if os.environ.get("QUADRA_BUNDLED_DARLING"):
             subtitle = _("Nix manages this Darling runtime. Update or switch it through your Nix configuration.")
         elif bundled:
             subtitle = _("Flatpak uses its bundled Darling runtime.")
@@ -2164,7 +2624,7 @@ class SettingsPage(Adw.Bin):
     def _allow_debugger_row(self):
         return self._synced_switch(
             "allow_debugger", _("Allow freeze diagnostics"),
-            _("MACOBLOX_ALLOW_DEBUGGER. Lets Collect diagnostics read the game's thread stacks; "
+            _("QUADRA_ALLOW_DEBUGGER. Lets Collect diagnostics read the game's thread stacks; "
               "keeps the crash handler available. Turn on before starting the game."))
 
     def _text_input_trace_row(self):
@@ -2213,7 +2673,7 @@ class SettingsPage(Adw.Bin):
         threads = Adw.PreferencesGroup(title=_("Threads"))
         kicks = Adw.SwitchRow(
             title=_("Watchdog thread kicks"),
-            subtitle=_("MACOBLOX_KICK. Interrupts threads stuck in long waits. Off by default: "
+            subtitle=_("QUADRA_KICK. Interrupts threads stuck in long waits. Off by default: "
                        "each kick costs time. Applies on next launch."),
             active=settings.get("cider_thread_kicks", False))
         kicks.connect("notify::active", lambda row, _pspec: window.set_setting(
@@ -2610,10 +3070,10 @@ ABOUT = ("Quadra runs the real Roblox client for macOS on Linux through Darling.
 
 def _links():
     """(title, icon, uri) of the project's community pages."""
-    links = [("Website", "macoblox-web-symbolic", "https://quadrahq.org"),
-             ("Discord", "macoblox-discord-symbolic", author.DISCORD_URL)]
+    links = [("Website", "quadra-web-symbolic", "https://quadrahq.org"),
+             ("Discord", "quadra-discord-symbolic", author.DISCORD_URL)]
     if author.GITHUB_URL:
-        links.append(("GitHub", "macoblox-github-symbolic", author.GITHUB_URL))
+        links.append(("GitHub", "quadra-github-symbolic", author.GITHUB_URL))
     return links
 
 
@@ -3029,8 +3489,8 @@ class LauncherWindow(Adw.ApplicationWindow):
         diagnostics_action = Gio.SimpleAction.new("collect-diagnostics", None)
         diagnostics_action.connect("activate", lambda *_args: self.collect_diagnostics())
         self.add_action(diagnostics_action)
-        # MACOBLOX_PAGE opens another tab first (for screenshots).
-        self.build(page or os.environ.get("MACOBLOX_PAGE", "play"))
+        # QUADRA_PAGE opens another tab first (for screenshots).
+        self.build(page or os.environ.get("QUADRA_PAGE", "play"))
         if not self.setup_active:
             threading.Thread(target=self._check_startup_update, daemon=True).start()
         threading.Thread(target=self._sync_ciderdarling_shortcut, daemon=True).start()
@@ -3137,12 +3597,19 @@ class LauncherWindow(Adw.ApplicationWindow):
         """(Re)create the interface, e.g. after the language changes."""
         if getattr(self, "settings_page", None):
             self.settings_page.flush()  # the new page reads the file
+        if getattr(self, "studio_page", None):
+            self.studio_page.flush()
         self.toasts = Adw.ToastOverlay()
         self.stack = Adw.ViewStack()
         self.play_page = PlayPage(self)
         self.stack.add_titled_with_icon(self.play_page, "play", _("Play"), "media-playback-start-symbolic")
         self.settings_page = SettingsPage(self)
         self.stack.add_titled_with_icon(self.settings_page, "settings", _("Settings"), "emblem-system-symbolic")
+        # Studio runs through Wine, which the Flatpak does not have.
+        if not os.path.exists("/.flatpak-info"):
+            self.studio_page = StudioPage(self)
+            self.stack.add_titled_with_icon(self.studio_page, "studio", _("Studio"),
+                                            "applications-development-symbolic")
         self.mods_page = ModsPage(self)
         self.stack.add_titled_with_icon(self.mods_page, "mods", _("Mods"), "application-x-addon-symbolic")
         self.info_page = InfoPage(self)
@@ -3233,6 +3700,8 @@ class LauncherWindow(Adw.ApplicationWindow):
         self.backdrops.set_visible_child_name(appearance)
         self.appearance_layer.set_appearance(appearance)
         self.settings_page.appearance_tabs.set_visible_child_name("custom" if custom else "gnome")
+        if getattr(self, "studio_page", None):
+            self.studio_page.appearance_tabs.set_visible_child_name("custom" if custom else "gnome")
         for widget, css in ((self, "launcher-custom"), (self.content_stack, "launcher-shell"),
                             (self.sidebar_toolbar, "launcher-sidebar"), (self.brand_label, "launcher-brand"),
                             (self.launcher_header, "launcher-header")):
@@ -3567,38 +4036,49 @@ class LauncherWindow(Adw.ApplicationWindow):
         dialog = Adw.AlertDialog(
             heading=_("Install Roblox Studio?"),
             body=_("Studio runs in its Windows version through Wine. Quadra downloads Wine, "
-                   "DXVK and Studio, about 800 MB."))
+                   "DXVK, Microsoft's WebView2 and Studio, about 800 MB."))
         dialog.add_response("cancel", _("Cancel"))
         dialog.add_response("install", _("Install"))
         dialog.set_response_appearance("install", Adw.ResponseAppearance.SUGGESTED)
         dialog.connect("response", lambda _d, result: result == "install" and self._update_and_start_studio())
         dialog.present(self)
 
+    def _studio_views(self):
+        """The pages with a Studio button: Play's, and the Studio section's."""
+        return [view for view in (self.play_page, getattr(self, "studio_page", None)) if view is not None]
+
     def _update_and_start_studio(self):
         """Installs or updates Studio when needed, then starts it."""
-        page = self.play_page
-        page.studio.set_sensitive(False)
-        page.studio.set_label(_("Checking…"))
+        views = self._studio_views()
+        if getattr(self, "studio_page", None):
+            self.studio_page.flush()  # Studio reads the flags when it starts
+        for view in views:
+            view.set_studio_busy(True, _("Checking…"))
 
         def progress(fraction, text):
-            GLib.idle_add(page.studio_progress.set_visible, True)
-            GLib.idle_add(page.studio_progress.set_fraction, fraction)
-            GLib.idle_add(page.studio_progress.set_text, text)
+            for view in views:
+                GLib.idle_add(view.show_studio_progress, fraction, text)
 
         def work():
+            settings = dict(self.settings)
             try:
-                studio.install(progress)
+                studio.install(progress, settings)
+            except studio.ChannelError:
+                raise
             except Exception as error:
                 if studio.needs_install():
                     raise
                 # Offline or Roblox unreachable: start the installed version.
                 print("Studio update skipped:", error)
-            studio.launch()
+            # A process of its own looks after Studio (GameMode, Discord, the sign-in backup).
+            studio.spawn()
 
         def done(_result, error):
-            page.studio.set_sensitive(True)
-            page.studio.set_label(_("Roblox Studio"))
-            page.studio_progress.set_visible(False)
+            for view in views:
+                view.set_studio_busy(False)
+                view.hide_studio_progress()
+            if getattr(self, "studio_page", None):
+                self.studio_page.refresh()
             if error:
                 _error_dialog(self, _("Could not start Roblox Studio"), str(error) or repr(error))
             else:
@@ -4172,7 +4652,7 @@ class LauncherApp(Adw.Application):
             self.window.connect("close-request", self._close)
         self.window.set_visible(True)
         self.window.present()
-        if os.environ.get("MACOBLOX_PAGE"):
+        if os.environ.get("QUADRA_PAGE"):
             # Screenshots: no focused field.
             GLib.timeout_add(300, lambda: self.window.set_focus(None) and False)
         if pending:

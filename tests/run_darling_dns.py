@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Check the production DNS import against Darling without public DNS.
 
-The exact resolver section from libMacOBloxShims.m is compiled with a local
+The exact resolver section from libQuadraShims.m is compiled with a local
 transport. Real Libinfo still performs hint validation and result allocation.
 Only a newly created, unauthenticated test prefix is started or stopped.
 The successful transport uses synthetic packets; a failed import may query
@@ -9,7 +9,7 @@ only 127.0.0.1, due to the test prefix's resolver configuration.
 
 Run: python3 tests/run_darling_dns.py
 If empty-prefix bootstrap is unsupported by the installed package, set
-MACOBLOX_DNS_TEST_SYSTEM_TEMPLATE to an idle, initialized system prefix.
+QUADRA_DNS_TEST_SYSTEM_TEMPLATE to an idle, initialized system prefix.
 Only system overlay files and account metadata are copied, excluding Users.
 """
 from pathlib import Path
@@ -22,37 +22,37 @@ import tempfile
 import time
 
 project = Path(__file__).resolve().parents[1]
-artifacts_name = os.environ.get('MACOBLOX_DNS_TEST_ARTIFACTS_DIR')
+artifacts_name = os.environ.get('QUADRA_DNS_TEST_ARTIFACTS_DIR')
 artifacts = Path(artifacts_name).resolve() if artifacts_name else None
 if artifacts:
     artifacts.mkdir(parents=True, exist_ok=True)
-scratch = Path(tempfile.mkdtemp(prefix='macoblox-dns-test-', dir=artifacts or '/tmp'))
+scratch = Path(tempfile.mkdtemp(prefix='quadra-dns-test-', dir=artifacts or '/tmp'))
 scratch.chmod(0o700)
 sysroot = Path(os.environ.get('DARLING_SYSROOT', '/usr/libexec/darling'))
-source = (project / 'libMacOBloxShims.m').read_text()
+source = (project / 'libQuadraShims.m').read_text()
 start = source.index('// Trace the exact resolver requests made by Roblox.')
-last = 'DYLD_INTERPOSE(macoblox_getaddrinfo, getaddrinfo)'
+last = 'DYLD_INTERPOSE(quadra_getaddrinfo, getaddrinfo)'
 end = source.index(last, start) + len(last)
 macros = []
-for name in ('DYLD_INTERPOSE', 'MACOBLOX_NEXT'):
+for name in ('DYLD_INTERPOSE', 'QUADRA_NEXT'):
     at = source.index('#define ' + name + '(')
     macros.append(source[at:source.index('\n\n', at)])
 adaptation = '''
 #include "dns_concurrency.h"
-extern void *macoblox_dns_fixture_symbol(void *, const char *);
-#define dlsym macoblox_dns_fixture_symbol
+extern void *quadra_dns_fixture_symbol(void *, const char *);
+#define dlsym quadra_dns_fixture_symbol
 #define RTLD_NEXT ((void *)-1)
 static void write_str(const char *text) { (void)text; }
 static void print_num(long long value) { (void)value; }
-static int macoblox_env_cached(const char *key, volatile int *cache) {
+static int quadra_env_cached(const char *key, volatile int *cache) {
     (void)key; (void)cache; return 0;
 }
-static int macoblox_is_blocked_telemetry(const char *node) { (void)node; return 0; }
-int macoblox_dns_resolve(const char *node, const char *service,
+static int quadra_is_blocked_telemetry(const char *node) { (void)node; return 0; }
+int quadra_dns_resolve(const char *node, const char *service,
                          const void *hints, void **result) {
     (void)node; (void)service; (void)hints; (void)result; return -1;
 }
-void macoblox_sleep_us(unsigned int micros) {
+void quadra_sleep_us(unsigned int micros) {
     struct { long seconds, nanoseconds; } delay = {micros / 1000000, (micros % 1000000) * 1000};
     long ignored;
     __asm__ volatile("syscall" : "=a"(ignored) : "a"(35L), "D"(&delay), "S"(0L)
@@ -72,12 +72,12 @@ subprocess.run(compiler + ['-dynamiclib', '-Wl,-undefined,dynamic_lookup',
                '-o', str(library)], check=True)
 subprocess.run(compiler + [str(project / 'tests/darling_dns_test.c'), '-lresolv',
                           '-o', str(binary)], check=True)
-prefix = Path(tempfile.mkdtemp(prefix='macoblox-dns-prefix-', dir='/tmp'))
+prefix = Path(tempfile.mkdtemp(prefix='quadra-dns-prefix-', dir='/tmp'))
 prefix.chmod(0o700)
 # Some packaged Darling builds need their initialized system overlay even
 # for an empty test. This optional template never copies Users, runtime logs,
 # databases, session files, sockets, FIFOs, or prefix process markers.
-template_name = os.environ.get('MACOBLOX_DNS_TEST_SYSTEM_TEMPLATE')
+template_name = os.environ.get('QUADRA_DNS_TEST_SYSTEM_TEMPLATE')
 if template_name:
     template = Path(template_name).resolve(strict=True)
     def ignore_special(directory, names):

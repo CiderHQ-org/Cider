@@ -6,7 +6,7 @@ Release:        1%{?dist}
 Summary:        Run the macOS Roblox client on Linux through Darling
 License:        GPL-3.0-only AND MIT AND ISC AND OFL-1.1
 URL:            https://quadrahq.org
-Source0:        https://github.com/CiderHQ-org/Cider/releases/download/v%{upstream_version}/quadrahq-%{upstream_version}-source.tar.gz#/quadrahq-%{upstream_version}.tar.gz
+Source0:        https://github.com/QuadraHQ/Quadra/releases/download/v%{upstream_version}/quadrahq-%{upstream_version}-source.tar.gz#/quadrahq-%{upstream_version}.tar.gz
 Source1:        quadrahq-install-payload.sh
 ExclusiveArch:  x86_64
 
@@ -80,9 +80,10 @@ GUI frameworks and stubs is required.
 %setup -q -n Quadra-%{upstream_version}
 
 %build
-MACOBLOX_BUILD_DIR="$PWD/native-build" ./build_debug_shim.sh
-MACOBLOX_BUILD_DIR="$PWD/native-build" bash packaging/build-metal.sh
-strip --strip-unneeded native-build/libmacoblox-wayland.so
+QUADRA_BUILD_DIR="$PWD/native-build" ./build_debug_shim.sh
+QUADRA_BUILD_DIR="$PWD/native-build" bash packaging/build-metal.sh
+strip --strip-unneeded native-build/libquadra-wayland.so
+[ ! -f native-build/libquadra-studio-layer.so ] || strip --strip-unneeded native-build/libquadra-studio-layer.so
 
 %install
 bash "%{SOURCE1}" "$PWD" "$PWD/native-build" "%{buildroot}" "%{_libdir}"

@@ -7,9 +7,9 @@
 typedef unsigned long NSUInteger;
 typedef long NSInteger;
 typedef signed char BOOL;
-typedef MacOBloxWaylandPoint NSPoint;
-typedef MacOBloxWaylandSize NSSize;
-typedef MacOBloxWaylandRect NSRect;
+typedef QuadraWaylandPoint NSPoint;
+typedef QuadraWaylandSize NSSize;
+typedef QuadraWaylandRect NSRect;
 typedef struct objc_class *Class;
 typedef struct objc_method *Method;
 typedef void (*IMP)(void);
@@ -146,7 +146,7 @@ extern unsigned long CGBitmapContextGetBytesPerRow(void *);
 - (BOOL)setString:(NSString *)text forType:(NSString *)type;
 @end
 
-static const struct macoblox_wayland_api *api;
+static const struct quadra_wayland_api *api;
 static BOOL initialized;
 static NSMutableArray *windows;
 static unsigned modifiers;
@@ -182,7 +182,7 @@ static void interpret_wayland_keys(id self,SEL cmd,NSArray *incoming) {
     @try {original_interpret_keys(self,cmd,events);}
     @finally {[events release];}
 }
-int macoblox_wayland_key_transition(id event) {
+int quadra_wayland_key_transition(id event) {
     return [(NSNumber *)objc_getAssociatedObject(event,&key_transition_key) longValue];
 }
 static void tag_event(id event,unsigned flags) {
@@ -197,10 +197,10 @@ static void pointer_frame(unsigned window,NSRect frame){lock_pointer();if(!point
 static void pointer_event(unsigned window,NSRect frame,NSPoint point){lock_pointer();pointer_state.window=window;pointer_state.frame=frame;pointer_state.point=point;unlock_pointer();}
 static volatile unsigned captured;
 
-int macoblox_wayland_enabled(void) {
-    const char *value=getenv("MACOBLOX_WAYLAND");return value && !strcmp(value,"1");
+int quadra_wayland_enabled(void) {
+    const char *value=getenv("QUADRA_WAYLAND");return value && !strcmp(value,"1");
 }
-int macoblox_wayland_captured(void){return __atomic_load_n(&captured,__ATOMIC_ACQUIRE)!=0;}
+int quadra_wayland_captured(void){return __atomic_load_n(&captured,__ATOMIC_ACQUIRE)!=0;}
 static void validate_egl(void *native) {
     void *display=eglGetDisplay(native),*config=0;
     int major=0,minor=0,count=0;
@@ -234,13 +234,13 @@ static void initialize(void) {
     if(initialized)return;
     struct elf_head {void *(*open)(const char *,int);int (*close)(void *);void *(*symbol)(void *,const char *);};
     struct elf_head **elf=dlsym((void *)-2,"_elfcalls");
-    const char *path=getenv("MACOBLOX_WAYLAND_HELPER");
+    const char *path=getenv("QUADRA_WAYLAND_HELPER");
     void *library=path && elf && *elf?(*elf)->open(path,2):0;
-    const struct macoblox_wayland_api *(*get)(void)=library?(*elf)->symbol(library,"macoblox_wayland_host_api"):0;
+    const struct quadra_wayland_api *(*get)(void)=library?(*elf)->symbol(library,"quadra_wayland_host_api"):0;
     if(!get || !(api=get()))
         [NSException raise:@"NSWindowServerCommunicationException" format:@"Native Wayland initialization failed. Check the Wayland session and SDL2 helper (%s).",path?path:"helper not set"];
-    if(api->version!=MACOBLOX_WAYLAND_ABI)
-        [NSException raise:@"NSWindowServerCommunicationException" format:@"Native Wayland helper is outdated or incompatible (ABI %u; expected %u). Rebuild Quadra before using Native Wayland.",api->version,MACOBLOX_WAYLAND_ABI];
+    if(api->version!=QUADRA_WAYLAND_ABI)
+        [NSException raise:@"NSWindowServerCommunicationException" format:@"Native Wayland helper is outdated or incompatible (ABI %u; expected %u). Rebuild Quadra before using Native Wayland.",api->version,QUADRA_WAYLAND_ABI];
     /* Darling reports CGL success even when eglInitialize or config selection
      * fails. Check those operations explicitly before caching its display. */
     validate_egl(api->display());
@@ -251,16 +251,16 @@ static void initialize(void) {
     original_interpret_keys=(void *)method_setImplementation(interpret,(IMP)interpret_wayland_keys);
     initialized=YES;
 }
-@interface MacOBloxWaylandWindow:CGWindow {
+@interface QuadraWaylandWindow:CGWindow {
 @public NSWindow *owner;NSRect frame;NSUInteger style;unsigned handle,buttons;void *bitmap;BOOL mapped;
 }
 - (id)initWithOwner:(NSWindow *)window;
 @end
-@interface MacOBloxWaylandSubwindow:CGSubWindow {MacOBloxWaylandWindow *parent;unsigned handle;}
-- (id)initWithParent:(MacOBloxWaylandWindow *)window frame:(NSRect)value;
+@interface QuadraWaylandSubwindow:CGSubWindow {QuadraWaylandWindow *parent;unsigned handle;}
+- (id)initWithParent:(QuadraWaylandWindow *)window frame:(NSRect)value;
 - (void)setFrame:(NSRect)value;
 @end
-static BOOL subwindow_frame(MacOBloxWaylandWindow *parent,NSRect value,int *x,int *y,int *width,int *height) {
+static BOOL subwindow_frame(QuadraWaylandWindow *parent,NSRect value,int *x,int *y,int *width,int *height) {
     /* AppKit views use bottom-left coordinates. The helper's Wayland surface
      * positions use the top-left of the logical, undecorated client area. */
     double top=parent->frame.size.height-value.origin.y-value.size.height;
@@ -272,8 +272,8 @@ static BOOL subwindow_frame(MacOBloxWaylandWindow *parent,NSRect value,int *x,in
     *width=value.size.width<1?1:(int)value.size.width;*height=value.size.height<1?1:(int)value.size.height;
     return YES;
 }
-@implementation MacOBloxWaylandSubwindow
-- (id)initWithParent:(MacOBloxWaylandWindow *)window frame:(NSRect)value {
+@implementation QuadraWaylandSubwindow
+- (id)initWithParent:(QuadraWaylandWindow *)window frame:(NSRect)value {
     if(!(self=[super init]))return nil;
     parent=[window retain];int x,y,width,height;
     if(!parent || !parent->handle || !subwindow_frame(parent,value,&x,&y,&width,&height) ||
@@ -291,7 +291,7 @@ static BOOL subwindow_frame(MacOBloxWaylandWindow *parent,NSRect value,int *x,in
         api->subwindow_frame(handle,x,y,width,height);
 }
 @end
-@implementation MacOBloxWaylandWindow
+@implementation QuadraWaylandWindow
 - (id)initWithOwner:(NSWindow *)window {
     if(!(self=[super init]))return nil;
     initialize();owner=window;frame=[window frame];style=[window styleMask];
@@ -345,10 +345,10 @@ static BOOL subwindow_frame(MacOBloxWaylandWindow *parent,NSRect value,int *x,in
 - (NSPoint)mouseLocationOutsideOfEventStream{
     __typeof__(pointer_state) value=pointer_snapshot();
     if(value.window==handle)return (NSPoint){value.point.x,value.frame.size.height-value.point.y};
-    NSPoint global=macoblox_wayland_cocoa_point(value.point,value.frame);
+    NSPoint global=quadra_wayland_cocoa_point(value.point,value.frame);
     return (NSPoint){global.x-frame.origin.x,global.y-frame.origin.y};
 }
-- (id)createSubWindowWithFrame:(NSRect)value{return [[[MacOBloxWaylandSubwindow alloc] initWithParent:self frame:value] autorelease];}
+- (id)createSubWindowWithFrame:(NSRect)value{return [[[QuadraWaylandSubwindow alloc] initWithParent:self frame:value] autorelease];}
 - (id)cgContext {
     if(!bitmap){const void *color=CGColorSpaceCreateDeviceRGB();bitmap=CGBitmapContextCreate(0,frame.size.width>0?frame.size.width:1,frame.size.height>0?frame.size.height:1,8,0,color,0x2002);CGColorSpaceRelease(color);}
     return (id)bitmap;
@@ -363,10 +363,10 @@ static BOOL subwindow_frame(MacOBloxWaylandWindow *parent,NSRect value,int *x,in
 - (void)dealloc{[self invalidate];[super dealloc];}
 @end
 
-@interface MacOBloxWaylandPasteboard:NSPasteboard {NSString *name;NSMutableDictionary *values;NSInteger changes;}
+@interface QuadraWaylandPasteboard:NSPasteboard {NSString *name;NSMutableDictionary *values;NSInteger changes;}
 - (id)initWithName:(NSString *)value;
 @end
-@implementation MacOBloxWaylandPasteboard
+@implementation QuadraWaylandPasteboard
 - (id)initWithName:(NSString *)value{if((self=[super init])){name=[value retain];values=[NSMutableDictionary new];}return self;}
 - (void)dealloc{[name release];[values release];[super dealloc];}
 - (NSString *)name{return name;}
@@ -408,28 +408,28 @@ static BOOL subwindow_frame(MacOBloxWaylandWindow *parent,NSRect value,int *x,in
     [values setObject:data forKey:type];changes++;return YES;
 }
 @end
-@interface MacOBloxWaylandCursor:NSObject {@public NSImage *image;NSPoint hot;NSString *name;}
+@interface QuadraWaylandCursor:NSObject {@public NSImage *image;NSPoint hot;NSString *name;}
 @end
-@implementation MacOBloxWaylandCursor
+@implementation QuadraWaylandCursor
 - (void)dealloc{[image release];[name release];[super dealloc];}
 @end
-@interface MacOBloxWaylandDisplay:NSDisplay
+@interface QuadraWaylandDisplay:NSDisplay
 - (void)pump:(id)timer;
 - (void)grabMouse:(BOOL)value;
 - (void)warpMouse:(NSPoint)position;
 @end
-@interface MacOBloxWaylandQueuedInput:NSObject {
-@public unsigned kind,flags,buttons;NSWindow *owner;MacOBloxWaylandWindow *window;NSString *text;
+@interface QuadraWaylandQueuedInput:NSObject {
+@public unsigned kind,flags,buttons;NSWindow *owner;QuadraWaylandWindow *window;NSString *text;
 }
 @end
-@implementation MacOBloxWaylandQueuedInput
+@implementation QuadraWaylandQueuedInput
 - (void)dealloc{[owner release];[window release];[text release];[super dealloc];}
 @end
 /* Text and focus changes must follow earlier queued key/mouse events. Calling
  * insertText inside the pump used the old responder and inserted once before
  * keyDown inserted the same character a second time. */
-static id queued_input(MacOBloxWaylandWindow *window,const struct macoblox_wayland_event *input) {
-    MacOBloxWaylandQueuedInput *queued=[MacOBloxWaylandQueuedInput new];
+static id queued_input(QuadraWaylandWindow *window,const struct quadra_wayland_event *input) {
+    QuadraWaylandQueuedInput *queued=[QuadraWaylandQueuedInput new];
     queued->kind=input->type;queued->flags=input->modifiers;
     queued->buttons=window->buttons;
     queued->owner=[window->owner retain];queued->window=[window retain];
@@ -439,13 +439,13 @@ static id queued_input(MacOBloxWaylandWindow *window,const struct macoblox_wayla
         context:nil subtype:0 data1:0 data2:0];
     objc_setAssociatedObject(event,&queued_input_key,queued,1);[queued release];return event;
 }
-int macoblox_wayland_dispatch_event(id event) {
+int quadra_wayland_dispatch_event(id event) {
     NSNumber *flags=objc_getAssociatedObject(event,&event_flags_key);
     if(flags)modifiers=[flags longValue];
-    MacOBloxWaylandQueuedInput *queued=objc_getAssociatedObject(event,&queued_input_key);
+    QuadraWaylandQueuedInput *queued=objc_getAssociatedObject(event,&queued_input_key);
     if(!queued)return 0;
     modifiers=queued->flags;
-    MacOBloxWaylandWindow *window=queued->window;NSWindow *owner=queued->owner;
+    QuadraWaylandWindow *window=queued->window;NSWindow *owner=queued->owner;
     if(window->owner!=owner)return 1; // closed while the event was queued
     if(queued->kind==MW_TEXT) {
         id responder=[owner firstResponder];
@@ -464,7 +464,7 @@ int macoblox_wayland_dispatch_event(id event) {
     }
     return 1;
 }
-@implementation MacOBloxWaylandDisplay
+@implementation QuadraWaylandDisplay
 - (id)init {
     if(!(self=[super init]))return nil;
     /* X11.backend supplies Fontconfig and named colors, without constructing
@@ -473,7 +473,7 @@ int macoblox_wayland_dispatch_event(id event) {
     NSArray *paths=[bundle pathsForResourcesOfType:@"backend" inDirectory:@"Backends"];
     for(NSUInteger i=0;i<[paths count];i++)[[NSBundle bundleWithPath:[paths objectAtIndex:i]] load];
     const char *names[]={"allFontFamilyNames","fontTypefacesForFamilyName:","substituteFamilyName:","colorWithName:"};
-    for(unsigned i=0;i<4;i++){SEL selector=sel_registerName(names[i]);Method method=class_getInstanceMethod(objc_getClass("X11Display"),selector);if(method)class_addMethod([MacOBloxWaylandDisplay class],selector,method_getImplementation(method),method_getTypeEncoding(method));}
+    for(unsigned i=0;i<4;i++){SEL selector=sel_registerName(names[i]);Method method=class_getInstanceMethod(objc_getClass("X11Display"),selector);if(method)class_addMethod([QuadraWaylandDisplay class],selector,method_getImplementation(method),method_getTypeEncoding(method));}
     initialize();
     id timer=[NSTimer timerWithTimeInterval:0.004 target:self selector:@selector(pump:) userInfo:nil repeats:YES];
     id loop=[NSRunLoop currentRunLoop];
@@ -488,7 +488,7 @@ int macoblox_wayland_dispatch_event(id event) {
     [self pump:nil];
     return [super nextEventMatchingMask:mask untilDate:date inMode:mode dequeue:dequeue];
 }
-- (id)newWindowWithDelegate:(id)delegate{return [[MacOBloxWaylandWindow alloc] initWithOwner:delegate];}
+- (id)newWindowWithDelegate:(id)delegate{return [[QuadraWaylandWindow alloc] initWithOwner:delegate];}
 - (NSArray *)screens {
     int w,h;double hz;api->screen(&w,&h,&hz);NSRect rect={{0,0},{w,h}};
     return @[[[[NSScreen alloc] initWithFrame:rect visibleFrame:rect] autorelease]];
@@ -498,7 +498,7 @@ int macoblox_wayland_dispatch_event(id event) {
 - (BOOL)setMode:(id)mode forScreen:(int)index{return NO;}
 - (NSRect)insetRect:(NSRect)frame forNativeWindowBorderWithStyle:(NSUInteger)style{return frame;}
 - (NSRect)outsetRect:(NSRect)frame forNativeWindowBorderWithStyle:(NSUInteger)style{return frame;}
-- (NSPoint)mouseLocation{__typeof__(pointer_state) value=pointer_snapshot();return macoblox_wayland_cocoa_point(value.point,value.frame);}
+- (NSPoint)mouseLocation{__typeof__(pointer_state) value=pointer_snapshot();return quadra_wayland_cocoa_point(value.point,value.frame);}
 - (NSUInteger)currentModifierFlags{return modifiers;}
 - (NSArray *)orderedWindowNumbers{return @[];}
 - (double)textCaretBlinkInterval{return 0.5;}
@@ -512,15 +512,15 @@ int macoblox_wayland_dispatch_event(id event) {
 - (void *)keyboardLayout:(unsigned int *)length{if(length)*length=0;return 0;}
 - (id)pasteboardWithName:(NSString *)name {
     static NSMutableDictionary *boards;if(!boards)boards=[NSMutableDictionary new];
-    id board=[boards objectForKey:name];if(!board){board=[[[MacOBloxWaylandPasteboard alloc] initWithName:name] autorelease];[boards setObject:board forKey:name];}return board;
+    id board=[boards objectForKey:name];if(!board){board=[[[QuadraWaylandPasteboard alloc] initWithName:name] autorelease];[boards setObject:board forKey:name];}return board;
 }
 - (void)hideCursor{api->action(0,MW_CURSOR_VISIBLE,0,0,0);}
 - (void)unhideCursor{api->action(0,MW_CURSOR_VISIBLE,1,0,0);}
-- (id)cursorWithName:(NSString *)name{MacOBloxWaylandCursor *cursor=[MacOBloxWaylandCursor new];cursor->name=[name retain];return [cursor autorelease];}
-- (id)cursorWithImage:(NSImage *)image hotSpot:(NSPoint)hot{MacOBloxWaylandCursor *cursor=[MacOBloxWaylandCursor new];cursor->image=[image retain];cursor->hot=hot;return [cursor autorelease];}
-- (void)setCursor:(MacOBloxWaylandCursor *)cursor {
+- (id)cursorWithName:(NSString *)name{QuadraWaylandCursor *cursor=[QuadraWaylandCursor new];cursor->name=[name retain];return [cursor autorelease];}
+- (id)cursorWithImage:(NSImage *)image hotSpot:(NSPoint)hot{QuadraWaylandCursor *cursor=[QuadraWaylandCursor new];cursor->image=[image retain];cursor->hot=hot;return [cursor autorelease];}
+- (void)setCursor:(QuadraWaylandCursor *)cursor {
     if(!cursor)return;
-    static MacOBloxWaylandCursor *applied;
+    static QuadraWaylandCursor *applied;
     if(applied==cursor)return;
     [cursor retain];[applied release];applied=cursor;
     if(!cursor->image){api->cursor(0,0,0,0,0,0,[cursor->name UTF8String]);return;}
@@ -529,7 +529,7 @@ int macoblox_wayland_dispatch_event(id event) {
        size.width<1 || size.height<1 || size.width>1024 || size.height>1024)return;
     unsigned long width=(unsigned long)size.width,height=(unsigned long)size.height;
     unsigned long source_width=0,source_height=0;
-    unsigned int *pixels=macoblox_cursor_pixels_from_image(cursor->image,&source_width,&source_height);
+    unsigned int *pixels=quadra_cursor_pixels_from_image(cursor->image,&source_width,&source_height);
     if(pixels) {
         unsigned int *logical=pixels;
         if(source_width!=width || source_height!=height) {
@@ -537,7 +537,7 @@ int macoblox_wayland_dispatch_event(id event) {
             if(!logical){free(pixels);return;}
             for(unsigned long row=0;row<height;row++)
                 for(unsigned long column=0;column<width;column++)
-                    logical[row*width+column]=macoblox_cursor_sample_argb(pixels,source_width,source_height,
+                    logical[row*width+column]=quadra_cursor_sample_argb(pixels,source_width,source_height,
                         ((double)column+0.5)*source_width/width-0.5,
                         ((double)row+0.5)*source_height/height-0.5);
         }
@@ -568,18 +568,18 @@ int macoblox_wayland_dispatch_event(id event) {
     __typeof__(pointer_state) value=pointer_snapshot();
     if(!value.window)return;int w,h;double hz;api->screen(&w,&h,&hz);
     NSPoint local;
-    if(!macoblox_wayland_local_warp(position,value.frame,h,&local))return;
+    if(!quadra_wayland_local_warp(position,value.frame,h,&local))return;
     api->action(value.window,MW_WARP,local.x,local.y,0);
 }
 - (void)pump:(id)timer {
     static BOOL pumping;if(pumping)return;pumping=YES;
     static BOOL traced;
-    if(!traced && getenv("MACOBLOX_TRACE_WAYLAND")){traced=YES;write(2,"[Quadra Wayland] AppKit pump active\n",sizeof("[Quadra Wayland] AppKit pump active\n")-1);}
+    if(!traced && getenv("QUADRA_TRACE_WAYLAND")){traced=YES;write(2,"[Quadra Wayland] AppKit pump active\n",sizeof("[Quadra Wayland] AppKit pump active\n")-1);}
     @try {
-        struct macoblox_wayland_event input;
+        struct quadra_wayland_event input;
         for(unsigned i=0;i<256 && api->poll(&input);i++) {
-            MacOBloxWaylandWindow *window=nil;
-            for(NSUInteger j=0;j<[windows count];j++){MacOBloxWaylandWindow *candidate=(void *)[(NSNumber *)[windows objectAtIndex:j] longValue];if(candidate->handle==input.window){window=candidate;break;}}
+            QuadraWaylandWindow *window=nil;
+            for(NSUInteger j=0;j<[windows count];j++){QuadraWaylandWindow *candidate=(void *)[(NSNumber *)[windows objectAtIndex:j] longValue];if(candidate->handle==input.window){window=candidate;break;}}
             if(!window || !window->owner)continue;
             NSWindow *owner=window->owner;
             if(input.type==MW_CAPTURE){__atomic_store_n(&captured,input.button?input.window:0,__ATOMIC_RELEASE);continue;}
@@ -604,7 +604,7 @@ int macoblox_wayland_dispatch_event(id event) {
             pointer_event(input.window,window->frame,(NSPoint){input.x,input.y});NSPoint location={input.x,window->frame.size.height-input.y};unsigned type=5;
             if(input.type==MW_DOWN || input.type==MW_UP){if(input.button<32){if(input.type==MW_DOWN)window->buttons|=1u<<input.button;else window->buttons&=~(1u<<input.button);}type=input.button==1?(input.type==MW_DOWN?1:2):input.button==3?(input.type==MW_DOWN?3:4):(input.type==MW_DOWN?25:26);}
             else if(input.type==MW_SCROLL)type=22;
-            else type=macoblox_mouse_motion_event(window->buttons,
+            else type=quadra_mouse_motion_event(window->buttons,
                 __atomic_load_n(&captured,__ATOMIC_ACQUIRE)==window->handle,&input.button);
             /* Existing deltaY compatibility hook flips Cocoa's vertical delta. */
             NSEvent *event=[NSEvent mouseEventWithType:type location:location modifierFlags:input.modifiers window:owner clickCount:input.clicks?:1 deltaX:input.dx deltaY:input.type==MW_SCROLL?input.dy:-input.dy];
@@ -615,15 +615,15 @@ int macoblox_wayland_dispatch_event(id event) {
     } @finally {pumping=NO;}
 }
 @end
-id macoblox_wayland_display(void){return [[MacOBloxWaylandDisplay alloc] init];}
-int macoblox_wayland_associate(unsigned int connected) {
+id quadra_wayland_display(void){return [[QuadraWaylandDisplay alloc] init];}
+int quadra_wayland_associate(unsigned int connected) {
     extern id objc_msgSend(id,SEL,...);
-    MacOBloxWaylandDisplay *display=((id(*)(id,SEL))objc_msgSend)((id)objc_getClass("NSDisplay"),sel_registerName("currentDisplay"));
+    QuadraWaylandDisplay *display=((id(*)(id,SEL))objc_msgSend)((id)objc_getClass("NSDisplay"),sel_registerName("currentDisplay"));
     [display grabMouse:!connected];return 0;
 }
-int macoblox_wayland_warp(NSPoint position) {
+int quadra_wayland_warp(NSPoint position) {
     extern id objc_msgSend(id,SEL,...);
-    MacOBloxWaylandDisplay *display=((id(*)(id,SEL))objc_msgSend)((id)objc_getClass("NSDisplay"),sel_registerName("currentDisplay"));
+    QuadraWaylandDisplay *display=((id(*)(id,SEL))objc_msgSend)((id)objc_getClass("NSDisplay"),sel_registerName("currentDisplay"));
     [display warpMouse:position];return 0;
 }
 /* Metal views (prototype/metal-vulkan/framework/QMLayer.m): a subsurface of the window's own
@@ -631,13 +631,13 @@ int macoblox_wayland_warp(NSPoint position) {
  * in window coordinates, as an AppKit GL view's subwindow gets it. */
 static BOOL metal_view_parent(id platform) {
     extern Class object_getClass(id);
-    return platform && object_getClass(platform)==(Class)objc_getClass("MacOBloxWaylandWindow");
+    return platform && object_getClass(platform)==(Class)objc_getClass("QuadraWaylandWindow");
 }
-unsigned macoblox_wayland_metal_view(id window,NSRect value,void **display,void **surface) {
+unsigned quadra_wayland_metal_view(id window,NSRect value,void **display,void **surface) {
     if(!api || !window || !display || !surface)return 0;
     id platform=[window platformWindow];
     if(!metal_view_parent(platform))return 0;
-    MacOBloxWaylandWindow *parent=platform;int x,y,width,height;
+    QuadraWaylandWindow *parent=platform;int x,y,width,height;
     if(!parent->handle || !subwindow_frame(parent,value,&x,&y,&width,&height))return 0;
     unsigned view=api->create_subwindow(parent->handle,x,y,width,height);
     if(!view){char line[300];int length=snprintf(line,sizeof line,"[Quadra Wayland] Metal view failed: %s\n",api->error());if(length>0)write(2,line,length);return 0;}
@@ -645,9 +645,9 @@ unsigned macoblox_wayland_metal_view(id window,NSRect value,void **display,void 
     if(!*surface){api->destroy_subwindow(view);return 0;}
     return view;
 }
-void macoblox_wayland_metal_view_frame(unsigned view,id window,NSRect value) {
+void quadra_wayland_metal_view_frame(unsigned view,id window,NSRect value) {
     id platform=window?[window platformWindow]:nil;int x,y,width,height;
     if(!api || !view || !metal_view_parent(platform))return;
-    if(subwindow_frame((MacOBloxWaylandWindow *)platform,value,&x,&y,&width,&height))api->subwindow_frame(view,x,y,width,height);
+    if(subwindow_frame((QuadraWaylandWindow *)platform,value,&x,&y,&width,&height))api->subwindow_frame(view,x,y,width,height);
 }
-void macoblox_wayland_metal_view_destroy(unsigned view){if(api && view)api->destroy_subwindow(view);}
+void quadra_wayland_metal_view_destroy(unsigned view){if(api && view)api->destroy_subwindow(view);}

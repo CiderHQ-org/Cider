@@ -33,7 +33,7 @@ struct Window {
     bool capture=false, requested_capture=false, focused=false;
     bool keys[128]{};
     unsigned key_modifiers=0;
-    MacOBloxDragCursor drag_cursor{};
+    QuadraDragCursor drag_cursor{};
     wl_surface *wl_surface_handle=nullptr,*cursor_surface=nullptr;
     wl_subsurface *cursor_subsurface=nullptr;
     wl_buffer *shown_cursor=nullptr;
@@ -54,7 +54,7 @@ std::unordered_map<unsigned, Subwindow> subwindows;
 unsigned next_subwindow=1;
 std::mutex queue_mutex;
 std::deque<std::function<void()>> commands;
-std::deque<macoblox_wayland_event> events;
+std::deque<quadra_wayland_event> events;
 std::thread ui;
 std::atomic<bool> stopping{false};
 Uint32 wake_event;
@@ -83,7 +83,7 @@ void cursor_above_children(Window &window) {
 }
 
 void update_cursor(Window &window) {
-    bool right_drag=macoblox_drag_cursor_visible(&window.drag_cursor);
+    bool right_drag=quadra_drag_cursor_visible(&window.drag_cursor);
     const auto &frame=right_drag && (!cursor_visible || !cursor_frame.opaque)
         ? visible_cursor_frame : cursor_frame;
     bool visible=window.capture && window.focused && (cursor_visible || right_drag) && frame.buffer;
@@ -135,7 +135,7 @@ void initialize_cursor_surfaces() {
     if(shm && !cursor_frame.buffer) {
         std::vector<unsigned char> pixels(10*17*4);
         for(unsigned y=0;y<17;y++)for(unsigned x=0;x<10;x++) {
-            unsigned word=macoblox_drag_cursor_arrow(x,y);
+            unsigned word=quadra_drag_cursor_arrow(x,y);
             std::memcpy(pixels.data()+(y*10+x)*4,&word,4);
         }
         custom_cursor_surface(pixels,10,17,0,0);
@@ -143,7 +143,7 @@ void initialize_cursor_surfaces() {
 }
 void custom_cursor_surface(const std::vector<unsigned char> &pixels,int width,int height,int hot_x,int hot_y) {
     if(!shm)return;
-    int fd=memfd_create("macoblox-wayland-cursor",MFD_CLOEXEC);
+    int fd=memfd_create("quadra-wayland-cursor",MFD_CLOEXEC);
     size_t size=pixels.size();if(fd<0)return;
     if(ftruncate(fd,size)<0){close(fd);return;}
     void *mapping=mmap(nullptr,size,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
@@ -171,7 +171,7 @@ bool map_background(Window &window,int width,int height) {
         wl_surface_commit(window.wl_surface_handle);
         return true;
     }
-    int fd=memfd_create("macoblox-wayland-background",MFD_CLOEXEC);if(fd<0)return false;
+    int fd=memfd_create("quadra-wayland-background",MFD_CLOEXEC);if(fd<0)return false;
     size_t size=(size_t)width*height*4;if(ftruncate(fd,size)<0){close(fd);return false;}
     auto pool=wl_shm_create_pool(shm,fd,size);
     if(!pool){close(fd);return false;}
@@ -185,7 +185,7 @@ bool map_background(Window &window,int width,int height) {
     wl_surface_damage(window.wl_surface_handle,0,0,width,height);
     wl_surface_commit(window.wl_surface_handle);
     window.background_width=width;window.background_height=height;
-    if(getenv("MACOBLOX_TRACE_WAYLAND"))std::fprintf(stderr,"[Quadra Wayland] Committed background (%dx%d)\n",width,height);
+    if(getenv("QUADRA_TRACE_WAYLAND"))std::fprintf(stderr,"[Quadra Wayland] Committed background (%dx%d)\n",width,height);
     return true;
 }
 void resize_backgrounds() {
@@ -274,7 +274,7 @@ void key_text(SDL_Keycode symbol,char *text) {
     else if(code<0x10000){text[0]=0xe0|(code>>12);text[1]=0x80|((code>>6)&63);text[2]=0x80|(code&63);text[3]=0;}
     else {text[0]=0xf0|(code>>18);text[1]=0x80|((code>>12)&63);text[2]=0x80|((code>>6)&63);text[3]=0x80|(code&63);text[4]=0;}
 }
-void push(macoblox_wayland_event event) {
+void push(quadra_wayland_event event) {
     std::lock_guard<std::mutex> guard(queue_mutex);
     /* Coalesce only adjacent motions. Button/key/focus transitions retain
      * their ordering, even when the renderer temporarily stalls. */
@@ -291,9 +291,9 @@ void capture(Window &window,unsigned id,bool enabled) {
         std::fprintf(stderr,"[Quadra Wayland] Relative pointer unavailable: %s\n",SDL_GetError());
     }
     window.capture=next;
-    macoblox_drag_cursor_capture(&window.drag_cursor,next);
+    quadra_drag_cursor_capture(&window.drag_cursor,next);
     update_cursor(window);
-    macoblox_wayland_event event{};event.type=MW_CAPTURE;event.window=id;event.button=next;
+    quadra_wayland_event event{};event.type=MW_CAPTURE;event.window=id;event.button=next;
     push(event);
 }
 void warp(Window &window,unsigned id,double x,double y) {
@@ -310,14 +310,14 @@ void warp(Window &window,unsigned id,double x,double y) {
     SDL_WarpMouseInWindow(window.window,(int)x,(int)y);
     /* Acknowledge after earlier motion/capture events. Updating AppKit's
      * position optimistically let those older events undo Shift Lock's warp. */
-    macoblox_wayland_event event{};event.type=MW_MOTION;event.window=id;
+    quadra_wayland_event event{};event.type=MW_MOTION;event.window=id;
     event.x=x;event.y=y;event.modifiers=window.key_modifiers;push(event);
 }
 void translate(const SDL_Event &input) {
     auto found=windows.find(input.window.windowID);
     if(found==windows.end())return;
     auto &window=found->second;
-    macoblox_wayland_event event{};event.window=found->first;event.modifiers=window.key_modifiers;
+    quadra_wayland_event event{};event.window=found->first;event.modifiers=window.key_modifiers;
     event.x=window.capture?window.anchor_x:window.x;event.y=window.capture?window.anchor_y:window.y;
     switch(input.type) {
     case SDL_MOUSEMOTION:
@@ -332,9 +332,9 @@ void translate(const SDL_Event &input) {
             unsigned buttons=window.drag_cursor.buttons;
             if(input.type==SDL_MOUSEBUTTONDOWN)buttons|=1u<<event.button;
             else buttons&=~(1u<<event.button);
-            bool previous=macoblox_drag_cursor_visible(&window.drag_cursor);
-            macoblox_drag_cursor_buttons(&window.drag_cursor,buttons);
-            if(previous!=macoblox_drag_cursor_visible(&window.drag_cursor))update_cursor(window);
+            bool previous=quadra_drag_cursor_visible(&window.drag_cursor);
+            quadra_drag_cursor_buttons(&window.drag_cursor,buttons);
+            if(previous!=quadra_drag_cursor_visible(&window.drag_cursor))update_cursor(window);
         }
         break;
     case SDL_MOUSEWHEEL:
@@ -371,20 +371,20 @@ void translate(const SDL_Event &input) {
             /* Releases otherwise go to the newly focused client. Queue them
              * after our last key press so polling cannot retain stuck keys. */
             for(unsigned key=0;key<128;key++)if(window.keys[key]) {
-                macoblox_wayland_event up{};up.type=MW_KEY_UP;up.window=found->first;up.key=key;
+                quadra_wayland_event up{};up.type=MW_KEY_UP;up.window=found->first;up.key=key;
                 window.keys[key]=false;push(up);
             }
             /* A release in another window never reaches this SDL window.
              * Do not resurrect a drag's capture when focus comes back.
              * Button-free Shift Lock/first-person intent may resume. */
             if(window.drag_cursor.button_capture)window.requested_capture=false;
-            macoblox_drag_cursor_buttons(&window.drag_cursor,0);
+            quadra_drag_cursor_buttons(&window.drag_cursor,0);
             window.focused=false;capture(window,found->first,false);event.type=MW_BLUR;
             window.key_modifiers=event.modifiers=0;break;
         case SDL_WINDOWEVENT_CLOSE:event.type=MW_CLOSE;break;
         default:return;
         }
-        if(getenv("MACOBLOX_TRACE_WAYLAND"))std::fprintf(stderr,"[Quadra Wayland] Window event %u for %u\n",event.type,found->first);
+        if(getenv("QUADRA_TRACE_WAYLAND"))std::fprintf(stderr,"[Quadra Wayland] Window event %u for %u\n",event.type,found->first);
         break;
     default:return;
     }
@@ -554,7 +554,7 @@ void action(unsigned id,int operation,double x,double y,const char *text) {
         }
     });
 }
-int poll(macoblox_wayland_event *event) {
+int poll(quadra_wayland_event *event) {
     std::lock_guard<std::mutex> guard(queue_mutex);
     if(events.empty())return 0;*event=events.front();events.pop_front();return 1;
 }
@@ -573,7 +573,7 @@ void cursor(const void *pixels,int width,int height,int pitch,int hot_x,int hot_
             std::vector<unsigned char> straight(copy.size());
             for(size_t offset=0;offset<copy.size();offset+=4) {
                 unsigned int pixel;std::memcpy(&pixel,copy.data()+offset,4);
-                pixel=macoblox_cursor_straight_argb(pixel);
+                pixel=quadra_cursor_straight_argb(pixel);
                 std::memcpy(straight.data()+offset,&pixel,4);
             }
             auto bitmap=SDL_CreateRGBSurfaceWithFormatFrom(straight.data(),width,height,32,width*4,SDL_PIXELFORMAT_ARGB8888);
@@ -603,7 +603,7 @@ const char *clipboard(const char *text) {
     return result.c_str();
 }
 const char *error(){return failure.c_str();}
-const macoblox_wayland_api api={MACOBLOX_WAYLAND_ABI,display,create,surface,action,poll,screen,cursor,clipboard,error,
+const quadra_wayland_api api={QUADRA_WAYLAND_ABI,display,create,surface,action,poll,screen,cursor,clipboard,error,
                               create_subwindow,subwindow_surface,subwindow_frame,subwindow_visible,destroy_subwindow,
                               subwindow_wl_surface};
 void shutdown() {
@@ -614,7 +614,7 @@ void shutdown() {
     }
 }
 }
-extern "C" const macoblox_wayland_api *macoblox_wayland_host_api() {
+extern "C" const quadra_wayland_api *quadra_wayland_host_api() {
     static std::once_flag once;
     static bool ready;
     std::call_once(once,[]{

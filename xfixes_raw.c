@@ -357,7 +357,7 @@ static int same_environment(const char *name, const char *captured) {
 
 static void cookie_publish(int state) {
     __atomic_store_n(&cookie_state, state, __ATOMIC_RELEASE);
-    macoblox_lock_futex((volatile unsigned int *)&cookie_state, 129 /* FUTEX_WAKE_PRIVATE */, 2147483647);
+    quadra_lock_futex((volatile unsigned int *)&cookie_state, 129 /* FUTEX_WAKE_PRIVATE */, 2147483647);
 }
 
 static int wait_cookie(long long deadline) {
@@ -612,7 +612,7 @@ static int query_xfixes(long long deadline) {
     return write_all_on(x_socket, version, sizeof version, deadline) && read_reply_on(x_socket, reply, deadline);
 }
 
-int macoblox_raw_xfixes_open(void) {
+int quadra_raw_xfixes_open(void) {
     if (x_socket >= 0)
         return 1;
     long long deadline = x_deadline(X_SETUP_MILLISECONDS);
@@ -626,7 +626,7 @@ int macoblox_raw_xfixes_open(void) {
     return 1;
 }
 
-int macoblox_raw_xfixes_set_hidden(int hidden) {
+int quadra_raw_xfixes_set_hidden(int hidden) {
     if (x_socket < 0)
         return 0;
     long long deadline = x_deadline(X_TRANSITION_MILLISECONDS);
@@ -652,7 +652,7 @@ int macoblox_raw_xfixes_set_hidden(int hidden) {
  * connection selects no events and owns no grab. It avoids accessing the
  * event owner's Xlib connection or asking AppKit to create a platform window
  * from the game thread. Root coordinates are converted on the owner thread. */
-int macoblox_raw_x_pointer_snapshot(unsigned int *pointer_root, int *x, int *y) {
+int quadra_raw_x_pointer_snapshot(unsigned int *pointer_root, int *x, int *y) {
     int fd;
     unsigned int root;
     long long deadline = x_deadline(X_TRANSITION_MILLISECONDS);
@@ -676,7 +676,7 @@ int macoblox_raw_x_pointer_snapshot(unsigned int *pointer_root, int *x, int *y) 
 /* The screen's default visual and, if `window` is not 0, that window's
  * visual (GetWindowAttributes). Opens and closes its own connection.
  * Returns 0 when the X server cannot be reached. */
-int macoblox_raw_x_visuals(unsigned int window, unsigned int *root_visual, unsigned int *window_visual) {
+int quadra_raw_x_visuals(unsigned int window, unsigned int *root_visual, unsigned int *window_visual) {
     int fd;
     unsigned int root;
     long long deadline = x_deadline(X_SETUP_MILLISECONDS);

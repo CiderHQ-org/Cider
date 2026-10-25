@@ -1,5 +1,5 @@
-#ifndef MACOBLOX_POINTER_MOTION_H
-#define MACOBLOX_POINTER_MOTION_H
+#ifndef QUADRA_POINTER_MOTION_H
+#define QUADRA_POINTER_MOTION_H
 
 /* X event serials identify when the server has processed our warp request.
  * Events queued before it still use the old baseline. The first event after
@@ -8,9 +8,9 @@ typedef struct {
     int x, y, warp_x, warp_y;
     unsigned long warp_serial;
     int warp_pending;
-} MacOBloxPointerMotion;
+} QuadraPointerMotion;
 
-static inline void macoblox_pointer_motion_warp(MacOBloxPointerMotion *state,
+static inline void quadra_pointer_motion_warp(QuadraPointerMotion *state,
                                                 unsigned long serial, int x, int y) {
     state->warp_serial = serial;
     state->warp_x = x;
@@ -18,7 +18,7 @@ static inline void macoblox_pointer_motion_warp(MacOBloxPointerMotion *state,
     state->warp_pending = 1;
 }
 
-static inline void macoblox_pointer_motion_delta(MacOBloxPointerMotion *state,
+static inline void quadra_pointer_motion_delta(QuadraPointerMotion *state,
                                                  unsigned long serial, int x, int y,
                                                  double *dx, double *dy) {
     if (state->warp_pending && serial >= state->warp_serial) {

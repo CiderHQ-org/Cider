@@ -23,7 +23,7 @@ for key in ("WAYLAND_DISPLAY", "BASH_ENV", "ENV"):
 (base / "config").mkdir()
 (base / "config/xdg-terminals.list").write_text("org.kde.konsole.desktop\n")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "launcher"))
-from macoblox import app, runtime_install, terminal
+from quadra import app, runtime_install, terminal
 from runtime_update_fixture import release_fixture
 from gi.repository import Gtk
 

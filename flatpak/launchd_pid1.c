@@ -50,14 +50,14 @@ __attribute__((constructor)) static void setup(void) {
     }
 }
 
-static pid_t macoblox_getpid(void) {
+static pid_t quadra_getpid(void) {
     return in_launchd ? 1 : getpid();
 }
-DYLD_INTERPOSE(macoblox_getpid, getpid)
+DYLD_INTERPOSE(quadra_getpid, getpid)
 
-static int macoblox_kill(pid_t pid, int signal) {
+static int quadra_kill(pid_t pid, int signal) {
     if (pid == 1 && in_launchd)
         pid = launchd_pid;
     return kill(pid, signal);
 }
-DYLD_INTERPOSE(macoblox_kill, kill)
+DYLD_INTERPOSE(quadra_kill, kill)

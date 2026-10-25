@@ -9,7 +9,10 @@ import urllib.request
 
 from . import __version__
 
-REPOSITORY = 'CiderHQ-org/CiderDarling'
+REPOSITORY = 'QuadraHQ/CiderDarling'
+# The feed is written by the runtime's own CI, which still names the repository by
+# its previous owner; both spellings identify the same release.
+RELEASE_REPOSITORIES = (REPOSITORY, 'CiderHQ-org/CiderDarling')
 FEED_URL = f'https://github.com/{REPOSITORY}/releases/download/runtime-updates/stable.json'
 MAX_BYTES = 65536
 CHECK_INTERVAL = 3600
@@ -25,7 +28,8 @@ def validate(data):
     if (not isinstance(revision, str) or not re.fullmatch('[0-9a-f]{40}', revision)
             or not isinstance(series, str) or not re.fullmatch('[0-9a-f]{64}', series)
             or type(data.get('source_date')) is not int or data['source_date'] <= 0
-            or data.get('release_url') != f'https://github.com/{REPOSITORY}/releases/tag/bin-{revision[:12]}'):
+            or data.get('release_url') not in [f'https://github.com/{name}/releases/tag/bin-{revision[:12]}'
+                                               for name in RELEASE_REPOSITORIES]):
         raise ValueError('Invalid CiderDarling release identity')
     minimum = data.get('minimum_cider')
     if not isinstance(minimum, str) or not re.fullmatch(r'[0-9]+(?:\.[0-9]+)*', minimum):

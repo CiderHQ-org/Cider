@@ -14,7 +14,7 @@ for name in ("Adw", "Gdk", "Gio", "GLib", "Gtk"):
 repository.GLib.Error = RuntimeError
 with patch.dict(sys.modules, {"gi": gi, "gi.repository": repository}):
     spec = importlib.util.spec_from_file_location(
-        "macoblox._web_protocol_test", Path(__file__).parents[1] / "launcher/macoblox/web.py")
+        "quadra._web_protocol_test", Path(__file__).parents[1] / "launcher/quadra/web.py")
     web = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(web)
 

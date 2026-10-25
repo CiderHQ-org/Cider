@@ -16,7 +16,7 @@ extern int *__error(void);
 #include <fcntl.h>
 #include <errno.h>
 #endif
-int macoblox_wake_pipe(int descriptors[2]) {
+int quadra_wake_pipe(int descriptors[2]) {
     if (pipe(descriptors))
         return 0;
     if (fcntl(descriptors[0], F_SETFD, FD_CLOEXEC) < 0 ||
@@ -29,7 +29,7 @@ int macoblox_wake_pipe(int descriptors[2]) {
     }
     return 1;
 }
-void macoblox_wake_worker(int descriptor) {
+void quadra_wake_worker(int descriptor) {
     int saved = errno;
     if (descriptor >= 0)
         while (write(descriptor, "w", 1) < 0 && errno == EINTR) {}

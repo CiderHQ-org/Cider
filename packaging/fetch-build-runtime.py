@@ -14,7 +14,7 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'launcher'))
-from macoblox import runtime_updates
+from quadra import runtime_updates
 
 
 def download(url, target, digest):
@@ -60,7 +60,7 @@ def main():
         revision = feed['source_revision']
         build = feed['builds']['ubuntu24.04']
         archive = out / build['archive']
-        url = f'https://github.com/CiderHQ-org/CiderDarling/releases/download/bin-{revision[:12]}/{archive.name}'
+        url = f'https://github.com/QuadraHQ/CiderDarling/releases/download/bin-{revision[:12]}/{archive.name}'
         download(url, archive, build['archive_sha256'])
         with tarfile.open(archive) as source:
             members = source.getmembers()

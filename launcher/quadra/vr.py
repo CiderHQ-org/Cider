@@ -96,7 +96,7 @@ def status():
 
 
 def shim_variables(settings):
-    """MACOBLOX_* variables for the shim, and a line for the launch log."""
+    """QUADRA_* variables for the shim, and a line for the launch log."""
     if not settings.get("vr", False):
         return [], "VR: off"
     if settings.get("renderer", "opengl") == "metal":
@@ -107,6 +107,6 @@ def shim_variables(settings):
         return [], "VR: requested, but no OpenXR loader and runtime were found"
     mode = "openxr" if settings.get("vr_mirror", True) else "openxr-headset"
     scale = validated_render_scale(settings.get("vr_render_scale", DEFAULT_RENDER_SCALE))
-    variables = [f"MACOBLOX_VR={mode}", f"MACOBLOX_VR_SCALE={scale}", f"MACOBLOX_XR_RUNTIME_JSON={runtime}"]
+    variables = [f"QUADRA_VR={mode}", f"QUADRA_VR_SCALE={scale}", f"QUADRA_XR_RUNTIME_JSON={runtime}"]
     return variables, f"VR: {runtime_name(runtime)} ({runtime}); render scale {scale}%; " \
                       f"{'mirrored in the game window' if mode == 'openxr' else 'headset only'}"

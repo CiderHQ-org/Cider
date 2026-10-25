@@ -23,7 +23,7 @@
  * When asked, the handler records only the interrupted RIP. It neither
  * dereferences application stack pointers nor enters pthread/loader APIs.
  * The watchdog prints the raw address without taking the dynamic loader lock.
- * Kicks are off unless MACOBLOX_KICK=1 (MACOBLOX_NO_KICK=1 still forces them
+ * Kicks are off unless QUADRA_KICK=1 (QUADRA_NO_KICK=1 still forces them
  * off); stalls and long mutex waits are logged either way, without the
  * location when off. Each kick runs Darling's signal handler, which makes
  * several darlingserver requests at whatever point the thread was stopped,
@@ -66,7 +66,7 @@ static volatile int tid_key_ready;
 
 /* The Linux id of the calling thread, cached in a pthread TSD slot (not a
  * __thread variable, see darling_fixes.c). */
-long macoblox_thread_id(void) {
+long quadra_thread_id(void) {
     if (!tid_key_ready)
         return linux_syscall3(LINUX_GETTID, 0, 0, 0);
     long tid = (long)pthread_getspecific(tid_key);
@@ -161,14 +161,14 @@ static int ask_location(long tid, unsigned long long now) {
 }
 
 __attribute__((constructor)) static void install_kick_handler(void) {
-    const char *on = getenv("MACOBLOX_KICK"), *off = getenv("MACOBLOX_NO_KICK");
+    const char *on = getenv("QUADRA_KICK"), *off = getenv("QUADRA_NO_KICK");
     kicks_enabled = on && on[0] && on[0] != '0' && !(off && off[0] && off[0] != '0');
     if (pthread_key_create(&tid_key, 0) == 0)
         tid_key_ready = 1;
-    /* MACOBLOX_ALLOW_DEBUGGER=1 lets this user's tools read the game's threads
+    /* QUADRA_ALLOW_DEBUGGER=1 lets this user's tools read the game's threads
      * (Quadra's freeze diagnostics, gdb): Yama otherwise allows only ancestors,
      * and the game is darlingserver's child, not Quadra's. */
-    const char *debugger = getenv("MACOBLOX_ALLOW_DEBUGGER");
+    const char *debugger = getenv("QUADRA_ALLOW_DEBUGGER");
     if (debugger && debugger[0] && debugger[0] != '0')
         linux_syscall3(LINUX_PRCTL, LINUX_PR_SET_PTRACER, -1 /* PR_SET_PTRACER_ANY */, 0);
     /* No SA_RESTART asked, but Darling's own Linux handler has it (above). */
@@ -177,8 +177,8 @@ __attribute__((constructor)) static void install_kick_handler(void) {
 }
 
 /* Kick `tid`; with `locate`, also ask it to record where it is (see
- * macoblox_located). Called by the watchdog thread only. */
-int macoblox_kick(long tid, int locate) {
+ * quadra_located). Called by the watchdog thread only. */
+int quadra_kick(long tid, int locate) {
     if (tid <= 0)
         return -1;
     if (locate)
@@ -188,11 +188,11 @@ int macoblox_kick(long tid, int locate) {
     return (int)linux_syscall3(LINUX_TGKILL, linux_syscall3(LINUX_GETPID, 0, 0, 0), tid, LINUX_SIGURG);
 }
 
-int macoblox_kicks_enabled(void) { return kicks_enabled; }
+int quadra_kicks_enabled(void) { return kicks_enabled; }
 
 /* Consume a published location without loader locks or arbitrary stack
  * reads. A raw RIP remains useful with the launch log's executable slide. */
-int macoblox_located(long tid, char *out, size_t size) {
+int quadra_located(long tid, char *out, size_t size) {
     if (!size)
         return 0;
     for (int slot = 0; slot < LOCATION_SLOTS; slot++) {
@@ -229,8 +229,8 @@ static struct {
 static volatile long lock_kicks, lock_waits_seen;
 
 /* darling_fixes.c calls these around a mutex wait that has to sleep. */
-int macoblox_wait_begin(void) {
-    long tid = macoblox_thread_id();
+int quadra_wait_begin(void) {
+    long tid = quadra_thread_id();
     for (int i = 0; i < MAX_WAITERS; i++) {
         if (__sync_bool_compare_and_swap(&waiters[i].tid, 0, tid)) {
             unsigned long long now = mach_absolute_time();
@@ -245,7 +245,7 @@ int macoblox_wait_begin(void) {
     return -1;
 }
 
-void macoblox_wait_end(int slot) {
+void quadra_wait_end(int slot) {
     if (slot < 0)
         return;
     waiters[slot].since = 0;
@@ -264,7 +264,7 @@ static void report_wait(long tid, unsigned long long waited, const char *what, c
 /* Called by the watchdog every tick: kick waits longer than 250 ms, then
  * every 0.5 s, 1 s, 1 s ... while they last. The first waits are logged,
  * with the waiting thread's location when it records one within a second. */
-void macoblox_kick_stuck_waiters(unsigned long long now) {
+void quadra_kick_stuck_waiters(unsigned long long now) {
     for (int i = 0; i < MAX_WAITERS; i++) {
         long tid = waiters[i].tid;
         unsigned long long since = waiters[i].since;
@@ -272,7 +272,7 @@ void macoblox_kick_stuck_waiters(unsigned long long now) {
             continue;
         if (waiters[i].report == LOCATING) {
             char where[1200];
-            if (macoblox_located(tid, where, sizeof where)) {
+            if (quadra_located(tid, where, sizeof where)) {
                 waiters[i].report = REPORTED;
                 report_wait(tid, now - since, "kicked", where);
             } else if (now - waiters[i].asked > LOCATION_EXPIRES_NS) {
@@ -288,7 +288,7 @@ void macoblox_kick_stuck_waiters(unsigned long long now) {
             long seen = __sync_add_and_fetch(&lock_waits_seen, 1);
             int log = seen <= 20 || seen % 100 == 0;
             if (log && !kicks_enabled)
-                report_wait(tid, now - since, "not kicked (MACOBLOX_KICK=1 enables)", 0);
+                report_wait(tid, now - since, "not kicked (QUADRA_KICK=1 enables)", 0);
             waiters[i].report = log && kicks_enabled ? LOCATING : REPORTED;
             waiters[i].asked = now;
         }
@@ -300,8 +300,8 @@ void macoblox_kick_stuck_waiters(unsigned long long now) {
         if (waiters[i].tid != tid || waiters[i].since != since)
             continue;
         __sync_add_and_fetch(&lock_kicks, 1);
-        macoblox_kick(tid, waiters[i].report == LOCATING);
+        quadra_kick(tid, waiters[i].report == LOCATING);
     }
 }
 
-long macoblox_lock_kick_count(void) { return lock_kicks; }
+long quadra_lock_kick_count(void) { return lock_kicks; }

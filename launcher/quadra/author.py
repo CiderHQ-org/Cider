@@ -15,7 +15,7 @@ ROBLOX_USER = "H4Ru_456"
 ROBLOX_ID = 8847914296
 PROFILE_URL = f"https://www.roblox.com/users/{ROBLOX_ID}/profile"
 DISCORD_URL = "https://discord.gg/jCjHYYNq48"
-GITHUB_URL = "https://github.com/CiderHQ-org/Cider"
+GITHUB_URL = "https://github.com/QuadraHQ/Quadra"
 
 # Maintainer of this version; the picture ships with the launcher.
 MAINTAINER = "aubree.wtf"
@@ -58,7 +58,7 @@ def _get(url, provider, timeout=10):
         connection = _PinnedHTTPS(parts.hostname, address, timeout)
         try:
             path = parts.path + ("?" + parts.query if parts.query else "")
-            connection.request("GET", path, headers={"User-Agent": "MacOBlox"})
+            connection.request("GET", path, headers={"User-Agent": "Quadra"})
             response = connection.getresponse()
             if response.status == 200:
                 return response.read()
@@ -101,7 +101,7 @@ def tinytosha_avatar(max_age=86400):
     except OSError:
         pass
     try:
-        req = urllib.request.Request(TINYTOSHA_AVATAR_URL, headers={"User-Agent": "MacOBlox"})
+        req = urllib.request.Request(TINYTOSHA_AVATAR_URL, headers={"User-Agent": "Quadra"})
         with urllib.request.urlopen(req, timeout=5) as response:
             image = response.read()
         core.CACHE_DIR.mkdir(parents=True, exist_ok=True)

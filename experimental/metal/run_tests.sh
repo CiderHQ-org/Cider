@@ -2,10 +2,10 @@
 # SPDX-License-Identifier: MIT
 set -euo pipefail
 base=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
-cache=${XDG_CACHE_HOME:-$HOME/.cache}/macoblox-vulkan/src
+cache=${XDG_CACHE_HOME:-$HOME/.cache}/quadra-vulkan/src
 darling_source=${DARLING_SOURCE:-$cache/darling}
 compiler=${HOST_CXX:-c++}
-temporary=$(mktemp -d /tmp/macoblox-metal-tests-XXXXXX)
+temporary=$(mktemp -d /tmp/quadra-metal-tests-XXXXXX)
 trap 'rm -rf -- "$temporary"' EXIT
 python3 "$base/test_shader_cache.py"
 "$compiler" -std=c++17 -Wall -Wextra -Werror \

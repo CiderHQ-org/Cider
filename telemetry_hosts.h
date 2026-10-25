@@ -1,7 +1,7 @@
-#ifndef MACOBLOX_TELEMETRY_HOSTS_H
-#define MACOBLOX_TELEMETRY_HOSTS_H
+#ifndef QUADRA_TELEMETRY_HOSTS_H
+#define QUADRA_TELEMETRY_HOSTS_H
 /* Only the known pixel beacons; never match a hostname by substring. */
-static int macoblox_is_blocked_telemetry(const char *node) {
+static int quadra_is_blocked_telemetry(const char *node) {
     if (!node) return 0;
     char host[254];
     unsigned int length = 0;

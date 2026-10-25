@@ -41,9 +41,9 @@ DATA_DIR = PROJECT if os.access(PROJECT, os.W_OK) else user_directory("DATA")
 APP_BUNDLE = DATA_DIR / "RobloxPlayer.app"
 BUILD_DIR = DATA_DIR / "build"
 # A package may ship the shim built already (the Flatpak has no compiler).
-PREBUILT_SHIM = os.environ.get("MACOBLOX_PREBUILT_SHIM")
+PREBUILT_SHIM = os.environ.get("QUADRA_PREBUILT_SHIM")
 SHIM_DIR = Path(PREBUILT_SHIM) if PREBUILT_SHIM else BUILD_DIR
-SHIM = SHIM_DIR / "libMacOBloxShims.dylib"
+SHIM = SHIM_DIR / "libQuadraShims.dylib"
 # Frameworks RobloxPlayer links that Darling lacks; stubs from frameworks/.
 FRAMEWORKS = ["CoreML", "CoreHaptics", "DeviceCheck"]
 FRAMEWORKS_BUILD = SHIM_DIR / "frameworks"
@@ -61,7 +61,7 @@ DARLING_SYSROOT = Path(DARLING_RUNTIME["sysroot"])
 DARLING_PREFIX = Path(DARLING_RUNTIME["prefix"])
 # Rootless Darling (for sandboxes such as Flatpak, see flatpak/darling-noroot.c):
 # this library is preloaded into `darling` only, never into the launcher.
-NOROOT_LIB = os.environ.get("MACOBLOX_NOROOT_LIB")
+NOROOT_LIB = os.environ.get("QUADRA_NOROOT_LIB")
 # Darling's bridges to host libraries that Roblox never uses, relative to the
 # macOS root: when the host lacks the library, they are patched to load nothing.
 NATIVE_LIBS = [f"usr/lib/native/{name}.dylib"
@@ -168,21 +168,34 @@ DEFAULT_SETTINGS = {
     "cider_trace": False,
     "cider_verbose_server_log": False,
     "cider_thread_kicks": False,
-    # Milliseconds between looks at the game's idle I/O loops (MACOBLOX_KEVENT_POLL_MS in net_trace.c). Without it
+    # Milliseconds between looks at the game's idle I/O loops (QUADRA_KEVENT_POLL_MS in net_trace.c). Without it
     # the menu waited about 18 s after leaving a game for a loop that was never woken; 0 turns it off.
     "kevent_poll_ms": 100,
+    # Roblox Studio (studio.py), through Wine. See Settings -> Studio.
+    "studio_renderer": "dxvk",   # dxvk, dxvk-sarek, d3d11 (Wine's OpenGL), d3d11fl10 or vulkan
+    "studio_gpu": "",            # PCI address of the GPU Studio renders on; "" is the system default
+    "studio_gamemode": True,
+    "studio_webview": True,      # Edge WebView2, which Studio's sign-in and web panels need
+    "studio_discord": True,
+    "studio_theme": True,        # follow the system's light/dark preference
+    "studio_backup": True,       # keep Studio's sign-in and settings outside the Wine prefix
+    "studio_wine": "",           # a Kombucha release tag; "" is the newest stable
+    "studio_wine_root": "",      # a Wine folder of your own (it holds bin/wine); replaces Kombucha
+    "studio_version": "",        # a Studio deployment (version-...) to stay on; "" is the newest
+    "studio_channel": "",        # a deployment channel; "" is the one of the signed-in account
+    "studio_fflags": {},         # extra Studio fast flags
 }
 
 # Settings -> environment variables understood by the shim.
 TRACE_ENV = {
-    "diagnostic_signals": "MACOBLOX_DIAGNOSTIC_SIGNALS",
-    "trace_udp": "MACOBLOX_TRACE_UDP",
-    "trace_lock": "MACOBLOX_TRACE_LOCK",
-    "trace_events": "MACOBLOX_TRACE_EVENTS",
-    "trace_gl": "MACOBLOX_TRACE_GL",
-    "fps_log": "MACOBLOX_FPS_LOG",
-    "trace_keys": "MACOBLOX_TRACE_KEYS",
-    "allow_debugger": "MACOBLOX_ALLOW_DEBUGGER",
+    "diagnostic_signals": "QUADRA_DIAGNOSTIC_SIGNALS",
+    "trace_udp": "QUADRA_TRACE_UDP",
+    "trace_lock": "QUADRA_TRACE_LOCK",
+    "trace_events": "QUADRA_TRACE_EVENTS",
+    "trace_gl": "QUADRA_TRACE_GL",
+    "fps_log": "QUADRA_FPS_LOG",
+    "trace_keys": "QUADRA_TRACE_KEYS",
+    "allow_debugger": "QUADRA_ALLOW_DEBUGGER",
 }
 # These also apply when set in the launcher's own environment.
 TRACE_ENV_INHERITED = ("diagnostic_signals", "allow_debugger")
@@ -336,9 +349,9 @@ def latest_version(channel="", required_log=None):
     return _validated_deployment(data)
 
 
-REPO_URL = "https://github.com/CiderHQ-org/Cider.git"
-RELEASES_URL = "https://github.com/CiderHQ-org/Cider/releases/latest"
-LAUNCHER_RELEASE_URL = "https://api.github.com/repos/CiderHQ-org/Cider/releases/latest"
+REPO_URL = "https://github.com/QuadraHQ/Quadra.git"
+RELEASES_URL = "https://github.com/QuadraHQ/Quadra/releases/latest"
+LAUNCHER_RELEASE_URL = "https://api.github.com/repos/QuadraHQ/Quadra/releases/latest"
 # Keep these patterns aligned with install.sh. Hosting files stay on main,
 # while partial app fetches only materialize blobs selected by this checkout.
 LAUNCHER_SPARSE_PATTERNS = """/*
@@ -358,7 +371,7 @@ def check_launcher_update():
     """Checks GitHub for a newer release of Quadra.
     Returns (has_update, latest_version_string, release_url); raises when
     GitHub cannot be reached, so a failed check is not reported as up to date."""
-    req = urllib.request.Request(LAUNCHER_RELEASE_URL, headers={"User-Agent": "MacOBlox"})
+    req = urllib.request.Request(LAUNCHER_RELEASE_URL, headers={"User-Agent": "Quadra"})
     with urllib.request.urlopen(req, timeout=6) as response:
         data = json.loads(response.read().decode())
     tag = str(data.get("tag_name") or "").lstrip("v")
@@ -389,6 +402,9 @@ def update_launcher(progress=None):
         "https://github.com/aubree-lat/MacOBlox", "https://github.com/aubree-lat/MacOBlox.git",
         "git@github.com:aubree-lat/MacOBlox", "git@github.com:aubree-lat/MacOBlox.git",
         "ssh://git@github.com/aubree-lat/MacOBlox", "ssh://git@github.com/aubree-lat/MacOBlox.git",
+        "https://github.com/CiderHQ-org/Cider", "https://github.com/CiderHQ-org/Cider.git",
+        "git@github.com:CiderHQ-org/Cider", "git@github.com:CiderHQ-org/Cider.git",
+        "ssh://git@github.com/CiderHQ-org/Cider", "ssh://git@github.com/CiderHQ-org/Cider.git",
     }
     if origin in legacy_remotes:
         result = _git("remote", "set-url", "origin", REPO_URL)
@@ -482,7 +498,7 @@ def sync_ciderdarling_shortcut(installed, applications=None):
         else:
             return False
     except OSError as error:
-        logging.getLogger("macoblox").warning("Could not update the CiderDarling shortcut: %s", error)
+        logging.getLogger("quadra").warning("Could not update the CiderDarling shortcut: %s", error)
         return False
     try:
         subprocess.run(["update-desktop-database", str(applications)], stdin=subprocess.DEVNULL,
@@ -621,12 +637,12 @@ def apply_throttle_patch():
     try:
         output = run_throttle_patcher()
     except Exception as e:
-        logging.getLogger("macoblox").warning("Startup throttle patch failed: %s", e)
+        logging.getLogger("quadra").warning("Startup throttle patch failed: %s", e)
         return
     if "(patched at" in output:
-        logging.getLogger("macoblox").info(output)
+        logging.getLogger("quadra").info(output)
     elif "not found" in output:
-        logging.getLogger("macoblox").warning("Startup throttle patch: %s", output)
+        logging.getLogger("quadra").warning("Startup throttle patch: %s", output)
     # "already disabled" stays silent.
 
 
@@ -694,13 +710,13 @@ def ensure_raknet_transport():
             if status.startswith("unsupported"):
                 data = binary.read_bytes()
                 status += f"; size={len(data)}; sha256={hashlib.sha256(data).hexdigest()}"
-                logging.getLogger("macoblox").warning("RakNet compatibility: %s", status)
+                logging.getLogger("quadra").warning("RakNet compatibility: %s", status)
             elif status == "patched":
-                logging.getLogger("macoblox").info("Verified RakNet compatibility patches applied")
+                logging.getLogger("quadra").info("Verified RakNet compatibility patches applied")
             return status
         return "client not installed"
     except Exception as e:
-        logging.getLogger("macoblox").warning("Failed to ensure RakNet transport: %s", e)
+        logging.getLogger("quadra").warning("Failed to ensure RakNet transport: %s", e)
         return f"compatibility preparation failed: {e}"
 
 
@@ -715,12 +731,12 @@ def ensure_shader_compatibility():
         if status.startswith("unsupported"):
             data = pack.read_bytes()
             status += f"; size={len(data)}; sha256={hashlib.sha256(data).hexdigest()}"
-            logging.getLogger("macoblox").warning("GLSL compatibility: %s", status)
+            logging.getLogger("quadra").warning("GLSL compatibility: %s", status)
         elif status == "patched":
-            logging.getLogger("macoblox").info("Verified HeightmapDebugPS shader compatibility repair applied")
+            logging.getLogger("quadra").info("Verified HeightmapDebugPS shader compatibility repair applied")
         return status
     except Exception as e:
-        logging.getLogger("macoblox").warning("Failed to ensure GLSL compatibility: %s", e)
+        logging.getLogger("quadra").warning("Failed to ensure GLSL compatibility: %s", e)
         return f"compatibility preparation failed: {e}"
 
 
@@ -1174,7 +1190,7 @@ def darling_environment(settings=None, notes=None):
         if dropped:
             note = (f"Ignoring inherited {', '.join(dropped)} for darlingserver "
                     "(CIDER_KEEP_DSERVER_LOG=1 keeps them)")
-            logging.getLogger("macoblox").info(note)
+            logging.getLogger("quadra").info(note)
             if notes is not None:
                 notes.append(note)
     if (settings and settings.get("cider_verbose_server_log")
@@ -1453,7 +1469,7 @@ def build_shim():
         return True, _("The shim comes built with this package")
     stamp = _shim_sources_hash()
     result = subprocess.run([str(BUILD_SCRIPT)], capture_output=True, text=True,
-                            env=dict(os.environ, MACOBLOX_BUILD_DIR=str(BUILD_DIR),
+                            env=dict(os.environ, QUADRA_BUILD_DIR=str(BUILD_DIR),
                                      DARLING_SYSROOT=str(DARLING_SYSROOT)))
     if result.returncode == 0:
         try:
@@ -1512,7 +1528,7 @@ def build_metal():
         return False, _("Quadra M2VK needs Rust (cargo) 1.98 or newer to build. Install Rust or select another renderer.")
     stamp = _metal_sources_hash()
     result = subprocess.run([str(METAL_BUILD_SCRIPT)], capture_output=True, text=True,
-                            env=dict(os.environ, MACOBLOX_BUILD_DIR=str(BUILD_DIR),
+                            env=dict(os.environ, QUADRA_BUILD_DIR=str(BUILD_DIR),
                                      DARLING_SYSROOT=str(DARLING_SYSROOT)))
     if result.returncode == 0:
         try:
@@ -1585,7 +1601,7 @@ def prepare_prefix(env):
         return []
     note = ("Prefix libraries not made by Quadra hide the selected runtime's own and were left "
             f"unchanged (remove them if they came from an older Darling): {', '.join(unknown)}")
-    logging.getLogger("macoblox").warning(note)
+    logging.getLogger("quadra").warning(note)
     return [note]
 
 
@@ -1613,7 +1629,7 @@ def _install_prefix_files(env, frameworks, bridges, kqueue_libraries):
             _restore_runtime_library(relative)
         elif not target.exists() and (relative, path) in kqueue_libraries:
             status = darling_patches.install_sparse_map_copy(path, target, library=relative.as_posix())
-            logging.getLogger("macoblox").info("Darling kqueue map: %s", status)
+            logging.getLogger("quadra").info("Darling kqueue map: %s", status)
         else:
             # Planning found no file there or a copy this launcher made.
             _replace_prefix_file(path, target)
@@ -1675,7 +1691,7 @@ def _record_prefix_stamps(changes):
     try:
         _write_atomically(PREFIX_STAMPS, json.dumps(data, indent=2) + "\n")
     except OSError as error:
-        logging.getLogger("macoblox").warning("Could not record prefix libraries: %s", error)
+        logging.getLogger("quadra").warning("Could not record prefix libraries: %s", error)
 
 
 def _owned_prefix_copy(relative, data, source_data, stamps, recognized):
@@ -1785,7 +1801,7 @@ def _patched_kqueue_runtime():
             status, expected = darling_patches.plan_sparse_map_patch(source_data, library=library)
             if status != "patched":
                 if status != "already patched":
-                    logging.getLogger("macoblox").debug("Darling kqueue map: %s", status)
+                    logging.getLogger("quadra").debug("Darling kqueue map: %s", status)
                 if data is not None and data != source_data:
                     libraries.append((relative, None))  # our copy of an older runtime file
                 continue
@@ -1803,7 +1819,7 @@ def _patched_kqueue_runtime():
                 continue
             libraries.append((relative, staged))
         except OSError as error:
-            logging.getLogger("macoblox").warning("Could not stage Darling kqueue repair: %s", error)
+            logging.getLogger("quadra").warning("Could not stage Darling kqueue repair: %s", error)
     _record_prefix_stamps(current)
     return libraries
 
@@ -1914,7 +1930,7 @@ def _patched_ffmpeg_bridges():
             (NATIVE_BUILD / f"{name}.dylib").write_bytes(wanted)
             (NATIVE_BUILD / f"{name}.dylib").chmod(0o755)
         except OSError as error:
-            logging.getLogger("macoblox").warning("Could not stage %s: %s", relative, error)
+            logging.getLogger("quadra").warning("Could not stage %s: %s", relative, error)
             continue
         patched.append((relative, NATIVE_BUILD / f"{name}.dylib"))
     _record_prefix_stamps(current)
@@ -1968,7 +1984,7 @@ def restart_darling():
 
 
 def icon_argb_file():
-    """Write the logo in _NET_WM_ICON layout for the shim (see MACOBLOX_ICON_ARGB)."""
+    """Write the logo in _NET_WM_ICON layout for the shim (see QUADRA_ICON_ARGB)."""
     target = CACHE_DIR / "icon-quadrahq.argb"
     sources = [(ICONS / f"quadrahq-{size}.png", size) for size in (32, 64, 128)]
     if target.exists() and all(source.exists() and target.stat().st_mtime >= source.stat().st_mtime
@@ -2009,13 +2025,13 @@ for kv in "$@"; do export "$kv"; done
 # in the prefix replaced from the host is not always seen by a running
 # Darling. Bash only (3.2), which splits ${var/a/b} at a "/" even inside
 # quotes, so the patterns come from variables.
-case ${MACOBLOX_FRAMERATE_CAP:-} in
+case ${QUADRA_FRAMERATE_CAP:-} in
   '' | *[!0-9]*) ;;
   *)
     cap_file="$HOME/Library/Roblox/GlobalBasicSettings_13.xml"
     if [ -f "$cap_file" ]; then
       content=$(<"$cap_file")
-      wanted="<int name=\"FramerateCap\">$MACOBLOX_FRAMERATE_CAP</int>"
+      wanted="<int name=\"FramerateCap\">$QUADRA_FRAMERATE_CAP</int>"
       pattern='<int name="FramerateCap">-?[0-9]+</int>'
       if [[ $content =~ $pattern ]]; then
         old=${BASH_REMATCH[0]}
@@ -2033,7 +2049,7 @@ cd "$app" || exit 1
 # Nothing may run between these exports and exec: every program started
 # after them would get the shim injected too.
 export DYLD_FORCE_FLAT_NAMESPACE=1
-export DYLD_INSERT_LIBRARIES="$shim_dir/libMacOBloxShims.dylib"
+export DYLD_INSERT_LIBRARIES="$shim_dir/libQuadraShims.dylib"
 export DYLD_LIBRARY_PATH="$shim_dir:$app"
 if [ -n "${MACOBLOX_METAL_FRAMEWORKS:-}" ]; then
   export DYLD_FRAMEWORK_PATH="$MACOBLOX_METAL_FRAMEWORKS"
@@ -2043,7 +2059,7 @@ if [ -n "$launch_uri" ]; then
   # Keep the value as one opaque argument; the client owns the protocol
   # format. The shim logs this argument and suppresses Cocoa reinjection when
   # it is present, so one launch has one URL delivery path.
-  export MACOBLOX_PENDING_URI="$launch_uri"
+  export QUADRA_PENDING_URI="$launch_uri"
   exec ./RobloxPlayer -protocolString "$launch_uri"
 fi
 exec ./RobloxPlayer
@@ -2490,7 +2506,7 @@ class RobloxSession:
             **metal,
             **self._gpu_environment,
             **graphics.mangohud_environment(renderer, self.settings.get("mangohud", False)),
-            **display.window_environment(self.settings, SHIM_DIR / "libmacoblox-wayland.so"),
+            **display.window_environment(self.settings, SHIM_DIR / "libquadra-wayland.so"),
             **gpus.host_graphics_paths(),
         }
 
@@ -2501,15 +2517,15 @@ class RobloxSession:
         for name in GPU_ENVIRONMENT:
             env.pop(name, None)
         env.update(self._graphics_environment())
-        if env["MACOBLOX_WAYLAND"] == "1":
+        if env["QUADRA_WAYLAND"] == "1":
             env.pop("DISPLAY", None)
         return env
 
     def shim_variables(self):
         variables = guest_variables(DARLING_RUNTIME["metadata"]) + [
-            f"MACOBLOX_SESSION_DIRECTORY=Library/{SESSION_DIR.name}",
-            f"MACOBLOX_MOUSE_SENSITIVITY={self.settings['mouse_sensitivity']:.2f}",
-            f"MACOBLOX_SCROLL_SENSITIVITY={self.settings.get('scroll_sensitivity', 1.5):.2f}",
+            f"QUADRA_SESSION_DIRECTORY=Library/{SESSION_DIR.name}",
+            f"QUADRA_MOUSE_SENSITIVITY={self.settings['mouse_sensitivity']:.2f}",
+            f"QUADRA_SCROLL_SENSITIVITY={self.settings.get('scroll_sensitivity', 1.5):.2f}",
             # Mesa is the host's library and sees the host's file system,
             # not the prefix: with HOME=/Users/<name> it could not create
             # its shader cache ("Failed to create /Users for shader cache
@@ -2528,7 +2544,7 @@ class RobloxSession:
             f"TMPDIR=/Volumes/SystemRoot{CACHE_DIR / 'roblox-tmp'}",
         ]
         from . import display
-        variables.append(f"MACOBLOX_DPI_SCALE={display.validated_dpi_scale(self.settings.get('dpi_scale', 1.0)):.3f}")
+        variables.append(f"QUADRA_DPI_SCALE={display.validated_dpi_scale(self.settings.get('dpi_scale', 1.0)):.3f}")
         if self.settings.get("renderer", "opengl") == "metal":
             # The launch script makes it DYLD_FRAMEWORK_PATH just before exec:
             # Quadra's Metal.framework in place of Darling's.
@@ -2541,44 +2557,44 @@ class RobloxSession:
             from . import graphics
             vram = graphics.metal_vram_cap(self.settings, vram)
         if vram:
-            variables.append(f"MACOBLOX_VRAM_BYTES={vram}")
+            variables.append(f"QUADRA_VRAM_BYTES={vram}")
         if self.settings.get("hide_menu_bar"):
-            variables.append("MACOBLOX_HIDE_MENU_BAR=1")
+            variables.append("QUADRA_HIDE_MENU_BAR=1")
         from . import vr
         variables.extend(vr.shim_variables(self.settings)[0])
         if not self.settings.get("raw_mouse", True):
-            variables.append("MACOBLOX_RAW_MOUSE=0")
+            variables.append("QUADRA_RAW_MOUSE=0")
         if self.settings.get("framerate_cap", 0) > 0:
-            variables.append(f"MACOBLOX_FRAMERATE_CAP={int(self.settings['framerate_cap'])}")
+            variables.append(f"QUADRA_FRAMERATE_CAP={int(self.settings['framerate_cap'])}")
         if self.web_socket:
-            variables.append(f"MACOBLOX_WEB_SOCKET={self.web_socket}")
+            variables.append(f"QUADRA_WEB_SOCKET={self.web_socket}")
             if self.web_user_agent:
-                variables.append(f"MACOBLOX_WEB_USER_AGENT={self.web_user_agent}")
+                variables.append(f"QUADRA_WEB_USER_AGENT={self.web_user_agent}")
         if self.dns:
-            variables.append(f"MACOBLOX_DNS={self.dns.address}")
+            variables.append(f"QUADRA_DNS={self.dns.address}")
         if self.audio:
-            variables.append(f"MACOBLOX_AUDIO={os.environ.get('MACOBLOX_AUDIO', '1')}")
-            variables.append(f"MACOBLOX_AUDIO_FIFO=/Volumes/SystemRoot{self.audio.fifo}")
-            variables.append(f"MACOBLOX_AUDIO_INPUT_FIFO=/Volumes/SystemRoot{self.audio.input_fifo}")
+            variables.append(f"QUADRA_AUDIO={os.environ.get('QUADRA_AUDIO', '1')}")
+            variables.append(f"QUADRA_AUDIO_FIFO=/Volumes/SystemRoot{self.audio.fifo}")
+            variables.append(f"QUADRA_AUDIO_INPUT_FIFO=/Volumes/SystemRoot{self.audio.input_fifo}")
         else:
             # Darling's own audio path crashes the game (see HostAudio).
-            variables.append("MACOBLOX_AUDIO=0")
+            variables.append("QUADRA_AUDIO=0")
         for key, name in TRACE_ENV.items():
             if self.settings.get(key) or (key in TRACE_ENV_INHERITED and
                                          os.environ.get(name) == "1"):
                 variables.append(f"{name}=1")
         poll = self.settings.get("kevent_poll_ms", 0)
         if isinstance(poll, int) and not isinstance(poll, bool) and poll > 0:
-            variables.append(f"MACOBLOX_KEVENT_POLL_MS={min(poll, 1000)}")
+            variables.append(f"QUADRA_KEVENT_POLL_MS={min(poll, 1000)}")
         variables.extend(self.ciderdarling_variables())
         # Selection diagnostics record lengths/ranges only and are enabled
         # explicitly for a reported typing issue, without changing settings.
-        if self.settings.get('trace_text_input', False) or os.environ.get("MACOBLOX_TRACE_TEXT_INPUT") == "1":
-            variables.append("MACOBLOX_TRACE_TEXT_INPUT=1")
+        if self.settings.get('trace_text_input', False) or os.environ.get("QUADRA_TRACE_TEXT_INPUT") == "1":
+            variables.append("QUADRA_TRACE_TEXT_INPUT=1")
         # Cocoa URL delivery diagnostics are opt-in and stay outside URI
         # handling. They are copied verbatim into the Darling process so a
         # live run can compare selector order and launch timing.
-        for name in ("MACOBLOX_URI_DELAY_MS", "MACOBLOX_URI_SELECTOR_ORDER"):
+        for name in ("QUADRA_URI_DELAY_MS", "QUADRA_URI_SELECTOR_ORDER"):
             value = os.environ.get(name)
             if value:
                 variables.append(f"{name}={value}")
@@ -2586,24 +2602,24 @@ class RobloxSession:
         # host-side pending file available as a fallback for launches that did
         # not carry the value as an argument (for example a retry after the
         # launcher was already open).
-        variables.append(f"MACOBLOX_PENDING_URI_FILE=/Volumes/SystemRoot{CACHE_DIR / 'pending-uri'}")
-        variables.append(f"MACOBLOX_QUIT_SENTINEL=/Volumes/SystemRoot{QUIT_SENTINEL}")
+        variables.append(f"QUADRA_PENDING_URI_FILE=/Volumes/SystemRoot{CACHE_DIR / 'pending-uri'}")
+        variables.append(f"QUADRA_QUIT_SENTINEL=/Volumes/SystemRoot{QUIT_SENTINEL}")
         try:
-            variables.append(f"MACOBLOX_ICON_ARGB=/Volumes/SystemRoot{icon_argb_file()}")
+            variables.append(f"QUADRA_ICON_ARGB=/Volumes/SystemRoot{icon_argb_file()}")
         except Exception:
             pass
         return variables
 
     def ciderdarling_variables(self):
         """Guest settings from Settings -> CiderDarling, for that runtime only.
-        Watchdog kicks are a shim feature: MACOBLOX_KICK/MACOBLOX_NO_KICK from
+        Watchdog kicks are a shim feature: QUADRA_KICK/QUADRA_NO_KICK from
         the launcher's environment also reach the game with regular Darling."""
-        variables = [f"{name}=1" for name in ("MACOBLOX_KICK", "MACOBLOX_NO_KICK")
+        variables = [f"{name}=1" for name in ("QUADRA_KICK", "QUADRA_NO_KICK")
                      if os.environ.get(name) == "1"]
         if DARLING_RUNTIME["runtime"] != "ciderdarling":
             return variables
-        if self.settings.get("cider_thread_kicks") and "MACOBLOX_KICK=1" not in variables:
-            variables.append("MACOBLOX_KICK=1")
+        if self.settings.get("cider_thread_kicks") and "QUADRA_KICK=1" not in variables:
+            variables.append("QUADRA_KICK=1")
         trace = getattr(self, "trace_path", None)
         if trace:
             # A guest path: CiderDarling opens it inside Darling.
@@ -2677,7 +2693,7 @@ class RobloxSession:
             except OSError as error:
                 self.notes.append(f"Metal shader cache unavailable; using bounded memory caching: {error}")
         env = self.environment()
-        if env.get("MACOBLOX_WAYLAND") != "1":
+        if env.get("QUADRA_WAYLAND") != "1":
             ensure_x11(env)
         renderer_name = "OpenGL"
         if self.settings.get("renderer", "opengl") == "vulkan":
@@ -2728,7 +2744,7 @@ class RobloxSession:
             from . import mods
             mods.apply_mods(self.settings)
         except Exception as e:
-            logging.getLogger("macoblox").warning("Failed to apply mods: %s", e)
+            logging.getLogger("quadra").warning("Failed to apply mods: %s", e)
         apply_throttle_patch()
         transport_status = ensure_raknet_transport()
         shader_status = ensure_shader_compatibility()
@@ -2762,7 +2778,7 @@ class RobloxSession:
             log.write(f"MangoHud requested: {'Enabled' if self.settings.get('mangohud', False) else 'Disabled'}\n".encode())
             from . import vr
             log.write(f"{vr.shim_variables(self.settings)[1]}\n".encode())
-            log.write(f"Window backend: {'Wayland' if env.get('MACOBLOX_WAYLAND') == '1' else 'X11 / Xwayland'}\n".encode())
+            log.write(f"Window backend: {'Wayland' if env.get('QUADRA_WAYLAND') == '1' else 'X11 / Xwayland'}\n".encode())
             if self.gpu_adapter:
                 name = self.gpu_adapter["name"].replace("\n", " ").replace("\r", " ")[:200]
                 log.write(f"Graphics card requested: {name}; PCI {self.gpu_adapter['pci']}\n".encode())
@@ -2797,7 +2813,7 @@ class RobloxSession:
             if changed:
                 log.write(f"Priority: {changed} Darling processes raised to nice {_nice_target(SERVER_NICE)}\n".encode())
             log.flush()
-            command = [DARLING_EXECUTABLE, "shell", "/bin/bash", "-c", LAUNCH_SCRIPT, "macoblox",
+            command = [DARLING_EXECUTABLE, "shell", "/bin/bash", "-c", LAUNCH_SCRIPT, "quadra",
                        f"/Volumes/SystemRoot{DATA_DIR}", f"/Volumes/SystemRoot{SHIM.parent}",
                        self.launch_uri if self.launch_uri is not None else "",
                        *self.shim_variables()]
@@ -2997,7 +3013,7 @@ def query_server_location(ip_address):
     url = f"https://apis.rovalra.com/v1/geolocation?ip={address}"
     result = None
     try:
-        request = urllib.request.Request(url, headers={"User-Agent": "MacOBlox"})
+        request = urllib.request.Request(url, headers={"User-Agent": "Quadra"})
         with urllib.request.urlopen(request, timeout=5) as response:
             data = json.loads(response.read(65536).decode())
         location = data.get("location", {}) if isinstance(data, dict) else {}
@@ -3006,7 +3022,7 @@ def query_server_location(ip_address):
         parts = [str(part)[:64] for part in parts if part]
         result = ", ".join(parts) if parts else None
     except Exception as e:
-        logging.getLogger("macoblox").warning("RoValra query failed: %s", e)
+        logging.getLogger("quadra").warning("RoValra query failed: %s", e)
     with _server_location_lock:
         _server_location_cache[str(address)] = (result, time.monotonic())
     return result

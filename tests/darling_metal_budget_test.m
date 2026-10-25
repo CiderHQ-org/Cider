@@ -23,12 +23,12 @@ int main(void) {
     struct ElfHead **elf=dlsym((void *)-2,"_elfcalls");CHECK(elf && *elf);
     void *libc=(*elf)->open("libc.so.6",2);CHECK(libc);
     int (*host_setenv)(const char *,const char *,int)=(*elf)->symbol(libc,"setenv");CHECK(host_setenv);
-    CHECK(!host_setenv("MACOBLOX_VRAM_BYTES","134217728",1));
+    CHECK(!host_setenv("QUADRA_VRAM_BYTES","134217728",1));
     id device=MTLCreateSystemDefaultDevice();CHECK(device);
     CHECK([device maxBufferLength]>0); // populate the framework's static device facts
     unsigned long long initial=[device recommendedMaxWorkingSetSize];
     CHECK(initial==(128ULL<<20)); // require headroom so a stale value cannot pass
-    CHECK(!host_setenv("MACOBLOX_VRAM_BYTES","67108864",1));
+    CHECK(!host_setenv("QUADRA_VRAM_BYTES","67108864",1));
     unsigned long long reduced=[device recommendedMaxWorkingSetSize];
     CHECK(reduced==(64ULL<<20)); // the same guest device must observe the new budget
     printf("PASS: real Metal device refreshes budget from %llu to %llu bytes after its other facts are cached\n",initial,reduced);

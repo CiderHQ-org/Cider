@@ -101,7 +101,7 @@ static unsigned int *visible_pixels;
 static unsigned int visible_width,visible_height,visible_hot_x,visible_hot_y;
 static unsigned long visible_generation;
 
-void macoblox_cursor_overlay_select_image(XID cursor, const unsigned int *pixels,
+void quadra_cursor_overlay_select_image(XID cursor, const unsigned int *pixels,
                                           unsigned int width, unsigned int height,
                                           unsigned int hot_x, unsigned int hot_y) {
     unsigned int *copy = 0;
@@ -117,7 +117,7 @@ void macoblox_cursor_overlay_select_image(XID cursor, const unsigned int *pixels
             if(visible_copy)for(unsigned int index=0;index<width*height;index++)visible_copy[index]=copy[index];
         }
     }
-    macoblox_lock(&selected_image_lock);
+    quadra_lock(&selected_image_lock);
     unsigned int *previous = selected_pixels;
     selected_pixels = copy;
     selected_cursor = copy ? cursor : 0;
@@ -133,14 +133,14 @@ void macoblox_cursor_overlay_select_image(XID cursor, const unsigned int *pixels
         visible_hot_x=selected_hot_x;visible_hot_y=selected_hot_y;
         visible_generation++;
     }
-    macoblox_unlock(&selected_image_lock);
+    quadra_unlock(&selected_image_lock);
     free(previous);
     free(previous_visible);
 }
 
 static CursorImage *drag_image_snapshot(void) {
     CursorImage *image=0;
-    macoblox_lock(&selected_image_lock);
+    quadra_lock(&selected_image_lock);
     unsigned int width=visible_pixels?visible_width:10,height=visible_pixels?visible_height:17;
     image=malloc(sizeof *image+width*height*sizeof(unsigned long));
     if(image) {
@@ -148,15 +148,15 @@ static CursorImage *drag_image_snapshot(void) {
             .xhot=visible_pixels?visible_hot_x:0,.yhot=visible_pixels?visible_hot_y:0,
             .serial=visible_generation,.pixels=(unsigned long *)(image+1)};
         for(unsigned int y=0;y<height;y++)for(unsigned int x=0;x<width;x++)
-            image->pixels[y*width+x]=visible_pixels?visible_pixels[y*width+x]:macoblox_drag_cursor_arrow(x,y);
+            image->pixels[y*width+x]=visible_pixels?visible_pixels[y*width+x]:quadra_drag_cursor_arrow(x,y);
     }
-    macoblox_unlock(&selected_image_lock);
+    quadra_unlock(&selected_image_lock);
     return image;
 }
 
 static CursorImage *selected_image_snapshot(XID cursor) {
     CursorImage *image = 0;
-    macoblox_lock(&selected_image_lock);
+    quadra_lock(&selected_image_lock);
     if (cursor && cursor == selected_cursor && selected_pixels) {
         unsigned int count = selected_width * selected_height;
         image = malloc(sizeof *image + count * sizeof(unsigned long));
@@ -167,7 +167,7 @@ static CursorImage *selected_image_snapshot(XID cursor) {
             for (unsigned int index = 0; index < count; index++) image->pixels[index] = selected_pixels[index];
         }
     }
-    macoblox_unlock(&selected_image_lock);
+    quadra_unlock(&selected_image_lock);
     return image;
 }
 
@@ -349,24 +349,24 @@ static int cursor_overlay_update(int locked, XID game_window, int visible,
     return 1;
 }
 
-int macoblox_cursor_overlay_update_at(int locked, XID game_window, int visible,
+int quadra_cursor_overlay_update_at(int locked, XID game_window, int visible,
                                       int saved_x, int saved_y, unsigned long generation) {
     return cursor_overlay_update(locked, game_window, visible, 1, saved_x, saved_y, generation, 0,0);
 }
 
-int macoblox_cursor_overlay_update_selected(int locked, XID game_window, int visible,
+int quadra_cursor_overlay_update_selected(int locked, XID game_window, int visible,
                                             int saved_x, int saved_y,
                                             unsigned long generation, XID cursor) {
     return cursor_overlay_update(locked, game_window, visible, 1, saved_x, saved_y, generation, cursor,0);
 }
 
-int macoblox_cursor_overlay_update_drag(int locked,XID game_window,int visible,
+int quadra_cursor_overlay_update_drag(int locked,XID game_window,int visible,
     int saved_x,int saved_y,unsigned long generation,XID cursor,int right_drag) {
     return cursor_overlay_update(locked,game_window,visible,1,saved_x,saved_y,generation,cursor,right_drag);
 }
 
 /* Keep the standalone helper interface for callers without a capture
  * snapshot. The game shim uses update_selected with the saved position. */
-int macoblox_cursor_overlay_update(int locked, XID game_window, int visible) {
+int quadra_cursor_overlay_update(int locked, XID game_window, int visible) {
     return cursor_overlay_update(locked, game_window, visible, 0, 0, 0, 0, 0,0);
 }

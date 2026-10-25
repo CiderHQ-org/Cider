@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from macoblox import core
+from quadra import core
 
 
 class AppearanceSettingsTests(unittest.TestCase):

@@ -18,18 +18,18 @@ def validated_dpi_scale(value):
 
 def window_environment(settings, helper):
     backend = settings.get("display_backend", "x11")
-    if os.environ.get("MACOBLOX_WAYLAND") == "1":
+    if os.environ.get("QUADRA_WAYLAND") == "1":
         backend = "wayland"
     if backend == "x11":
-        return {"MACOBLOX_WAYLAND": "0", "EGL_PLATFORM": "x11"}
+        return {"QUADRA_WAYLAND": "0", "EGL_PLATFORM": "x11"}
     if backend != "wayland":
         raise ValueError(f"Unknown window backend: {backend}")
     if not os.environ.get("WAYLAND_DISPLAY"):
         raise RuntimeError("Wayland requires a Wayland desktop session. Select X11 in Settings.")
     if not Path(helper).is_file():
         raise RuntimeError("The Wayland helper is missing. Install SDL2/Wayland development libraries and rebuild, or select X11.")
-    values = {"MACOBLOX_WAYLAND": "1", "EGL_PLATFORM": "wayland",
-              "MACOBLOX_WAYLAND_HELPER": str(helper)}
+    values = {"QUADRA_WAYLAND": "1", "EGL_PLATFORM": "wayland",
+              "QUADRA_WAYLAND_HELPER": str(helper)}
     if settings.get("renderer", "opengl") in ("vulkan", "metal"):
         from .graphics import wayland_vulkan_environment
         values.update(wayland_vulkan_environment())
@@ -59,8 +59,8 @@ class WaylandProbeWindow:
                         ("subwindow_visible", subwindow_visible), ("destroy_subwindow", destroy_subwindow),
                         ("subwindow_wl_surface", surface)]
 
-        self.library = ctypes.CDLL(os.environ["MACOBLOX_WAYLAND_HELPER"])
-        get_api = self.library.macoblox_wayland_host_api
+        self.library = ctypes.CDLL(os.environ["QUADRA_WAYLAND_HELPER"])
+        get_api = self.library.quadra_wayland_host_api
         get_api.restype = ctypes.POINTER(API)
         value = get_api()
         # Check only the ABI header before reading newly added function slots.

@@ -3,7 +3,7 @@
  * Darling has no such entry, so Roblox assumed 64 MB of video memory, which
  * turned off MSAA (antialiasing) and other quality features whatever the
  * graphics level. Answer it with the host GPU's real VRAM, passed by the
- * launcher as MACOBLOX_VRAM_BYTES, with a conservative fallback. */
+ * launcher as QUADRA_VRAM_BYTES, with a conservative fallback. */
 
 typedef const void *CFTypeRef;
 typedef const void *CFStringRef;
@@ -23,8 +23,8 @@ __attribute__((weak_import)) extern CFTypeRef IORegistryEntryCreateCFProperty(io
 __attribute__((weak_import)) extern int IOObjectRelease(unsigned int);
 
 #define FAKE_DISPLAY_SERVICE 0x4d4f4231u
-#define MACOBLOX_IO_BAD_ARGUMENT ((int)0xe00002c2u)
-#define MACOBLOX_IO_NO_MEMORY ((int)0xe00002bdu)
+#define QUADRA_IO_BAD_ARGUMENT ((int)0xe00002c2u)
+#define QUADRA_IO_NO_MEMORY ((int)0xe00002bdu)
 
 #ifndef DYLD_INTERPOSE
 #define DYLD_INTERPOSE(_replacement, _replacee) \
@@ -34,7 +34,7 @@ __attribute__((weak_import)) extern int IOObjectRelease(unsigned int);
 #endif
 
 static long long vram_bytes(void) {
-    const char *text = getenv("MACOBLOX_VRAM_BYTES");
+    const char *text = getenv("QUADRA_VRAM_BYTES");
     const long long fallback = 512LL << 20;
     if (!text || !text[0]) return fallback;
     long long value = 0;
@@ -61,7 +61,7 @@ static int key_is(CFStringRef key, const char *expected) {
 }
 
 static int tracing(void) {
-    const char *text = getenv("MACOBLOX_TRACE_IOKIT");
+    const char *text = getenv("QUADRA_TRACE_IOKIT");
     return text && text[0];
 }
 
@@ -73,7 +73,7 @@ static void trace(const char *what, const char *detail, unsigned long value) {
     if (length > 0) write(2, line, (unsigned long)length < sizeof line ? (unsigned long)length : sizeof line - 1);
 }
 
-static CFTypeRef macoblox_IORegistryEntryCreateCFProperty(io_registry_entry_t entry, CFStringRef key,
+static CFTypeRef quadra_IORegistryEntryCreateCFProperty(io_registry_entry_t entry, CFStringRef key,
                                                           CFAllocatorRef allocator, IOOptionBits options) {
     if (tracing()) {
         char text[64] = "?";
@@ -90,7 +90,7 @@ static CFTypeRef macoblox_IORegistryEntryCreateCFProperty(io_registry_entry_t en
         return 0;
     return IORegistryEntryCreateCFProperty(entry, key, allocator, options);
 }
-DYLD_INTERPOSE(macoblox_IORegistryEntryCreateCFProperty, IORegistryEntryCreateCFProperty)
+DYLD_INTERPOSE(quadra_IORegistryEntryCreateCFProperty, IORegistryEntryCreateCFProperty)
 
 /* Physical screen size. Darling's CGDisplayScreenSize returns the display's
  * pixel size as millimetres (a two-metre-wide screen), and 0x0 for a
@@ -104,14 +104,14 @@ DYLD_INTERPOSE(macoblox_IORegistryEntryCreateCFProperty, IORegistryEntryCreateCF
  * mouse hooks; this physical-size repair stays at 96 DPI so an unsupported
  * input ABI cannot leave a separate synthetic scale active. Unknown IDs get
  * the main display's bounds too. */
-typedef struct { double x, y, width, height; } macoblox_rect; /* CGRect */
-typedef struct { double width, height; } macoblox_size;       /* CGSize */
-__attribute__((weak_import)) extern macoblox_rect CGDisplayBounds(unsigned int);
-__attribute__((weak_import)) extern macoblox_size CGDisplayScreenSize(unsigned int);
+typedef struct { double x, y, width, height; } quadra_rect; /* CGRect */
+typedef struct { double width, height; } quadra_size;       /* CGSize */
+__attribute__((weak_import)) extern quadra_rect CGDisplayBounds(unsigned int);
+__attribute__((weak_import)) extern quadra_size CGDisplayScreenSize(unsigned int);
 __attribute__((weak_import)) extern unsigned int CGMainDisplayID(void);
 
-static macoblox_rect macoblox_CGDisplayBounds(unsigned int display) {
-    macoblox_rect bounds = CGDisplayBounds(display);
+static quadra_rect quadra_CGDisplayBounds(unsigned int display) {
+    quadra_rect bounds = CGDisplayBounds(display);
     if (bounds.width <= 0 || bounds.height <= 0) {
         unsigned int main_display = CGMainDisplayID();
         if (main_display && main_display != display)
@@ -123,10 +123,10 @@ static macoblox_rect macoblox_CGDisplayBounds(unsigned int display) {
     }
     return bounds;
 }
-DYLD_INTERPOSE(macoblox_CGDisplayBounds, CGDisplayBounds)
+DYLD_INTERPOSE(quadra_CGDisplayBounds, CGDisplayBounds)
 
-double macoblox_dpi_scale(void) {
-    const char *text = getenv("MACOBLOX_DPI_SCALE");
+double quadra_dpi_scale(void) {
+    const char *text = getenv("QUADRA_DPI_SCALE");
     if (!text || text[0] < '0' || text[0] > '9') return 1.0;
     unsigned int count = 0, whole = 0;
     while (*text >= '0' && *text <= '9') {
@@ -154,41 +154,41 @@ double macoblox_dpi_scale(void) {
     return (double)whole + fraction;
 }
 
-static macoblox_size macoblox_CGDisplayScreenSize(unsigned int display) {
-    macoblox_rect bounds = macoblox_CGDisplayBounds(display);
+static quadra_size quadra_CGDisplayScreenSize(unsigned int display) {
+    quadra_rect bounds = quadra_CGDisplayBounds(display);
     double width = __builtin_isfinite(bounds.width) && bounds.width > 0 ? bounds.width : 1920;
     double height = __builtin_isfinite(bounds.height) && bounds.height > 0 ? bounds.height : 1080;
     double millimetres_per_pixel = 25.4 / 96.0;
-    macoblox_size size = {width * millimetres_per_pixel, height * millimetres_per_pixel};
+    quadra_size size = {width * millimetres_per_pixel, height * millimetres_per_pixel};
     if (!(size.width > 0)) size.width = 1920 * millimetres_per_pixel;
     if (!(size.height > 0)) size.height = 1080 * millimetres_per_pixel;
     return size;
 }
-DYLD_INTERPOSE(macoblox_CGDisplayScreenSize, CGDisplayScreenSize)
+DYLD_INTERPOSE(quadra_CGDisplayScreenSize, CGDisplayScreenSize)
 
 /* The Linux display has no macOS framebuffer registry service. Darling's
  * native lookup can wait indefinitely for an IOKit reply on Wayland (verified
  * in the main thread's stack). Never issue that lookup for a host display. */
-static unsigned int macoblox_CGDisplayIOServicePort(unsigned int display) {
+static unsigned int quadra_CGDisplayIOServicePort(unsigned int display) {
     (void)display;
     unsigned int port = FAKE_DISPLAY_SERVICE;
     trace("CGDisplayIOServicePort", 0, port);
     return port;
 }
-DYLD_INTERPOSE(macoblox_CGDisplayIOServicePort, CGDisplayIOServicePort)
+DYLD_INTERPOSE(quadra_CGDisplayIOServicePort, CGDisplayIOServicePort)
 
-static int macoblox_IOObjectRelease(unsigned int object) {
+static int quadra_IOObjectRelease(unsigned int object) {
     if (object == FAKE_DISPLAY_SERVICE) return 0;
-    return IOObjectRelease ? IOObjectRelease(object) : MACOBLOX_IO_BAD_ARGUMENT;
+    return IOObjectRelease ? IOObjectRelease(object) : QUADRA_IO_BAD_ARGUMENT;
 }
-DYLD_INTERPOSE(macoblox_IOObjectRelease, IOObjectRelease)
+DYLD_INTERPOSE(quadra_IOObjectRelease, IOObjectRelease)
 
-static const void *macoblox_IOServiceMatching(const char *name) {
+static const void *quadra_IOServiceMatching(const char *name) {
     const void *result = IOServiceMatching(name);
     trace("IOServiceMatching", name, (unsigned long)result);
     return result;
 }
-DYLD_INTERPOSE(macoblox_IOServiceMatching, IOServiceMatching)
+DYLD_INTERPOSE(quadra_IOServiceMatching, IOServiceMatching)
 
 /* Roblox may read the display's properties as one dictionary, or go to the
  * parent (framebuffer) entry first; cover both for the stand-in entry. */
@@ -204,15 +204,15 @@ __attribute__((weak_import)) extern int IORegistryEntryCreateCFProperties(io_reg
 __attribute__((weak_import)) extern int IORegistryEntryGetParentEntry(io_registry_entry_t, const char *,
                                                                      io_registry_entry_t *);
 
-static int macoblox_IORegistryEntryCreateCFProperties(io_registry_entry_t entry, CFMutableDictionaryRef *properties,
+static int quadra_IORegistryEntryCreateCFProperties(io_registry_entry_t entry, CFMutableDictionaryRef *properties,
                                                       CFAllocatorRef allocator, IOOptionBits options) {
     trace("IORegistryEntryCreateCFProperties", 0, entry);
     if (entry == FAKE_DISPLAY_SERVICE) {
-        if (!properties) return MACOBLOX_IO_BAD_ARGUMENT;
+        if (!properties) return QUADRA_IO_BAD_ARGUMENT;
         *properties = 0;
         CFMutableDictionaryRef dictionary = CFDictionaryCreateMutable(
             allocator, 0, kCFTypeDictionaryKeyCallBacks, kCFTypeDictionaryValueCallBacks);
-        if (!dictionary) return MACOBLOX_IO_NO_MEMORY;
+        if (!dictionary) return QUADRA_IO_NO_MEMORY;
         long long bytes = vram_bytes();
         CFTypeRef number = CFNumberCreate(allocator, 4 /* kCFNumberSInt64Type */, &bytes);
         CFStringRef key = CFStringCreateWithCString(allocator, "IOFBMemorySize", 0x08000100);
@@ -220,7 +220,7 @@ static int macoblox_IORegistryEntryCreateCFProperties(io_registry_entry_t entry,
             if (number) CFRelease(number);
             if (key) CFRelease(key);
             CFRelease(dictionary);
-            return MACOBLOX_IO_NO_MEMORY;
+            return QUADRA_IO_NO_MEMORY;
         }
         CFDictionarySetValue(dictionary, key, number);
         CFRelease(key);
@@ -229,27 +229,27 @@ static int macoblox_IORegistryEntryCreateCFProperties(io_registry_entry_t entry,
         return 0;
     }
     return IORegistryEntryCreateCFProperties
-        ? IORegistryEntryCreateCFProperties(entry, properties, allocator, options) : MACOBLOX_IO_BAD_ARGUMENT;
+        ? IORegistryEntryCreateCFProperties(entry, properties, allocator, options) : QUADRA_IO_BAD_ARGUMENT;
 }
-DYLD_INTERPOSE(macoblox_IORegistryEntryCreateCFProperties, IORegistryEntryCreateCFProperties)
+DYLD_INTERPOSE(quadra_IORegistryEntryCreateCFProperties, IORegistryEntryCreateCFProperties)
 
-static int macoblox_IORegistryEntryGetParentEntry(io_registry_entry_t entry, const char *plane,
+static int quadra_IORegistryEntryGetParentEntry(io_registry_entry_t entry, const char *plane,
                                                   io_registry_entry_t *parent) {
     trace("IORegistryEntryGetParentEntry", plane, entry);
     if (entry == FAKE_DISPLAY_SERVICE) {
-        if (!parent) return MACOBLOX_IO_BAD_ARGUMENT;
+        if (!parent) return QUADRA_IO_BAD_ARGUMENT;
         *parent = FAKE_DISPLAY_SERVICE;
         return 0;
     }
     return IORegistryEntryGetParentEntry
-        ? IORegistryEntryGetParentEntry(entry, plane, parent) : MACOBLOX_IO_BAD_ARGUMENT;
+        ? IORegistryEntryGetParentEntry(entry, plane, parent) : QUADRA_IO_BAD_ARGUMENT;
 }
-DYLD_INTERPOSE(macoblox_IORegistryEntryGetParentEntry, IORegistryEntryGetParentEntry)
+DYLD_INTERPOSE(quadra_IORegistryEntryGetParentEntry, IORegistryEntryGetParentEntry)
 
 /* Log multisample buffer creation (a handful of calls, at resize) to see
  * whether Roblox enables MSAA and with how many samples. */
 extern void glRenderbufferStorageMultisample(unsigned int, int, unsigned int, int, int);
-static void macoblox_glRenderbufferStorageMultisample(unsigned int target, int samples, unsigned int format,
+static void quadra_glRenderbufferStorageMultisample(unsigned int target, int samples, unsigned int format,
                                                       int width, int height) {
     char line[160];
     int length = snprintf(line, sizeof line,
@@ -258,7 +258,7 @@ static void macoblox_glRenderbufferStorageMultisample(unsigned int target, int s
     if (length > 0) write(2, line, (unsigned long)length);
     glRenderbufferStorageMultisample(target, samples, format, width, height);
 }
-DYLD_INTERPOSE(macoblox_glRenderbufferStorageMultisample, glRenderbufferStorageMultisample)
+DYLD_INTERPOSE(quadra_glRenderbufferStorageMultisample, glRenderbufferStorageMultisample)
 
 /* Metal off: Roblox renders with OpenGL here.
  *
@@ -271,12 +271,12 @@ DYLD_INTERPOSE(macoblox_glRenderbufferStorageMultisample, glRenderbufferStorageM
  * carry: an exception from the device ("-[MTLDev..."), then a crash in
  * -[RBXWindow setTitlebarAppearsTransparent:]. So the answer is always "no
  * device". MACOBLOX_METAL=1 keeps Darling's answer (the Vulkan work). */
-typedef struct objc_object *macoblox_id;
-extern macoblox_id objc_msgSend(macoblox_id, void *, ...);
+typedef struct objc_object *quadra_id;
+extern quadra_id objc_msgSend(quadra_id, void *, ...);
 extern void *sel_registerName(const char *);
 extern void *objc_getClass(const char *);
-__attribute__((weak_import)) extern macoblox_id MTLCreateSystemDefaultDevice(void);
-__attribute__((weak_import)) extern macoblox_id MTLCopyAllDevices(void);
+__attribute__((weak_import)) extern quadra_id MTLCreateSystemDefaultDevice(void);
+__attribute__((weak_import)) extern quadra_id MTLCopyAllDevices(void);
 
 static int metal_allowed(void) {
     const char *value = getenv("MACOBLOX_METAL");
@@ -291,20 +291,20 @@ static void metal_off_once(void) {
           sizeof("[Quadra] Metal device hidden, Roblox renders with OpenGL\n") - 1);
 }
 
-static macoblox_id macoblox_MTLCreateSystemDefaultDevice(void) {
+static quadra_id quadra_MTLCreateSystemDefaultDevice(void) {
     if (metal_allowed())
         return MTLCreateSystemDefaultDevice();
     metal_off_once();
     return 0;
 }
-DYLD_INTERPOSE(macoblox_MTLCreateSystemDefaultDevice, MTLCreateSystemDefaultDevice)
+DYLD_INTERPOSE(quadra_MTLCreateSystemDefaultDevice, MTLCreateSystemDefaultDevice)
 
-static macoblox_id macoblox_MTLCopyAllDevices(void) {
+static quadra_id quadra_MTLCopyAllDevices(void) {
     if (metal_allowed())
         return MTLCopyAllDevices();
     metal_off_once();
     /* An empty array the caller owns, as the Copy in the name promises. */
-    macoblox_id array = ((macoblox_id (*)(void *, void *))objc_msgSend)(objc_getClass("NSArray"), sel_registerName("alloc"));
-    return ((macoblox_id (*)(macoblox_id, void *))objc_msgSend)(array, sel_registerName("init"));
+    quadra_id array = ((quadra_id (*)(void *, void *))objc_msgSend)(objc_getClass("NSArray"), sel_registerName("alloc"));
+    return ((quadra_id (*)(quadra_id, void *))objc_msgSend)(array, sel_registerName("init"));
 }
-DYLD_INTERPOSE(macoblox_MTLCopyAllDevices, MTLCopyAllDevices)
+DYLD_INTERPOSE(quadra_MTLCopyAllDevices, MTLCopyAllDevices)

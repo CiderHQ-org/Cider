@@ -16,12 +16,15 @@ import uuid
 from pathlib import Path
 from . import core
 
-log = logging.getLogger("macoblox.discord")
+log = logging.getLogger("quadra.discord")
 
-# QuadraHQ's Discord application; its existing logo asset key stays compatible.
+# QuadraHQ's Discord application.
 CLIENT_ID = "1559277724160233553"
-LOGO = "ciderhq"
 WEBSITE_URL = "https://quadrahq.org"
+# The application's own "ciderhq" image asset is still the old Cider logo and only its owner can replace it in
+# the developer portal, so the presence shows the current logo from the website (the same file as
+# branding/icons/quadrahq-512.png) instead.
+LOGO = f"{WEBSITE_URL}/assets/quadrahq-512.png"
 
 CACHE_FILE = core.DATA_DIR / "game_cache.json"
 
@@ -222,8 +225,8 @@ class GameActivityTracker:
         self._pending_join = None
         self._started = False
         self._resolve_thread = threading.Thread(target=self._resolve_worker,
-                                                name="macoblox-game-metadata", daemon=True)
-        self.thread = threading.Thread(target=self._run, name="macoblox-game-log", daemon=True)
+                                                name="quadra-game-metadata", daemon=True)
+        self.thread = threading.Thread(target=self._run, name="quadra-game-log", daemon=True)
         if autostart:
             self.start()
 
@@ -429,7 +432,7 @@ class DiscordRPC:
         self._owner_token = object()
         self._pending = self._NO_PENDING
         self._worker = threading.Thread(target=self._presence_worker,
-                                        name="macoblox-discord-ipc", daemon=True)
+                                        name="quadra-discord-ipc", daemon=True)
         try:
             self._worker.start()
         except RuntimeError:

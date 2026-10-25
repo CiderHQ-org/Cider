@@ -21,7 +21,7 @@ __attribute__((objc_root_class))
 // every stub @implementation, answers any other message with nil / 0 / NO
 // (and 0.0 for floating point results), as a class that is missing
 // altogether would, where messages go to nil.
-__attribute__((naked, used)) static void macoblox_stub_nothing(void) {
+__attribute__((naked, used)) static void quadra_stub_nothing(void) {
     __asm__("xorl %eax, %eax\n\t"
             "xorl %edx, %edx\n\t"
             "xorps %xmm0, %xmm0\n\t"
@@ -32,10 +32,10 @@ __attribute__((naked, used)) static void macoblox_stub_nothing(void) {
 #define STUB_RESOLVERS                                                          \
     +(BOOL)resolveClassMethod:(SEL)selector {                                   \
         class_addMethod(object_getClass((id)self), selector,                    \
-                        (IMP)macoblox_stub_nothing, "@@:");                     \
+                        (IMP)quadra_stub_nothing, "@@:");                     \
         return 1;                                                               \
     }                                                                           \
     +(BOOL)resolveInstanceMethod:(SEL)selector {                                \
-        class_addMethod((Class)self, selector, (IMP)macoblox_stub_nothing, "@@:"); \
+        class_addMethod((Class)self, selector, (IMP)quadra_stub_nothing, "@@:"); \
         return 1;                                                               \
     }

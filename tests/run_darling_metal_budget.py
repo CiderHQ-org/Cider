@@ -13,7 +13,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'launcher'))
-from macoblox import runtime
+from quadra import runtime
 
 
 def main():
@@ -40,7 +40,7 @@ def main():
               'MACOBLOX_METAL_HOST_LIBRARY': str(metal / 'libquadra_metal_host.so'),
               'MACOBLOX_METAL_SHADER_CACHE': str(output / 'shader-cache'),
               'MACOBLOX_METAL_PRELOAD_IN_PROCESS': '0',
-              'MACOBLOX_VRAM_BYTES': '134217728'}
+              'QUADRA_VRAM_BYTES': '134217728'}
     environment = {key: value for key, value in os.environ.items()
                    if key not in ('DPREFIX', 'DYLD_INSERT_LIBRARIES', 'DYLD_FRAMEWORK_PATH', 'LD_PRELOAD')}
     environment.update(values, DPREFIX=str(prefix))

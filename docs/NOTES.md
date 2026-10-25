@@ -1,4 +1,4 @@
-# MacOBlox
+# Quadra
 
 Roblox Client for macOS (x86_64) on Linux via Darling. As of
 2026-09-23: The main menu, login (Quick Login), avatar, and games are working.
@@ -6,23 +6,23 @@ Roblox Client for macOS (x86_64) on Linux via Darling. As of
 ## Launch
 
 Launcher: `launcher/install.sh` adds the “Mac O Blox” entry to the Applications menu
-and the `macoblox` command. That includes game launching, fast flags, and DNS specifically for Roblox,
+and the `quadra` command. That includes game launching, fast flags, and DNS specifically for Roblox,
 Camera sensitivity, client update, diagnostics. The settings are located in
-`~/.config/macoblox/settings.json`, logs in `logs/`.
+`~/.config/quadrahq/settings.json`, logs in `logs/`.
 
 Priorities: Darling runs with a nice value of −4, while darlingserver, the Darling daemons, and
 pw-cat inherits the launcher's nice value (+10 if the desktop launches it that way) and
 They remain idle while the game uses all the cores. The launcher starts darlingserver with
 daemons to -5 and pw-cat to -11, as far as RLIMIT_NICE allows.
 
-## What does the shim (build/libMacOBloxShims.dylib) do?
+## What does the shim (build/libQuadraShims.dylib) do?
 
 `build_debug_shim.sh` is built from:
 
-- `libMacOBloxShims.m` — AppKit/GL/input: returns the GL context after
+- `libQuadraShims.m` — AppKit/GL/input: returns the GL context after
   CALayerContext, macOS-style mouse button numbers, mouse capture for the camera,
   cursors, missing methods for NSEvent/NSTextView/NSButton/CNContactStore,
-  a cookie saved to disk (`~/Library/MacOBlox/Cookies.plist` inside
+  a cookie saved to disk (`~/Library/QuadraHQ/Cookies.plist` inside
   the Darling prefix), hiding the menu bar, window icon.
 - `missing_symbols.c` — functions that Roblox imports but Darling does not.
 - `net_trace.c` — reliable UDP reception and a watchdog for frozen RakNet threads.
@@ -35,7 +35,7 @@ daemons to -5 and pw-cat to -11, as far as RLIMIT_NICE allows.
 - `dns_override.c` — DNS for Roblox via the launcher’s local proxy.
 - `xattr_compat.c`, `exit_compat.c` — from previous stages.
 
-The `MACOBLOX_*` variables (tracing, DNS, sensitivity) are set by
+The `QUADRA_*` variables (tracing, DNS, sensitivity) are set by
 the launcher. `run_debug.sh` is still there for manual debugging.
 
 ## Important Note About Darling
@@ -55,7 +55,7 @@ cd Quadra
 ./run_debug.sh
 ```
 
-The script compiles the library from `libMacOBloxShims.m` in `build/`, launches
+The script compiles the library from `libQuadraShims.m` in `build/`, launches
 the client from the project folder within an existing Darling prefix, and writes
 the output to a separate file in `logs/launch-*.log`. Arguments are passed to the client.
 The launch itself requires a running Darling outside the restricted Codex environment.
@@ -121,11 +121,11 @@ cookies); the old build fails the new tests, while the new one passes them all.
 - Exception handlers, `makeCurrentContext`, `flushBuffer`: `getenv` and `dlsym` are called once,
   rather than for every `throw` or frame (Lua errors in games are C++ exceptions).
 - Shaders: the Mesa fix applies to all shaders (not just the
-  first 8192); source code is stored only with `MACOBLOX_TRACE_GL=1`.
+  first 8192); source code is stored only with `QUADRA_TRACE_GL=1`.
 - `fast_libc.c`: SSE loops instead of `rep movsb/stosb` where those are slower
   (short copies, 4K aliasing, more L2), fast memchr/strlen/strcmp,
   memset_pattern4/8/16 have been reimplemented.
-- `MACOBLOX_*=0` flags now mean “disabled.”
+- `QUADRA_*=0` flags now mean “disabled.”
 
 ## Changes September 26, 2026, evening: locks without darlingserver
 
@@ -170,19 +170,19 @@ cookies); the old build fails the new tests, while the new one passes them all.
   infinite recursion in `updateSurfaceLuaApp` for a user on Fedora KDE. The size is now set to 96 DPI.
 - Embedded Roblox web pages (password login with CAPTCHA, purchases, links):
   `web_bridge.m` replaces WKWebView with placeholders that use a Unix socket
-  (`MACOBLOX_WEB_SOCKET`, JSON line-by-line) to the launcher window running
-  WebKitGTK 6.0 (`launcher/macoblox/web.py`). Cookies are passed back and forth, so
+  (`QUADRA_WEB_SOCKET`, JSON line-by-line) to the launcher window running
+  WebKitGTK 6.0 (`launcher/quadra/web.py`). Cookies are passed back and forth, so
   the client remains logged in after signing in on the page. The protocol and some of the code are from the
   spidercraft port (Roblox Mac Linux Port), with their permission. The replacement is applied only
   when the launcher is listening on the socket; without WebKitGTK, everything works as before. Site data is stored in
-  `~/.config/macoblox/web`; clicking “Log Out” deletes it.
+  `~/.config/quadrahq/web`; clicking “Log Out” deletes it.
 - New application ID `wtf.aubree.MacOBlox` (Flatpak, .desktop, MIME, launcher,
   packages); installers remove the old `xyz.narez.*` files. Version 0.15.
 - Microphone for voice chat (`audio_hal.c`): Roblox treats the AUHAL unit as
   WebRTC—enables input on bus 1 (`kAudioOutputUnitProperty_EnableIO`),
   sets the client format (scope 2, element 1, typically 48 kHz mono float32), and
   the input callback (2005), within which `AudioUnitRender` retrieves frames.
-  The shim reads float32 from the second FIFO (`MACOBLOX_AUDIO_INPUT_FIFO`, in 10 ms blocks
+  The shim reads float32 from the second FIFO (`QUADRA_AUDIO_INPUT_FIFO`, in 10 ms blocks
   into a ring buffer) and calls the callback for each block; `AudioUnitRender` on bus 1 outputs
   frames in the client’s format (float32/int16, interleaved or not). Recording on the host
   continues only as long as the game is listening: at startup, the shim writes the file `<fifo>.request`
@@ -203,9 +203,9 @@ cookies); the old build fails the new tests, while the new one passes them all.
   the last queued one; MotionNotify only keeps the pointer within 100 px of
   its anchor and is not delivered. Falls back to pointer deltas when XI2 is
   missing or no raw event arrives while the pointer moves. Launcher switch
-  "Raw mouse input" (MACOBLOX_RAW_MOUSE=0). After spidercraft's RbxRawMotion.
+  "Raw mouse input" (QUADRA_RAW_MOUSE=0). After spidercraft's RbxRawMotion.
   Verified in Darling against Xvfb: raw deltas equal the xdotool moves; the
-  in-game camera is to be checked by hand. MACOBLOX_TRACE_XEVENTS=1 logs the
+  in-game camera is to be checked by hand. QUADRA_TRACE_XEVENTS=1 logs the
   first 80 X events reaching postXEvent:.
 - Flatpak: “Cannot determine your user name” on startup. `darling` retrieves the
   username via `getpwuid(geteuid())`, and darling-noroot.so returns
@@ -216,15 +216,15 @@ cookies); the old build fails the new tests, while the new one passes them all.
 
 ## Changes 2026-10-01: the launcher as a desktop
 
-The launcher's interface is redone after aubree.wtf (`launcher/macoblox/theme.py`
+The launcher's interface is redone after aubree.wtf (`launcher/quadra/theme.py`
 holds the look, `app.py` the new shell; every settings page keeps its widgets):
 
 - Dark monochrome, square corners, no hue: state is filled against hollow,
   brightness, and a text label. Archivo for the interface, JetBrains Mono for
-  titles and small facts; both ship in `launcher/macoblox/assets/fonts`
+  titles and small facts; both ship in `launcher/quadra/assets/fonts`
   (SIL OFL, cut down to the weights used) and are registered with Pango at
   start, so nothing is installed on the system.
-- A top bar (`macoblox@darling`, the game's state, the time in the running
+- A top bar (`quadra@darling`, the game's state, the time in the running
   game, a clock, the window buttons) over a "desktop": the play window and
   the menu window on the left, the open page in a window on the right
   (console, settings with its three tabs, mods, logs, info). Below 860 px
@@ -239,8 +239,8 @@ holds the look, `app.py` the new shell; every settings page keeps its widgets):
   in the system it appears finished.
 - The log viewer's highlighting is monochrome too (level by brightness and
   weight). The old sidebar and its `show_sidebar` setting are gone.
-- For screenshots: `MACOBLOX_PAGE` (play, env, roblox, flags, mods, logs,
-  info) and `MACOBLOX_WINDOW_SIZE=WxH`.
+- For screenshots: `QUADRA_PAGE` (play, env, roblox, flags, mods, logs,
+  info) and `QUADRA_WINDOW_SIZE=WxH`.
 
 ## Changes 2026-10-01, evening: a report from another Darling build
 
@@ -283,7 +283,7 @@ had `NSApplication got exception: -[MTLDev...` before the crash.
   spinning indefinitely. The shim builds with optimization and frame pointers.
 - Normal shader compilation no longer immediately queries `GL_COMPILE_STATUS`:
   that query forces asynchronous driver compilation to finish. The extra check
-  and first-failed-source capture are now enabled only with `MACOBLOX_TRACE_GL=1`.
+  and first-failed-source capture are now enabled only with `QUADRA_TRACE_GL=1`.
   NVIDIA gets a persistent host shader-cache path, like Mesa already did.
 - Preserve one `glGetError` query after AppKit's first `glDrawArrays` call when
   tracing is off. Without it, isolated startup repeatedly aborts before Roblox
@@ -591,7 +591,7 @@ counted 1,882 close callbacks taking 1,815.6 ms in the first three reporting
 buckets. This identifies a cost in the initial menu-binding delay; the later
 frameless phase is measured separately.
 
-`launcher/macoblox/darling_patches.py` prepares app-prefix copies of these
+`launcher/quadra/darling_patches.py` prepares app-prefix copies of these
 known x86_64 implementations:
 
 | Library | Complete original SHA-256 | Complete repaired SHA-256 |

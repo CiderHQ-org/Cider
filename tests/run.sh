@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
-test_build=$(mktemp -d /tmp/macoblox-tests.XXXXXX)
+test_build=$(mktemp -d /tmp/quadra-tests.XXXXXX)
 trap 'rm -rf -- "$test_build"' EXIT
 clang -O2 -Wall -Wextra -pthread tests/runtime_helpers_test.c worker_wake.c -o "$test_build/runtime"
 "$test_build/runtime"

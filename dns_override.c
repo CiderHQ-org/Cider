@@ -1,11 +1,11 @@
-/* DNS for Roblox only. MACOBLOX_DNS=127.0.0.1:PORT points at the launcher's
+/* DNS for Roblox only. QUADRA_DNS=127.0.0.1:PORT points at the launcher's
  * local forwarder, which sends the queries over DNS-over-TLS to the server
  * chosen in the launcher (e.g. Quad9). Some Roblox image hosts do not resolve
  * through ISP or system resolvers in some regions, and plain UDP DNS to
  * public resolvers is unreliable there, while the rest of the system keeps
  * its own DNS.
  *
- * macoblox_dns_resolve() answers A lookups by asking the forwarder over UDP
+ * quadra_dns_resolve() answers A lookups by asking the forwarder over UDP
  * and builds the addrinfo list itself; anything it cannot handle (IP
  * literals, IPv6-only requests, named services, no answer) falls back to
  * Darling's resolver. The list is allocated the way Darling's own is (the
@@ -54,7 +54,7 @@ extern unsigned long long mach_absolute_time(void);
 /* After a forwarder that did not answer at all: skip it until then. */
 static volatile unsigned long long forwarder_skipped_until;
 static int forwarder_port(unsigned int *address, unsigned short *port) {
-    const char *value = getenv("MACOBLOX_DNS");
+    const char *value = getenv("QUADRA_DNS");
     if (!value || !value[0])
         return 0;
     unsigned int parts[4] = {0, 0, 0, 0};
@@ -238,7 +238,7 @@ static void free_partial(struct darwin_addrinfo *head) {
     }
 }
 /* 0 on success with *result set, an EAI error, or -1 to use the system resolver. */
-int macoblox_dns_resolve(const char *node, const char *service, const void *hints_pointer,
+int quadra_dns_resolve(const char *node, const char *service, const void *hints_pointer,
                          void **result) {
     const struct darwin_addrinfo *hints = hints_pointer;
     unsigned short port;

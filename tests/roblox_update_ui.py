@@ -18,7 +18,7 @@ os.environ.update(XDG_CONFIG_HOME=str(base / 'config'), XDG_CACHE_HOME=str(base 
                   XDG_DATA_HOME=str(base / 'data'))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'launcher'))
 threading.Thread.start = lambda self: None
-from macoblox import app, core
+from quadra import app, core
 from gi.repository import Adw, Gio
 
 application = Adw.Application(application_id='org.quadrahq.Quadra.UpdateTest',

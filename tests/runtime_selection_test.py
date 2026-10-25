@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from macoblox import core, runtime
+from quadra import core, runtime
 
 
 class RuntimeSelectionTests(unittest.TestCase):
@@ -73,27 +73,27 @@ class RuntimeSelectionTests(unittest.TestCase):
     def test_nix_bundle_ignores_saved_host_and_old_store_paths(self):
         self.install_cider_metadata()
         self.selection.write_text('invalid host configuration')
-        resolved = self.resolve(MACOBLOX_BUNDLED_DARLING=str(self.cider))
+        resolved = self.resolve(QUADRA_BUNDLED_DARLING=str(self.cider))
         self.assertEqual(resolved['runtime'], 'ciderdarling')
         self.assertEqual(resolved['executable'], str(self.cider / 'bin/darling'))
         self.assertEqual(resolved['sysroot'], str(self.cider / 'libexec/darling'))
         self.assertEqual(resolved['prefix'], str(Path.home() / '.ciderdarling'))
         self.assertEqual(self.selection.read_text(), 'invalid host configuration')
-        resolved = self.resolve(MACOBLOX_BUNDLED_DARLING=str(self.stock), DPREFIX=str(self.base / 'custom'))
+        resolved = self.resolve(QUADRA_BUNDLED_DARLING=str(self.stock), DPREFIX=str(self.base / 'custom'))
         self.assertEqual(resolved['runtime'], 'regular')
         self.assertEqual(resolved['prefix'], str(self.base / 'custom'))
 
     def test_nix_discovery_exposes_only_bundled_runtime_and_its_settings(self):
         self.install_cider_metadata()
         self.select('regular')
-        choices = self.discover(MACOBLOX_BUNDLED_DARLING=str(self.cider))
+        choices = self.discover(QUADRA_BUNDLED_DARLING=str(self.cider))
         self.assertEqual(set(choices), {'ciderdarling'})
         self.assertEqual(choices['ciderdarling']['executable'], str(self.cider / 'bin/darling'))
-        self.assertTrue(runtime.is_bundled({'MACOBLOX_BUNDLED_DARLING': str(self.cider)}))
+        self.assertTrue(runtime.is_bundled({'QUADRA_BUNDLED_DARLING': str(self.cider)}))
         self.assertFalse(runtime.is_bundled({}))
 
     def test_flatpak_keeps_its_runtime_if_nix_bundle_environment_is_inherited(self):
-        resolved = self.resolve(FLATPAK_ID='org.quadrahq.Quadra', MACOBLOX_BUNDLED_DARLING=str(self.cider))
+        resolved = self.resolve(FLATPAK_ID='org.quadrahq.Quadra', QUADRA_BUNDLED_DARLING=str(self.cider))
         self.assertEqual(resolved['sysroot'], '/app/libexec/darling')
 
     def test_malformed_unknown_and_relative_configuration_rejected(self):
@@ -116,7 +116,7 @@ class RuntimeSelectionTests(unittest.TestCase):
         path = Path(selected["sysroot"]) / "usr/share/ciderdarling/runtime.json"
         path.parent.mkdir(parents=True)
         path.write_text(json.dumps(data))
-        self.assertEqual(runtime.guest_variables(self.resolve()["metadata"]), ["MACOBLOX_NATIVE_WORKQUEUE=1"])
+        self.assertEqual(runtime.guest_variables(self.resolve()["metadata"]), ["QUADRA_NATIVE_WORKQUEUE=1"])
         self.select("regular")
         self.assertEqual(runtime.guest_variables(self.resolve()["metadata"]), [])
         self.assertEqual(runtime.guest_variables({"source_fixes": "workqueue_stack_reset_x86_64"}), [])

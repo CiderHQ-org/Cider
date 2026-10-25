@@ -48,7 +48,7 @@ modules:
       prepend-ld-library-path: /usr/lib/sdk/llvm22/lib
     build-commands:
       # The shim and the stub frameworks, against Darling's macOS root.
-      - MACOBLOX_BUILD_DIR=/app/lib/quadrahq/shim DARLING_SYSROOT=/app/libexec/darling ./build_debug_shim.sh
+      - QUADRA_BUILD_DIR=/app/lib/quadrahq/shim DARLING_SYSROOT=/app/libexec/darling ./build_debug_shim.sh
       - rm -f /app/lib/quadrahq/shim/fast_libc.o
       # Darling without root (see flatpak/darling-noroot.c).
       - gcc -shared -fPIC -O2 -o /app/lib/quadrahq/darling-noroot.so flatpak/darling-noroot.c -ldl
@@ -61,7 +61,7 @@ modules:
       - install -m644 README.md /app/share/quadrahq/
       - install -Dm644 LICENSE /app/share/licenses/quadrahq/LICENSE
       - install -m644 LICENSES/MIT-MacOBlox.txt /app/share/licenses/quadrahq/
-      - install -m644 launcher/macoblox/assets/fonts/*-OFL.txt /app/share/licenses/quadrahq/
+      - install -m644 launcher/quadra/assets/fonts/*-OFL.txt /app/share/licenses/quadrahq/
       - rm -f /app/share/quadrahq/launcher/install.sh
       - python3 -m compileall -q -d /app/share/quadrahq/launcher /app/share/quadrahq/launcher
       - install -Dm755 flatpak/quadrahq.sh /app/bin/quadrahq

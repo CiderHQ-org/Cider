@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Check ordinary kqueue wake-ups and MACOBLOX_KEVENT_POLL_MS in a disposable Darling prefix.
+"""Check ordinary kqueue wake-ups and QUADRA_KEVENT_POLL_MS in a disposable Darling prefix.
 
 Runs tests/darling_kevent_wake_test.c twice with the shim loaded: without the cap (every wait must last its full second) and with a cap of 100 ms (the I/O loop thread's idle wait must end after
-about 100 ms with no events, another thread's must not, and every wake-up case must still pass). Needs a built shim (default build/libMacOBloxShims.dylib, or --shim). No game,
+about 100 ms with no events, another thread's must not, and every wake-up case must still pass). Needs a built shim (default build/libQuadraShims.dylib, or --shim). No game,
 account, installed prefix or compositor is used; a prefix that fails to start is retried.
 """
 import argparse
@@ -14,13 +14,13 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'launcher'))
-from macoblox import runtime
+from quadra import runtime
 
 
 def run(client, binary, shim, cap):
     values = {'DYLD_FORCE_FLAT_NAMESPACE': '1', 'DYLD_INSERT_LIBRARIES': '/Volumes/SystemRoot' + str(shim)}
     if cap:
-        values['MACOBLOX_KEVENT_POLL_MS'] = str(cap)
+        values['QUADRA_KEVENT_POLL_MS'] = str(cap)
     script = ''.join(f'export {key}={value}; ' for key, value in values.items()) + 'exec "$@"'
     for attempt in range(3):
         prefix = Path(tempfile.mkdtemp(prefix='quadra-kevent-prefix-')) / 'prefix'
@@ -46,7 +46,7 @@ def run(client, binary, shim, cap):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--shim', type=Path, default=ROOT / 'build/libMacOBloxShims.dylib')
+    parser.add_argument('--shim', type=Path, default=ROOT / 'build/libQuadraShims.dylib')
     parser.add_argument('--output-dir', type=Path)
     args = parser.parse_args()
     selected = runtime.resolve_runtime()

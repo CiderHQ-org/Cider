@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 project_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
-# Output goes to MACOBLOX_BUILD_DIR when the sources are read-only (a package).
-build_dir=${MACOBLOX_BUILD_DIR:-$project_dir/build}
+# Output goes to QUADRA_BUILD_DIR when the sources are read-only (a package).
+build_dir=${QUADRA_BUILD_DIR:-$project_dir/build}
 # Direct builds use the installer's saved selection too. The launcher and
 # package recipes can still supply an explicit build root.
 sysroot=${DARLING_SYSROOT:-}
@@ -10,7 +10,7 @@ if [[ -z $sysroot ]]; then
   sysroot=$(python3 - "$project_dir/launcher" <<'PY'
 import sys
 sys.path.insert(0, sys.argv[1])
-from macoblox.runtime import resolve_runtime
+from quadra.runtime import resolve_runtime
 print(resolve_runtime()['sysroot'])
 PY
   )
@@ -25,14 +25,30 @@ if pkg-config --exists sdl2 wayland-client wayland-egl wayland-cursor; then
       $(pkg-config --libs sdl2 wayland-client wayland-egl wayland-cursor) \
       -o "$wayland_output"; then
     chmod 755 "$wayland_output"
-    mv -- "$wayland_output" "$build_dir/libmacoblox-wayland.so"
+    mv -- "$wayland_output" "$build_dir/libquadra-wayland.so"
   else
     rm -f -- "$wayland_output"
     exit 1
   fi
 else
-  rm -f -- "$build_dir/libmacoblox-wayland.so"
+  rm -f -- "$build_dir/libquadra-wayland.so"
   printf '%s\n' 'Native Wayland helper skipped: install SDL2 and Wayland development libraries.' >&2
+fi
+# Studio's Vulkan renderer needs this layer under Wine (studio_layer/README.md).
+# Optional: without the Vulkan headers the renderer still runs, only unfixed.
+if pkg-config --exists vulkan; then
+  layer_output=$(mktemp "$build_dir/.layer.XXXXXX")
+  if clang++ -std=c++17 -O2 -fPIC -shared $(pkg-config --cflags vulkan) -I"$project_dir/studio_layer" \
+      "$project_dir/studio_layer/quadra_studio_layer.cpp" -o "$layer_output"; then
+    chmod 755 "$layer_output"
+    mv -- "$layer_output" "$build_dir/libquadra-studio-layer.so"
+  else
+    rm -f -- "$layer_output" "$build_dir/libquadra-studio-layer.so"
+    printf '%s\n' 'Studio Vulkan layer skipped: it did not compile.' >&2
+  fi
+else
+  rm -f -- "$build_dir/libquadra-studio-layer.so"
+  printf '%s\n' 'Studio Vulkan layer skipped: install the Vulkan development headers.' >&2
 fi
 tmp_output=$(mktemp "$build_dir/.shim.XXXXXX")
 trap 'rm -f -- "$tmp_output"' EXIT
@@ -52,13 +68,13 @@ clang -target x86_64-apple-darwin -fuse-ld=lld \
   -isysroot "$sysroot" -mmacosx-version-min=11.0 \
   -O2 -fno-omit-frame-pointer -dynamiclib -fno-objc-arc $objc_literal_flag -Werror=incompatible-function-pointer-types \
   -Wl,-undefined,dynamic_lookup \
-  -install_name @rpath/libMacOBloxShims.dylib \
-  "$project_dir/libMacOBloxShims.m" "$project_dir/xattr_compat.c" "$project_dir/exit_compat.c" "$project_dir/missing_symbols.c" "$project_dir/net_trace.c" "$project_dir/darling_fixes.c" "$project_dir/thread_kick.c" "$project_dir/xfixes_raw.c" "$project_dir/raw_mouse.c" "$project_dir/cursor_overlay.c" "$project_dir/worker_wake.c" "$project_dir/shader_compat.c" "$project_dir/mangohud_bridge.c" "$project_dir/vr_device.c" "$project_dir/vr_xr.c" "$project_dir/dns_override.c" "$project_dir/audio_hal.c" "$project_dir/gpu_info.c" "$project_dir/power_info.c" "$project_dir/hid_compat.c" "$project_dir/layer_image.c" "$project_dir/gl_profile.c" "$project_dir/graphics_context.c" "$project_dir/wayland_appkit.m" "$project_dir/connectx_compat.c" "$project_dir/memory_stats.c" "$project_dir/web_bridge.m" "$build_dir/fast_libc.o" \
+  -install_name @rpath/libQuadraShims.dylib \
+  "$project_dir/libQuadraShims.m" "$project_dir/xattr_compat.c" "$project_dir/exit_compat.c" "$project_dir/missing_symbols.c" "$project_dir/net_trace.c" "$project_dir/darling_fixes.c" "$project_dir/thread_kick.c" "$project_dir/xfixes_raw.c" "$project_dir/raw_mouse.c" "$project_dir/cursor_overlay.c" "$project_dir/worker_wake.c" "$project_dir/shader_compat.c" "$project_dir/mangohud_bridge.c" "$project_dir/vr_device.c" "$project_dir/vr_xr.c" "$project_dir/dns_override.c" "$project_dir/audio_hal.c" "$project_dir/gpu_info.c" "$project_dir/power_info.c" "$project_dir/hid_compat.c" "$project_dir/layer_image.c" "$project_dir/gl_profile.c" "$project_dir/graphics_context.c" "$project_dir/wayland_appkit.m" "$project_dir/connectx_compat.c" "$project_dir/memory_stats.c" "$project_dir/web_bridge.m" "$build_dir/fast_libc.o" \
   -lobjc -lc++ -lc++abi -framework Foundation -framework AppKit -framework WebKit -framework Metal \
   -o "$tmp_output"
 chmod 755 "$tmp_output"
-mv -- "$tmp_output" "$build_dir/libMacOBloxShims.dylib"
-printf 'Built: %s\n' "$build_dir/libMacOBloxShims.dylib"
+mv -- "$tmp_output" "$build_dir/libQuadraShims.dylib"
+printf 'Built: %s\n' "$build_dir/libQuadraShims.dylib"
 
 # Frameworks RobloxPlayer links that Darling does not have (see frameworks/).
 # The launcher copies them into the Darling prefix.

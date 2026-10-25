@@ -24,32 +24,32 @@ int main(void) {
     const unsigned int flags=0x00040101;
     const unsigned long long value=0xfedcba9876543210ULL;
     reset(-1, 60);
-    assert(macoblox_ulock_wait(flags, &word, value, 0xffffffffU) == -1);
+    assert(quadra_ulock_wait(flags, &word, value, 0xffffffffU) == -1);
     assert(calls == 1 && error_reads == 0 && error_value == 60);
     assert(seen_operation == flags && seen_address == &word && seen_value == value && seen_timeout == 0xffffffffU);
     reset(-1, 60);
-    assert(macoblox_ulock_wait(flags|MACOBLOX_ULF_NO_ERRNO, &word, value, 0xffffffffU) == -60);
+    assert(quadra_ulock_wait(flags|QUADRA_ULF_NO_ERRNO, &word, value, 0xffffffffU) == -60);
     assert(calls == 1 && error_reads == 1 && error_value == 1234);
     assert(seen_operation == flags && seen_address == &word && seen_value == value && seen_timeout == 0xffffffffU);
     for (int result=0; result<=1; result++) {
         reset(result, 14);
-        assert(macoblox_ulock_wait(MACOBLOX_ULF_NO_ERRNO|1, &word, value, 0) == result);
+        assert(quadra_ulock_wait(QUADRA_ULF_NO_ERRNO|1, &word, value, 0) == result);
         assert(calls == 1 && error_value == 1234 && seen_timeout == 0 && seen_operation == 1);
         reset(result, 14);
-        assert(macoblox_ulock_wait(1, &word, value, 0) == result);
+        assert(quadra_ulock_wait(1, &word, value, 0) == result);
         assert(calls == 1 && error_reads == 0 && error_value == 14);
     }
     reset(-1, 22);
-    assert(macoblox_ulock_wake(flags, &word, value) == -1);
+    assert(quadra_ulock_wake(flags, &word, value) == -1);
     assert(calls == 1 && error_reads == 0 && error_value == 22 && seen_operation == flags && seen_value == value);
     reset(-1, 22);
-    assert(macoblox_ulock_wake(flags|MACOBLOX_ULF_NO_ERRNO, &word, value) == -22);
+    assert(quadra_ulock_wake(flags|QUADRA_ULF_NO_ERRNO, &word, value) == -22);
     assert(calls == 1 && error_reads == 1 && error_value == 1234 && seen_operation == flags && seen_address == &word && seen_value == value);
     reset(0, 16);
-    assert(macoblox_ulock_wake(MACOBLOX_ULF_NO_ERRNO|1, &word, 0) == 0);
+    assert(quadra_ulock_wake(QUADRA_ULF_NO_ERRNO|1, &word, 0) == 0);
     assert(calls == 1 && error_value == 1234 && seen_operation == 1);
     reset(0, 16);
-    assert(macoblox_ulock_wake(1, &word, 0) == 0);
+    assert(quadra_ulock_wake(1, &word, 0) == 0);
     assert(calls == 1 && error_reads == 0 && error_value == 16);
     puts("PASS: ulock args, ordinary errno, NO_ERRNO conversion/restoration and success values");
 }

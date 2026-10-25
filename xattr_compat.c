@@ -38,14 +38,14 @@ static int translated_name(const char *name, char out[256]) {
     memcpy(out + 5, name, n + 1);
     return 1;
 }
-long macoblox_getxattr(const char *path, const char *name, void *value,
+long quadra_getxattr(const char *path, const char *name, void *value,
                       unsigned long size, unsigned int position, int options) {
     char linux_name[256];
     if (!position && !options && translated_name(name, linux_name)) {
         int fd = open(path, DARWIN_O_RDONLY | DARWIN_O_CLOEXEC);
         if (fd < 0) {
             int saved = *__error();
-            if (getenv("MACOBLOX_TRACE_XATTR") && *getenv("MACOBLOX_TRACE_XATTR"))
+            if (getenv("QUADRA_TRACE_XATTR") && *getenv("QUADRA_TRACE_XATTR"))
                 dprintf(2, "[xattr] open failed: %s errno=%d\n", path, saved);
             *__error() = saved;
             return -1;
@@ -53,7 +53,7 @@ long macoblox_getxattr(const char *path, const char *name, void *value,
         long result = fgetxattr(fd, linux_name, value, size, 0, 0);
         int err = *__error();
         close(fd);
-        if (getenv("MACOBLOX_TRACE_XATTR") && *getenv("MACOBLOX_TRACE_XATTR")) dprintf(2, "[xattr] %s %s result=%ld errno=%d\n", path, name, (long)result, err);
+        if (getenv("QUADRA_TRACE_XATTR") && *getenv("QUADRA_TRACE_XATTR")) dprintf(2, "[xattr] %s %s result=%ld errno=%d\n", path, name, (long)result, err);
         /* Linux ENODATA becomes Darwin ENODATA; Cocoa expects ENOATTR. */
         *__error() = (result < 0 && err == DARWIN_ENODATA) ? DARWIN_ENOATTR : err;
         return result;
@@ -63,16 +63,16 @@ long macoblox_getxattr(const char *path, const char *name, void *value,
     if (!real_fn) { *__error() = 78; return -1; }
     return real_fn(path, name, value, size, position, options);
 }
-INTERPOSE(macoblox_getxattr, getxattr);
+INTERPOSE(quadra_getxattr, getxattr);
 
-int macoblox_setxattr(const char *path, const char *name, const void *value,
+int quadra_setxattr(const char *path, const char *name, const void *value,
                      unsigned long size, unsigned int position, int options) {
     char linux_name[256];
     if (!position && !options && translated_name(name, linux_name)) {
         int fd = open(path, DARWIN_O_RDONLY | DARWIN_O_CLOEXEC);
         if (fd < 0) {
             int saved = *__error();
-            if (getenv("MACOBLOX_TRACE_XATTR") && *getenv("MACOBLOX_TRACE_XATTR"))
+            if (getenv("QUADRA_TRACE_XATTR") && *getenv("QUADRA_TRACE_XATTR"))
                 dprintf(2, "[xattr] open failed: %s errno=%d\n", path, saved);
             *__error() = saved;
             return -1;
@@ -80,7 +80,7 @@ int macoblox_setxattr(const char *path, const char *name, const void *value,
         int result = fsetxattr(fd, linux_name, value, size, 0, 0);
         int err = *__error();
         close(fd);
-        if (getenv("MACOBLOX_TRACE_XATTR") && *getenv("MACOBLOX_TRACE_XATTR")) dprintf(2, "[xattr] %s %s result=%ld errno=%d\n", path, name, (long)result, err);
+        if (getenv("QUADRA_TRACE_XATTR") && *getenv("QUADRA_TRACE_XATTR")) dprintf(2, "[xattr] %s %s result=%ld errno=%d\n", path, name, (long)result, err);
         *__error() = err;
         return result;
     }
@@ -89,31 +89,31 @@ int macoblox_setxattr(const char *path, const char *name, const void *value,
     if (!real_fn) { *__error() = 78; return -1; }
     return real_fn(path, name, value, size, position, options);
 }
-INTERPOSE(macoblox_setxattr, setxattr);
+INTERPOSE(quadra_setxattr, setxattr);
 
 /* Crashpad's RemoveXattr treats ENOATTR as "no such attribute"; anything
  * else is logged as a database error. */
-int macoblox_fremovexattr(int fd, const char *name, int options) {
+int quadra_fremovexattr(int fd, const char *name, int options) {
     char linux_name[256];
     if (options || !translated_name(name, linux_name))
         return fremovexattr(fd, name, options);
     int result = fremovexattr(fd, linux_name, 0);
     int err = *__error();
-    if (getenv("MACOBLOX_TRACE_XATTR") && *getenv("MACOBLOX_TRACE_XATTR"))
+    if (getenv("QUADRA_TRACE_XATTR") && *getenv("QUADRA_TRACE_XATTR"))
         dprintf(2, "[xattr] fd %d remove %s result=%d errno=%d\n", fd, name, result, err);
     *__error() = (result < 0 && err == DARWIN_ENODATA) ? DARWIN_ENOATTR : err;
     return result;
 }
-INTERPOSE(macoblox_fremovexattr, fremovexattr);
+INTERPOSE(quadra_fremovexattr, fremovexattr);
 
-int macoblox_removexattr(const char *path, const char *name, int options) {
+int quadra_removexattr(const char *path, const char *name, int options) {
     char linux_name[256];
     if (options || !translated_name(name, linux_name))
         return removexattr(path, name, options);
     int fd = open(path, DARWIN_O_RDONLY | DARWIN_O_CLOEXEC);
     if (fd < 0) {
         int saved = *__error();
-        if (getenv("MACOBLOX_TRACE_XATTR") && *getenv("MACOBLOX_TRACE_XATTR"))
+        if (getenv("QUADRA_TRACE_XATTR") && *getenv("QUADRA_TRACE_XATTR"))
             dprintf(2, "[xattr] open failed: %s errno=%d\n", path, saved);
         *__error() = saved;
         return -1;
@@ -121,9 +121,9 @@ int macoblox_removexattr(const char *path, const char *name, int options) {
     int result = fremovexattr(fd, linux_name, 0);
     int err = *__error();
     close(fd);
-    if (getenv("MACOBLOX_TRACE_XATTR") && *getenv("MACOBLOX_TRACE_XATTR"))
+    if (getenv("QUADRA_TRACE_XATTR") && *getenv("QUADRA_TRACE_XATTR"))
         dprintf(2, "[xattr] %s remove %s result=%d errno=%d\n", path, name, result, err);
     *__error() = (result < 0 && err == DARWIN_ENODATA) ? DARWIN_ENOATTR : err;
     return result;
 }
-INTERPOSE(macoblox_removexattr, removexattr);
+INTERPOSE(quadra_removexattr, removexattr);

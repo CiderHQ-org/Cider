@@ -1,28 +1,28 @@
 /* A right-button drag may keep its software cursor visible. Latch the cause
  * only when capture starts: pressing RMB during existing Shift Lock or
  * first-person capture must not change that capture's cursor policy. */
-#ifndef MACOBLOX_DRAG_CURSOR_H
-#define MACOBLOX_DRAG_CURSOR_H
+#ifndef QUADRA_DRAG_CURSOR_H
+#define QUADRA_DRAG_CURSOR_H
 typedef struct {
     unsigned buttons;
     int captured, right_drag, button_capture;
-} MacOBloxDragCursor;
-#define MACOBLOX_RIGHT_BUTTON (1u << 3)
-static inline int macoblox_drag_cursor_visible(const MacOBloxDragCursor *state) {
-    return state->captured && state->right_drag && (state->buttons & MACOBLOX_RIGHT_BUTTON);
+} QuadraDragCursor;
+#define QUADRA_RIGHT_BUTTON (1u << 3)
+static inline int quadra_drag_cursor_visible(const QuadraDragCursor *state) {
+    return state->captured && state->right_drag && (state->buttons & QUADRA_RIGHT_BUTTON);
 }
-static inline void macoblox_drag_cursor_buttons(MacOBloxDragCursor *state,unsigned buttons) {
+static inline void quadra_drag_cursor_buttons(QuadraDragCursor *state,unsigned buttons) {
     state->buttons=buttons;
-    if(!(buttons & MACOBLOX_RIGHT_BUTTON))state->right_drag=0;
+    if(!(buttons & QUADRA_RIGHT_BUTTON))state->right_drag=0;
 }
-static inline void macoblox_drag_cursor_capture(MacOBloxDragCursor *state,int captured) {
+static inline void quadra_drag_cursor_capture(QuadraDragCursor *state,int captured) {
     if(state->captured==captured)return;
     state->captured=captured;
     state->button_capture=captured && state->buttons;
-    state->right_drag=captured && (state->buttons & MACOBLOX_RIGHT_BUTTON);
+    state->right_drag=captured && (state->buttons & QUADRA_RIGHT_BUTTON);
 }
 /* Last resort when no selected bitmap or desktop cursor theme is available. */
-static inline unsigned macoblox_drag_cursor_arrow(unsigned x,unsigned y) {
+static inline unsigned quadra_drag_cursor_arrow(unsigned x,unsigned y) {
     static const char *rows[]={"X", "XX", "XOX", "XOOX", "XOOOX", "XOOOOX",
         "XOOOOOX", "XOOOOOOX", "XOOOOOOOX", "XOOOOOOOOX", "XOOOOXXXXX",
         "XOOXOX", "XOX XOX", "XX  XOX", "X    XOX", "     XOX", "      XX"};

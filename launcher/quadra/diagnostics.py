@@ -9,7 +9,7 @@ Reading where a thread is in user space (its system call, instruction pointer
 and stack) needs ptrace permission. Under Yama (kernel.yama.ptrace_scope=1,
 the usual default) only an ancestor may read that, and Roblox is a child of
 darlingserver, not of Quadra, so the game must allow it: the shim does when
-MACOBLOX_ALLOW_DEBUGGER=1 (Settings, or the environment). Then each thread's
+QUADRA_ALLOW_DEBUGGER=1 (Settings, or the environment). Then each thread's
 instruction pointer and the likely return addresses on its stack are given as
 library + offset; `--gdb` adds gdb's backtraces (gdb briefly stops the game).
 
@@ -36,10 +36,10 @@ SAMPLE_INTERVAL = 3.0
 STACK_SCAN_BYTES = 64 * 1024
 STACK_CANDIDATES = 24
 LOG_TAIL = 2 * 1024 * 1024
-ENV_PREFIXES = ("MACOBLOX_", "CIDER_", "DSERVER_", "MESA_", "GALLIUM_", "ZINK_", "__GLX_", "__GL_",
+ENV_PREFIXES = ("QUADRA_", "CIDER_", "DSERVER_", "MESA_", "GALLIUM_", "ZINK_", "__GLX_", "__GL_",
                 "LIBGL_", "VK_", "MANGOHUD", "DPREFIX", "DISPLAY", "WAYLAND_DISPLAY", "XDG_SESSION_TYPE",
                 "EGL_PLATFORM", "LIBDISPATCH_")
-SECRET_VARIABLES = ("MACOBLOX_PENDING_URI",)
+SECRET_VARIABLES = ("QUADRA_PENDING_URI",)
 REDACTIONS = (
     (re.compile(r"(ticket=)[^&\"'\s]+", re.I), r"\1<redacted>"),
     (re.compile(r"(\"ticket\"\s*:\s*\")[^\"]*", re.I), r"\1<redacted>"),
@@ -384,7 +384,7 @@ def _ptrace_note(pid):
         permitted = False
     note = f"kernel.yama.ptrace_scope={scope}; user-space locations {'available' if permitted else 'unavailable'}"
     if not permitted:
-        note += ("\nStart the game with MACOBLOX_ALLOW_DEBUGGER=1 (Settings → allow freeze diagnostics) "
+        note += ("\nStart the game with QUADRA_ALLOW_DEBUGGER=1 (Settings → allow freeze diagnostics) "
                  "to include instruction pointers and stacks.")
     return note + "\n"
 

@@ -38,7 +38,7 @@ extern int *__error(void);
 extern int connectx(int, const sa_endpoints_t *, unsigned int, unsigned int,
                     const struct iovec *, unsigned int, size_t *, unsigned int *);
 
-static int macoblox_connectx(int fd, const sa_endpoints_t *endpoints, unsigned int associd,
+static int quadra_connectx(int fd, const sa_endpoints_t *endpoints, unsigned int associd,
                              unsigned int flags, const struct iovec *iov, unsigned int iovcnt,
                              size_t *sent, unsigned int *connid) {
     (void)associd;
@@ -72,4 +72,4 @@ static int macoblox_connectx(int fd, const sa_endpoints_t *endpoints, unsigned i
     }
     return 0;
 }
-DYLD_INTERPOSE(macoblox_connectx, connectx)
+DYLD_INTERPOSE(quadra_connectx, connectx)

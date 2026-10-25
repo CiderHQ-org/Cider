@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from macoblox import darling_patches as darling
+from quadra import darling_patches as darling
 
 
 def digest(data):

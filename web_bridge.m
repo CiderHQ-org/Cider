@@ -4,7 +4,7 @@
 // Linux Port (runtime/shims/appkit/browser.m and webview.inc), with their
 // permission.
 //
-// The launcher listens on a Unix socket (MACOBLOX_WEB_SOCKET, its host path
+// The launcher listens on a Unix socket (QUADRA_WEB_SOCKET, its host path
 // as the guest sees it) and both sides speak JSON, one object per line: the
 // game sends requests ({"op": ...}), the launcher events and replies
 // ({"event": ...}). WKWebView objects here are stand-ins that forward every
@@ -198,8 +198,8 @@ extern NSApplication *NSApp;
 @end
 @interface NSAnimationContext : NSObject
 @end
-@interface NSObject (MacOBloxWebHost)
-- (unsigned long)windowHandle; - (id)getView; - (void)macobloxCloseHostedView;
+@interface NSObject (QuadraWebHost)
+- (unsigned long)windowHandle; - (id)getView; - (void)quadraCloseHostedView;
 - (id)configuration; - (id)userContentController;
 - (void)webView:(id)view didStartProvisionalNavigation:(id)navigation;
 - (void)webView:(id)view didCommitNavigation:(id)navigation;
@@ -236,11 +236,11 @@ static void failRequests(id view, NSString *reason);
 
 /* The registry locates a view; the caller and its AppKit parent own it.
  * A strong registry would keep an unused, never-attached view alive forever. */
-@interface MacOBloxWeakWebView : NSObject { id _value; }
+@interface QuadraWeakWebView : NSObject { id _value; }
 - (id)initWithValue:(id)value;
 - (id)value;
 @end
-@implementation MacOBloxWeakWebView
+@implementation QuadraWeakWebView
 - (id)initWithValue:(id)value {
     self = [super init];
     if (self) objc_storeWeak(&_value, value);
@@ -276,7 +276,7 @@ static void disconnectBridge(NSString *reason) {
 }
 
 static const char *socketPath(void) {
-    const char *path = getenv("MACOBLOX_WEB_SOCKET");
+    const char *path = getenv("QUADRA_WEB_SOCKET");
     return path && *path ? path : 0;
 }
 
@@ -325,10 +325,10 @@ static void closeHostedView(id self, SEL selector) {
     removeHostedView(self, selector);
 }
 
-@interface MacOBloxWebBridge : NSObject
+@interface QuadraWebBridge : NSObject
 + (void)tick:(id)timer;
 @end
-@implementation MacOBloxWebBridge
+@implementation QuadraWebBridge
 + (void)load {
     if (!socketPath())
         return;
@@ -527,8 +527,8 @@ static BOOL deliverClientURL(id value) {
     return YES;
 }
 
-// -[NSWorkspace openURL:], from libMacOBloxShims.m: 1 when handled here.
-int macoblox_web_open_url(id url) {
+// -[NSWorkspace openURL:], from libQuadraShims.m: 1 when handled here.
+int quadra_web_open_url(id url) {
     NSString *text = [url absoluteString];
     if (deliverClientURL(text))
         return 1;
@@ -540,7 +540,7 @@ int macoblox_web_open_url(id url) {
 
 // ---------------------------------------------------------------- AppKit gaps
 // Methods Roblox's web-view chrome uses that Darling's AppKit lacks.
-@implementation NSButton (MacOBloxWebChrome)
+@implementation NSButton (QuadraWebChrome)
 + (id)buttonWithTitle:(NSString *)title target:(id)target action:(SEL)action {
     NSButton *button = [[[self alloc] initWithFrame:(NSRect){{0, 0}, {100, 28}}] autorelease];
     [button setTitle:title];
@@ -549,7 +549,7 @@ int macoblox_web_open_url(id url) {
     return button;
 }
 @end
-@implementation NSImage (MacOBloxWebChrome)
+@implementation NSImage (QuadraWebChrome)
 + (id)imageWithSize:(NSSize)size flipped:(BOOL)flipped drawingHandler:(BOOL (^)(NSRect))draw {
     NSImage *image = [[[self alloc] initWithSize:size] autorelease];
     [image setFlipped:flipped];
@@ -562,7 +562,7 @@ int macoblox_web_open_url(id url) {
     return image;
 }
 @end
-@implementation NSAnimationContext (MacOBloxWebChrome)
+@implementation NSAnimationContext (QuadraWebChrome)
 + (void)runAnimationGroup:(void (^)(id))changes completionHandler:(void (^)(void))completion {
     // Darling's animator applies properties immediately; still complete.
     id context = [[[self alloc] init] autorelease];
@@ -570,7 +570,7 @@ int macoblox_web_open_url(id url) {
     if (completion) completion();
 }
 @end
-@implementation NSURL (MacOBloxWebChrome)
+@implementation NSURL (QuadraWebChrome)
 + (id)fileURLWithPath:(NSString *)path isDirectory:(BOOL)directory relativeToURL:(NSURL *)base {
     return [(id)CFURLCreateWithFileSystemPathRelativeToBase(0, (id)path, 0 /* POSIX */, directory, base) autorelease];
 }
@@ -604,7 +604,7 @@ static BOOL validUserAgent(NSString *agent) {
 static void enqueueRequest(long number, NSMutableDictionary *message, void (^completion)(id, NSError *)) {
     initializeBridge();
     if (completion && [callbacks count] >= WEB_PENDING_LIMIT) {
-        completion(nil, [NSError errorWithDomain:@"MacOBloxWeb" code:1
+        completion(nil, [NSError errorWithDomain:@"QuadraWeb" code:1
             userInfo:@{NSLocalizedDescriptionKey: @"Too many pending browser requests."}]);
         return;
     }
@@ -628,7 +628,7 @@ static long request(NSMutableDictionary *message, void (^completion)(id, NSError
                 if (generation == __atomic_load_n(&bridgeGeneration, __ATOMIC_RELAXED))
                     enqueueRequest(number, message, completion);
                 else if (completion)
-                    completion(nil, [NSError errorWithDomain:@"MacOBloxWeb" code:1
+                    completion(nil, [NSError errorWithDomain:@"QuadraWeb" code:1
                         userInfo:@{NSLocalizedDescriptionKey: @"The embedded browser disconnected."}]);
             });
         }
@@ -646,9 +646,9 @@ static void failRequests(id view, NSString *reason) {
     }
 }
 
-@interface NSButton (MacOBloxWebTint)
+@interface NSButton (QuadraWebTint)
 @end
-@implementation NSButton (MacOBloxWebTint)
+@implementation NSButton (QuadraWebTint)
 // The hosted browser toolbar is drawn by the launcher, which applies its theme.
 - (void)setContentTintColor:(id)color {
     if (color) stateFor(self)[@"contentTintColor"] = color;
@@ -656,7 +656,7 @@ static void failRequests(id view, NSString *reason) {
 }
 - (id)contentTintColor { return stateFor(self)[@"contentTintColor"]; }
 @end
-@implementation NSAnimationContext (MacOBloxWebState)
+@implementation NSAnimationContext (QuadraWebState)
 - (void)setDuration:(double)duration { stateFor(self)[@"duration"] = @(duration); }
 - (double)duration { return [stateFor(self)[@"duration"] doubleValue]; }
 - (void)setTimingFunction:(id)function { if (function) stateFor(self)[@"timing"] = function; }
@@ -672,7 +672,7 @@ static void failRequests(id view, NSString *reason) {
 @interface WKHTTPCookieStore : NSObject @end
 @interface WKUserScript : NSObject @end
 
-@implementation WKWebViewConfiguration (MacOBloxWeb)
+@implementation WKWebViewConfiguration (QuadraWeb)
 - (id)preferences {
     id p = stateFor(self)[@"preferences"];
     if (!p) stateFor(self)[@"preferences"] = p = [[[WKPreferences alloc] init] autorelease];
@@ -688,15 +688,15 @@ static void failRequests(id view, NSString *reason) {
 - (void)setApplicationNameForUserAgent:(id)value { if (value) stateFor(self)[@"agent"] = value; }
 - (id)applicationNameForUserAgent { return stateFor(self)[@"agent"]; }
 @end
-@implementation WKPreferences (MacOBloxWeb)
+@implementation WKPreferences (QuadraWeb)
 - (void)setValue:(id)value forKey:(NSString *)key { if (value) stateFor(self)[key] = value; }
 - (id)valueForKey:(NSString *)key { return stateFor(self)[key]; }
 @end
-@implementation WKWebsiteDataStore (MacOBloxWeb)
+@implementation WKWebsiteDataStore (QuadraWeb)
 + (id)defaultDataStore { static id store; if (!store) store = [self new]; return store; }
 - (id)httpCookieStore { static id store; if (!store) store = [WKHTTPCookieStore new]; return store; }
 @end
-@implementation WKHTTPCookieStore (MacOBloxWeb)
+@implementation WKHTTPCookieStore (QuadraWeb)
 - (void)setCookie:(NSHTTPCookie *)cookie completionHandler:(void (^)(void))completion {
     NSMutableDictionary *c = [NSMutableDictionary dictionaryWithDictionary:@{
         @"name": [cookie name], @"value": [cookie value], @"domain": [cookie domain], @"path": [cookie path],
@@ -730,7 +730,7 @@ static void failRequests(id view, NSString *reason) {
     });
 }
 @end
-@implementation WKUserScript (MacOBloxWeb)
+@implementation WKUserScript (QuadraWeb)
 - (id)initWithSource:(NSString *)source injectionTime:(long)time forMainFrameOnly:(BOOL)main {
     self = [self init];
     if (source) stateFor(self)[@"script"] = source;
@@ -739,7 +739,7 @@ static void failRequests(id view, NSString *reason) {
     return self;
 }
 @end
-@implementation WKUserContentController (MacOBloxWeb)
+@implementation WKUserContentController (QuadraWeb)
 - (void)addScriptMessageHandler:(id)handler name:(NSString *)name {
     NSMutableDictionary *handlers = stateFor(self)[@"handlers"];
     if (!handlers) stateFor(self)[@"handlers"] = handlers = [NSMutableDictionary dictionary];
@@ -753,30 +753,30 @@ static void failRequests(id view, NSString *reason) {
 }
 @end
 
-@interface MacOBloxFrameInfo : NSObject { @public NSURLRequest *_request; }
+@interface QuadraFrameInfo : NSObject { @public NSURLRequest *_request; }
 @end
-@implementation MacOBloxFrameInfo
+@implementation QuadraFrameInfo
 - (id)request { return _request; }
 - (void)dealloc { [_request release]; [super dealloc]; }
 @end
-@interface MacOBloxNavigation : NSObject { @public NSURLRequest *_request; long _type; }
+@interface QuadraNavigation : NSObject { @public NSURLRequest *_request; long _type; }
 @end
-@implementation MacOBloxNavigation
+@implementation QuadraNavigation
 - (NSURLRequest *)request { return _request; }
 - (long)navigationType { return _type; }
 - (id)targetFrame {
     // New-window requests are handled by the launcher; these actions target
     // an existing frame. nil would tell Roblox to open an external browser.
-    MacOBloxFrameInfo *frame = [[[MacOBloxFrameInfo alloc] init] autorelease];
+    QuadraFrameInfo *frame = [[[QuadraFrameInfo alloc] init] autorelease];
     frame->_request = [_request retain];
     return frame;
 }
 - (id)sourceFrame { return nil; }
 - (void)dealloc { [_request release]; [super dealloc]; }
 @end
-@interface MacOBloxScriptMessage : NSObject { @public id _body; NSString *_name; id _webView; }
+@interface QuadraScriptMessage : NSObject { @public id _body; NSString *_name; id _webView; }
 @end
-@implementation MacOBloxScriptMessage
+@implementation QuadraScriptMessage
 - (id)body { return _body; }
 - (id)name { return _name; }
 - (id)webView { return _webView; }
@@ -784,7 +784,7 @@ static void failRequests(id view, NSString *reason) {
 - (void)dealloc { [_body release]; [_name release]; [_webView release]; [super dealloc]; }
 @end
 
-@interface MacOBloxWebView : NSView {
+@interface QuadraWebView : NSView {
   @public
     long _id;
     id _configuration, _navigationDelegate, _UIDelegate;
@@ -794,15 +794,15 @@ static void failRequests(id view, NSString *reason) {
     id _navigation;
 }
 - (id)initWithFrame:(NSRect)frame configuration:(id)configuration;
-- (void)macobloxCloseHostedView;
+- (void)quadraCloseHostedView;
 @end
-// Installed by +[MacOBloxWebBridge load], only when the launcher listens:
+// Installed by +[QuadraWebBridge load], only when the launcher listens:
 // without it Roblox keeps Darling's WKWebView.
 static id webViewAllocWithZone(id cls, SEL selector, void *zone) {
     (void)cls; (void)selector; (void)zone;
-    return (id)[MacOBloxWebView alloc];
+    return (id)[QuadraWebView alloc];
 }
-@implementation MacOBloxWebView
+@implementation QuadraWebView
 - (id)initWithFrame:(NSRect)frame {
     return [self initWithFrame:frame configuration:[[[WKWebViewConfiguration alloc] init] autorelease]];
 }
@@ -812,7 +812,7 @@ static id webViewAllocWithZone(id cls, SEL selector, void *zone) {
         initializeBridge();
         _id = __atomic_add_fetch(&nextView, 1, __ATOMIC_RELAXED);
         _configuration = [configuration retain];
-        views[@(_id)] = [[[MacOBloxWeakWebView alloc] initWithValue:self] autorelease];
+        views[@(_id)] = [[[QuadraWeakWebView alloc] initWithValue:self] autorelease];
     }
     return self;
 }
@@ -832,7 +832,7 @@ static id webViewAllocWithZone(id cls, SEL selector, void *zone) {
     NSString *custom = [self customUserAgent];
     if (validUserAgent(custom))
         return custom;
-    const char *base = getenv("MACOBLOX_WEB_USER_AGENT");
+    const char *base = getenv("QUADRA_WEB_USER_AGENT");
     NSString *baseText = [NSString stringWithUTF8String:base ? base : ""];
     NSString *application = [_configuration applicationNameForUserAgent];
     return validUserAgent(application) ? [NSString stringWithFormat:@"%@ %@", baseText, application] : baseText;
@@ -883,7 +883,7 @@ static id webViewAllocWithZone(id cls, SEL selector, void *zone) {
             id currentDelegate = [self navigationDelegate];
             if ([currentDelegate respondsToSelector:@selector(webView:didFailProvisionalNavigation:withError:)])
                 [currentDelegate webView:self didFailProvisionalNavigation:navigation
-                    withError:[NSError errorWithDomain:@"MacOBloxWeb" code:1
+                    withError:[NSError errorWithDomain:@"QuadraWeb" code:1
                         userInfo:@{NSLocalizedDescriptionKey: @"The embedded page could not be sent to the browser."}]];
         });
     }
@@ -903,9 +903,9 @@ static id webViewAllocWithZone(id cls, SEL selector, void *zone) {
     BOOL closed = _attached && !attached;
     _attached = attached;
     if (closed)
-        [self macobloxCloseHostedView];
+        [self quadraCloseHostedView];
 }
-- (void)macobloxCloseHostedView {
+- (void)quadraCloseHostedView {
     if (bridgeView(@(_id)) != self)
         return;
     [self retain];
@@ -921,7 +921,7 @@ static id webViewAllocWithZone(id cls, SEL selector, void *zone) {
 }
 - (void)removeFromSuperview {
     if ([self superview])
-        [self macobloxCloseHostedView];
+        [self quadraCloseHostedView];
     [super removeFromSuperview];
 }
 - (void)dealloc {
@@ -967,7 +967,7 @@ static void receiveMessage(NSDictionary *message) {
         [callbacks removeObjectForKey:key];
         if (block) {
             NSError *error = message[@"error"]
-                ? [NSError errorWithDomain:@"MacOBloxWeb" code:1 userInfo:@{NSLocalizedDescriptionKey: message[@"error"]}]
+                ? [NSError errorWithDomain:@"QuadraWeb" code:1 userInfo:@{NSLocalizedDescriptionKey: message[@"error"]}]
                 : nil;
             @try {
                 block(message[@"value"], error);
@@ -977,7 +977,7 @@ static void receiveMessage(NSDictionary *message) {
         }
         return;
     }
-    MacOBloxWebView *view = bridgeView(message[@"view"]);
+    QuadraWebView *view = bridgeView(message[@"view"]);
     if (!view)
         return;
     id delegate = [view navigationDelegate];
@@ -999,7 +999,7 @@ static void receiveMessage(NSDictionary *message) {
         if (stage == 3 && [delegate respondsToSelector:@selector(webView:didFinishNavigation:)])
             [delegate webView:view didFinishNavigation:view->_navigation];
     } else if ([type isEqual:@"navigation"]) {
-        MacOBloxNavigation *action = [[[MacOBloxNavigation alloc] init] autorelease];
+        QuadraNavigation *action = [[[QuadraNavigation alloc] init] autorelease];
         action->_request = [[NSURLRequest requestWithURL:[NSURL URLWithString:message[@"url"]]] retain];
         action->_type = [message[@"type"] longValue];
         if (action->_type == 5)
@@ -1019,7 +1019,7 @@ static void receiveMessage(NSDictionary *message) {
         id handler = [[stateFor(controller)[@"handlers"][message[@"name"]] retain] autorelease];
         if (!handler)
             return;
-        MacOBloxScriptMessage *m = [[[MacOBloxScriptMessage alloc] init] autorelease];
+        QuadraScriptMessage *m = [[[QuadraScriptMessage alloc] init] autorelease];
         m->_body = [message[@"body"] retain];
         m->_name = [message[@"name"] copy];
         m->_webView = [view retain];
@@ -1031,7 +1031,7 @@ static void receiveMessage(NSDictionary *message) {
         view->_loading = NO;
         if ([delegate respondsToSelector:@selector(webView:didFailProvisionalNavigation:withError:)])
             [delegate webView:view didFailProvisionalNavigation:view->_navigation
-                withError:[NSError errorWithDomain:@"MacOBloxWeb" code:1
+                withError:[NSError errorWithDomain:@"QuadraWeb" code:1
                                           userInfo:@{NSLocalizedDescriptionKey: message[@"message"] ?: @"The page could not be loaded."}]];
     }
 }

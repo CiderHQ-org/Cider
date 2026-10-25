@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from macoblox import core, darling_patches
+from quadra import core, darling_patches
 from darling_patches_test import image_fixture, release_for
 
 
@@ -144,7 +144,7 @@ class PrefixRuntimeTests(unittest.TestCase):
         core._record_prefix_stamps({self.relative.as_posix(): {
             "source": self.digest(b"stock"), "installed": self.digest(b"repaired")}})
         (self.prefix / "usr/lib/system/only-in-prefix.dylib").write_bytes(b"not shadowing")
-        with self.assertLogs("macoblox", level="WARNING"):
+        with self.assertLogs("quadra", level="WARNING"):
             notes = self.prepare([])
         self.assertEqual(len(notes), 1)
         self.assertIn("usr/lib/system/libsystem_m.dylib", notes[0])

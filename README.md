@@ -49,10 +49,13 @@ from `ciderhq` (or `macoblox`) to `quadrahq`, and Darling session files move
 from `Library/CiderHQ` (or `Library/MacOBlox`) to `Library/QuadraHQ`. Existing
 Quadra data is never replaced; Cider data takes precedence over MacOBlox data.
 
-The internal Python module, shim filenames, `MACOBLOX_*` variables and
-CiderDarling's runtime identifiers keep their compatibility names. The current
-GitHub repositories remain [CiderHQ-org/Cider](https://github.com/CiderHQ-org/Cider)
-and [CiderDarling](https://github.com/CiderHQ-org/CiderDarling).
+The launcher's Python package is `quadra`, the shim is `libQuadraShims.dylib`
+and its settings are `QUADRA_*` variables. Names that the Darling runtime and
+Quadra M2VK read (`CIDER_*`, `MACOBLOX_METAL_*`, CiderDarling's runtime
+identifiers) keep their compatibility names until those projects are renamed.
+The source lives at [QuadraHQ/Quadra](https://github.com/QuadraHQ/Quadra) (formerly
+CiderHQ-org/Cider; the old address redirects) and the Darling runtime at
+[QuadraHQ/CiderDarling](https://github.com/QuadraHQ/CiderDarling).
 
 ## Install
 
@@ -94,7 +97,7 @@ curl -fsSL https://quadrahq.org/install.sh | bash -s -- --darling regular
 ```
 
 Regular Darling keeps the installed-runtime, distro package and pinned upstream
-download paths. [CiderDarling](https://github.com/CiderHQ-org/CiderDarling) installs
+download paths. [CiderDarling](https://github.com/QuadraHQ/CiderDarling) installs
 into `/opt/ciderdarling/<revision>` using sudo. On Arch-based systems, and on
 Debian/Ubuntu-based ones with glibc 2.39 or newer (Ubuntu 24.04, Mint 22), the
 installer downloads the pinned revision's prebuilt build from CiderDarling's
@@ -147,7 +150,7 @@ after a successful build; the build log stays in `~/.cache/quadrahq/installer/`.
 While CiderDarling is installed, **Settings → CiderDarling** (also the
 *CiderDarling Settings* app menu entry, or `quadrahq --ciderdarling-settings`)
 collects its options: renderer and graphics card (shared with Environment →
-Game), watchdog thread kicks (`MACOBLOX_KICK=1`, off by default), a runtime trace
+Game), watchdog thread kicks (`QUADRA_KICK=1`, off by default), a runtime trace
 (`CIDER_TRACE_FILE`, a private file in the logs folder), a verbose
 darlingserver log (`DSERVER_LOG_LEVEL=debug`), diagnostics and the prefix
 folder. These apply only while CiderDarling is the active runtime.
@@ -215,7 +218,7 @@ sudo dnf install clang lld unzip pipewire-utils python3-gobject gtk4 libadwaita 
 
 ```bash
 git clone --filter=blob:none --no-checkout --depth 1 --single-branch --branch main \
-  https://github.com/CiderHQ-org/Cider ~/.local/share/QuadraHQ
+  https://github.com/QuadraHQ/Quadra ~/.local/share/QuadraHQ
 git -C ~/.local/share/QuadraHQ sparse-checkout set --no-cone --stdin <<'PATTERNS'
 /*
 !/website/
@@ -306,7 +309,7 @@ the macOS client's OpenGL renderer.
 
 **Quadra M2VK (experimental)** is available in the same menu in Quadra 0.35.
 This runs Roblox's Metal renderer through the pinned
-[QuadraM2VK](https://github.com/CiderHQ-org/QuadraM2VK) fork of metal2vulkan. Existing
+[QuadraM2VK](https://github.com/QuadraHQ/QuadraM2VK) fork of metal2vulkan. Existing
 Metal selections automatically use this entry. Native Wayland
 login, home and Write a Letter have been verified on an RTX 3060 Ti.
 Native packages include the prebuilt bridge and its Vulkan/LLVM runtime dependencies; the first launch upgrades the shader cache. Building from source
@@ -409,7 +412,7 @@ the log. It cannot capture an external kill or every Darling server failure.
 For source installations, the same switch is available as:
 
 ```bash
-MACOBLOX_DIAGNOSTIC_SIGNALS=1 ./launcher/quadrahq-launcher
+QUADRA_DIAGNOSTIC_SIGNALS=1 ./launcher/quadrahq-launcher
 ```
 
 Source checkouts write launch logs to their `logs/` directory; read-only
@@ -424,7 +427,7 @@ The lifecycle record describes the observed state before cleanup. A final
 **Collect diagnostics** (launcher menu, or `quadrahq --collect-diagnostics`)
 writes one archive with the logs, runtime selection and the game's thread
 states. Thread stacks need **Allow freeze diagnostics**
-(`MACOBLOX_ALLOW_DEBUGGER=1`) turned on before the game starts. Inherited
+(`QUADRA_ALLOW_DEBUGGER=1`) turned on before the game starts. Inherited
 `DSERVER_LOG_*` variables are ignored unless `CIDER_KEEP_DSERVER_LOG=1` is
 set; launch logs are capped at 200 MB in total, and `dserver.log` is rotated
 to `dserver.log.old` past 32 MB while Darling is stopped.
@@ -520,7 +523,7 @@ For a source installation, close the launcher and start it with optional
 selection diagnostics:
 
 ```bash
-MACOBLOX_TRACE_TEXT_INPUT=1 ./launcher/quadrahq-launcher
+QUADRA_TRACE_TEXT_INPUT=1 ./launcher/quadrahq-launcher
 ```
 
 The trace records text lengths, selection ranges and composition state in
@@ -560,10 +563,35 @@ Tested on a Quest 2 with WiVRn 26.9. Details are in [docs/VR.md](docs/VR.md).
 <details>
 <summary>Roblox Studio</summary>
 
-Press **Roblox Studio** in the launcher. The first time it downloads Wine, DXVK
-and Studio (about 800 MB) into its own folder, nothing is installed system-wide.
-To sign in, Studio opens the Roblox login in your browser; when the browser asks
-how to open the `roblox-studio-auth` link, choose **Roblox Studio (Quadra)**.
+**Studio** in the sidebar has everything about it; **Launch Roblox Studio** there, or
+**Roblox Studio** on the Play page, starts it. The first start downloads Wine, DXVK,
+Microsoft's WebView2 and Studio (about 800 MB) into their own folder; nothing is
+installed system-wide. Wine is [Kombucha](https://github.com/vinegarhq/kombucha), the
+build Vinegar patches for Studio. Each start checks for a newer Kombucha and Roblox
+Studio and installs it first; without a connection it starts what is installed.
+
+Studio draws its sign-in, Toolbox and Creator Hub pages with WebView2, so you can sign
+in inside Studio. **Login via Browser** works too: when the browser asks how to open the
+`roblox-studio-auth` link, choose **Roblox Studio (Quadra)**.
+
+The section has four tabs:
+
+- **Studio**: what is installed, Discord presence (the place you are building and
+  whether you are in a script), GameMode, following the system light/dark theme, a
+  backup of your sign-in and Studio's settings outside Wine's prefix (recreating the
+  prefix does not sign you out), and an *overlay* folder whose files are copied over
+  Studio's at every start.
+- **Graphics**: the renderer (DXVK, DXVK-Sarek for older graphics cards, Wine's own
+  Direct3D through OpenGL, or Vulkan with a layer that keeps Studio's swapchain alive),
+  and the graphics card Studio draws on.
+- **Wine and updates**: stay on a Kombucha release or use a Wine folder of your own;
+  stay on one Studio version or deployment channel. By default Studio follows the channel
+  of the signed-in account, as Roblox's own installer does.
+- **Fast flags**: Studio's own flags, separate from the Player's.
+
+If Roblox's main download server refuses a request, Studio's packages come from
+Roblox's alternate hosts. Much of this follows [Vinegar](https://github.com/vinegarhq/vinegar)
+(GPL-3.0), including the Vulkan layer in [studio_layer/](studio_layer/README.md).
 </details>
 
 <details>
@@ -573,7 +601,7 @@ The Flatpak brings Darling along and runs it without root (see
 [flatpak/darling-noroot.c](flatpak/darling-noroot.c)), so nothing has to be
 installed on the system. Version 0.22Patch1 does not include a Flatpak bundle, as the Flatpak is temporarily discontinued to focus on better function on the native version.
 The last testing bundle is available in
-[release 0.19](https://github.com/CiderHQ-org/Cider/releases/tag/v0.19):
+[release 0.19](https://github.com/QuadraHQ/Quadra/releases/tag/v0.19):
 
 ```bash
 flatpak install --user MacOBlox-0.19-x86_64.flatpak

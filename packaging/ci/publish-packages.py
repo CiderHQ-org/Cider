@@ -9,7 +9,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
-REPOSITORY = 'CiderHQ-org/Cider'
+REPOSITORY = 'QuadraHQ/Quadra'
 
 
 def run(*args, **kwargs):

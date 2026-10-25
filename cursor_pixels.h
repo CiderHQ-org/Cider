@@ -1,16 +1,16 @@
 /* Custom cursor pixels shared by the Darwin image decoder and Wayland host.
  * Words are premultiplied 0xAARRGGBB; SDL_CreateColorCursor needs straight
  * alpha instead, while wl_shm ARGB8888 consumes the premultiplied words. */
-#ifndef MACOBLOX_CURSOR_PIXELS_H
-#define MACOBLOX_CURSOR_PIXELS_H
+#ifndef QUADRA_CURSOR_PIXELS_H
+#define QUADRA_CURSOR_PIXELS_H
 
 #ifdef __OBJC__
 /* Returns a malloc-owned bitmap, or NULL for unsupported representations. */
-unsigned int *macoblox_cursor_pixels_from_image(id image,
+unsigned int *quadra_cursor_pixels_from_image(id image,
     unsigned long *width, unsigned long *height);
 #endif
 
-static inline unsigned int macoblox_cursor_straight_argb(unsigned int pixel) {
+static inline unsigned int quadra_cursor_straight_argb(unsigned int pixel) {
     unsigned int alpha = pixel >> 24;
     if (!alpha) return 0;
     if (alpha == 255) return pixel;
@@ -24,7 +24,7 @@ static inline unsigned int macoblox_cursor_straight_argb(unsigned int pixel) {
 
 /* Interpolate premultiplied channels when an image representation has more
  * pixels than its logical cursor size. Transparent RGB cannot bleed into it. */
-static inline unsigned int macoblox_cursor_sample_argb(const unsigned int *pixels,
+static inline unsigned int quadra_cursor_sample_argb(const unsigned int *pixels,
     unsigned long width, unsigned long height, double x, double y) {
     x = x < 0 ? 0 : (x > width - 1 ? width - 1 : x);
     y = y < 0 ? 0 : (y > height - 1 ? height - 1 : y);

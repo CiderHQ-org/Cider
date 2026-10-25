@@ -39,7 +39,7 @@ ssize_t test_sendmsg(int fd, const struct msghdr *message, int flags) {
 int test_connectx(int fd, const sa_endpoints_t *ep, unsigned int associd,
                   unsigned int flags, const struct iovec *iov, unsigned int count,
                   size_t *sent, unsigned int *connid) {
-    return macoblox_connectx(fd, ep, associd, flags, iov, count, sent, connid);
+    return quadra_connectx(fd, ep, associd, flags, iov, count, sent, connid);
 }
 
 int main(void) {
@@ -52,38 +52,38 @@ int main(void) {
     /* Pending connections must stay pending, with or without initial data.
      * The caller can then wait for completion and retry the unsent bytes. */
     connect_error = EINPROGRESS;
-    assert(macoblox_connectx(42, &ep, 0, 0, &initial, 1, &sent, &connid) == -1);
+    assert(quadra_connectx(42, &ep, 0, 0, &initial, 1, &sent, &connid) == -1);
     assert(error_value == EINPROGRESS && sent == 0 && connid == 99 && send_calls == 0);
-    assert(macoblox_connectx(42, &ep, 0, 0, 0, 0, 0, 0) == -1);
+    assert(quadra_connectx(42, &ep, 0, 0, 0, 0, 0, 0) == -1);
     assert(error_value == EINPROGRESS && send_calls == 0);
 
     connect_error = 61; /* ECONNREFUSED */
-    assert(macoblox_connectx(42, &ep, 0, 0, &initial, 1, &sent, &connid) == -1);
+    assert(quadra_connectx(42, &ep, 0, 0, &initial, 1, &sent, &connid) == -1);
     assert(error_value == 61 && sent == 0 && connid == 99 && send_calls == 0);
 
     connect_error = 0;
-    assert(macoblox_connectx(42, &ep, 0, 0, 0, 0, &sent, &connid) == 0);
+    assert(quadra_connectx(42, &ep, 0, 0, 0, 0, &sent, &connid) == 0);
     assert(sent == 0 && connid == 1 && send_calls == 0);
     bytes_to_send = 5;
-    assert(macoblox_connectx(42, &ep, 0, 0, &initial, 1, &sent, &connid) == 0);
+    assert(quadra_connectx(42, &ep, 0, 0, &initial, 1, &sent, &connid) == 0);
     assert(sent == 5 && send_calls == 1);
     bytes_to_send = 2; /* Report partial sends accurately. */
-    assert(macoblox_connectx(42, &ep, 0, 0, &initial, 1, &sent, &connid) == 0);
+    assert(quadra_connectx(42, &ep, 0, 0, &initial, 1, &sent, &connid) == 0);
     assert(sent == 2 && send_calls == 2);
     send_error = 35; /* EAGAIN */
-    assert(macoblox_connectx(42, &ep, 0, 0, &initial, 1, &sent, &connid) == -1);
+    assert(quadra_connectx(42, &ep, 0, 0, &initial, 1, &sent, &connid) == -1);
     assert(error_value == 35 && sent == 0 && send_calls == 3);
 
     int connected = connect_calls;
     ep.srcaddr = destination;
     ep.srcaddrlen = sizeof destination;
     bind_error = 48; /* EADDRINUSE */
-    assert(macoblox_connectx(42, &ep, 0, 0, 0, 0, &sent, 0) == -1);
+    assert(quadra_connectx(42, &ep, 0, 0, 0, 0, &sent, 0) == -1);
     assert(error_value == 48 && connect_calls == connected);
-    assert(macoblox_connectx(42, 0, 0, 0, 0, 0, &sent, 0) == -1);
+    assert(quadra_connectx(42, 0, 0, 0, 0, 0, &sent, 0) == -1);
     assert(error_value == EINVAL && sent == 0 && connect_calls == connected);
     ep.dstaddr = 0;
-    assert(macoblox_connectx(42, &ep, 0, 0, 0, 0, &sent, 0) == -1);
+    assert(quadra_connectx(42, &ep, 0, 0, 0, 0, &sent, 0) == -1);
     assert(error_value == EINVAL && connect_calls == connected);
 
     puts("PASS: pending connection, connection failure, initial data, partial send, bind failure, invalid endpoint");

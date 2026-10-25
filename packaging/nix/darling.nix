@@ -25,7 +25,7 @@ stdenvNoCC.mkDerivation {
   src = fetchurl (
     if cider then
       {
-        url = "https://github.com/CiderHQ-org/CiderDarling/releases/download/bin-${
+        url = "https://github.com/QuadraHQ/CiderDarling/releases/download/bin-${
           builtins.substring 0 12 pins.revision
         }/ciderdarling-${pins.revision}-x86_64-ubuntu24.04.tar.xz";
         sha256 = pins.sha256;
@@ -96,7 +96,7 @@ stdenvNoCC.mkDerivation {
   meta = {
     description = "Pinned ${runtime} runtime for Quadra's FHS environment";
     homepage =
-      if cider then "https://github.com/CiderHQ-org/CiderDarling" else "https://www.darlinghq.org";
+      if cider then "https://github.com/QuadraHQ/CiderDarling" else "https://www.darlinghq.org";
     license = lib.licenses.gpl3Only;
     platforms = [ "x86_64-linux" ];
     sourceProvenance = [ lib.sourceTypes.binaryNativeCode ];

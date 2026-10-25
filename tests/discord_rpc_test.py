@@ -10,7 +10,7 @@ import time
 import unittest
 from unittest.mock import patch
 
-from macoblox import discord
+from quadra import discord
 
 
 class FakeDiscord:

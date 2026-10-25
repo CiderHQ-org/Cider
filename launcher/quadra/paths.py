@@ -36,6 +36,16 @@ def migrate_directories(target, *sources):
     return target
 
 
+def migrate_environment(environ=os.environ):
+    """Accept MACOBLOX_* variables set by hand before the rename as QUADRA_*.
+
+    MACOBLOX_METAL* keep their names: the Metal runtime reads them. A QUADRA_*
+    variable that is already set wins."""
+    for name, value in list(environ.items()):
+        if name.startswith("MACOBLOX_") and not name.startswith("MACOBLOX_METAL"):
+            environ.setdefault("QUADRA_" + name[len("MACOBLOX_"):], value)
+
+
 @lru_cache(maxsize=3)
 def user_directory(kind):
     defaults = {"CONFIG": Path.home() / ".config", "CACHE": Path.home() / ".cache",

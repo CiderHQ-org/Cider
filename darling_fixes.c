@@ -16,19 +16,19 @@
  *  - condition variables are this file's own: a queue of waiting threads,
  *    each sleeping on its own futex, so a signal wakes exactly one of them
  *    and a broadcast exactly those waiting, never anyone else.
- * MACOBLOX_NATIVE_MUTEX=1 and MACOBLOX_NATIVE_COND=1 give Darling's back.
+ * QUADRA_NATIVE_MUTEX=1 and QUADRA_NATIVE_COND=1 give Darling's back.
  *
  * Sleeps: in Darling every usleep and nanosleep is two darlingserver
  * requests (a cancellation check and a semaphore wait): a few threads napping
  * in a loop kept darlingserver above a whole core (124% with four, checked
  * with a test program; 11% with direct sleeps). They are direct Linux sleeps
- * here (macoblox_sleep_us for the shim itself). */
+ * here (quadra_sleep_us for the shim itself). */
 extern int pthread_mutex_lock(void *);
 extern int pthread_mutex_trylock(void *);
 extern int sched_yield(void);
 extern char *getenv(const char *);
-extern int macoblox_wait_begin(void);
-extern void macoblox_wait_end(int);
+extern int quadra_wait_begin(void);
+extern void quadra_wait_end(int);
 
 #define DYLD_INTERPOSE(_replacement, _replacee) \
     __attribute__((used)) static struct { const void *replacement; const void *replacee; } \
@@ -36,12 +36,12 @@ extern void macoblox_wait_end(int);
         {(const void *)(unsigned long)&_replacement, (const void *)(unsigned long)&_replacee};
 
 #include "math_compat.h"
-DYLD_INTERPOSE(macoblox_exp10, __exp10)
-DYLD_INTERPOSE(macoblox_exp10f, __exp10f)
-DYLD_INTERPOSE(macoblox_sincosf, __sincosf_stret)
-DYLD_INTERPOSE(macoblox_sincos, __sincos_stret)
-DYLD_INTERPOSE(macoblox_sincospif, __sincospif_stret)
-DYLD_INTERPOSE(macoblox_sincospi, __sincospi_stret)
+DYLD_INTERPOSE(quadra_exp10, __exp10)
+DYLD_INTERPOSE(quadra_exp10f, __exp10f)
+DYLD_INTERPOSE(quadra_sincosf, __sincosf_stret)
+DYLD_INTERPOSE(quadra_sincos, __sincos_stret)
+DYLD_INTERPOSE(quadra_sincospif, __sincospif_stret)
+DYLD_INTERPOSE(quadra_sincospi, __sincospi_stret)
 
 /* Sleep without darlingserver: a direct Linux nanosleep, where usleep and
  * nanosleep cost two darlingserver requests each (see above). Same interface:
@@ -51,8 +51,8 @@ struct darwin_timespec { long tv_sec; long tv_nsec; };
 extern int *__error(void);
 
 #include "ulock_compat.h"
-DYLD_INTERPOSE(macoblox_ulock_wait, __ulock_wait)
-DYLD_INTERPOSE(macoblox_ulock_wake, __ulock_wake)
+DYLD_INTERPOSE(quadra_ulock_wait, __ulock_wait)
+DYLD_INTERPOSE(quadra_ulock_wake, __ulock_wake)
 
 static long raw_nanosleep(const struct darwin_timespec *request, struct darwin_timespec *remaining) {
     long result;
@@ -72,7 +72,7 @@ static int linux_nanosleep(const struct darwin_timespec *request, struct darwin_
 
 /* For the shim's own waits: leaves errno alone (a kick during a nap in
  * pthread_mutex_lock would otherwise leave EINTR behind a successful lock). */
-void macoblox_sleep_us(unsigned int microseconds) {
+void quadra_sleep_us(unsigned int microseconds) {
     struct darwin_timespec time = {microseconds / 1000000, (long)(microseconds % 1000000) * 1000};
     raw_nanosleep(&time, 0);
 }
@@ -80,31 +80,31 @@ void macoblox_sleep_us(unsigned int microseconds) {
 /* The game's own sleeps (FMOD's threads, frame pacing, polling loops) cost
  * the same two requests; they get the direct sleep as well. Roblox does not
  * cancel threads, so losing the cancellation point does not matter.
- * MACOBLOX_NATIVE_SLEEP=1 keeps Darling's. */
+ * QUADRA_NATIVE_SLEEP=1 keeps Darling's. */
 extern int nanosleep(const struct darwin_timespec *, struct darwin_timespec *);
 extern int usleep(unsigned int);
 
 static int native_sleep(void) {
     static int native = -1;
     if (native < 0) {
-        const char *value = getenv("MACOBLOX_NATIVE_SLEEP");
+        const char *value = getenv("QUADRA_NATIVE_SLEEP");
         native = value && value[0] && value[0] != '0';
     }
     return native;
 }
 
-static int macoblox_nanosleep(const struct darwin_timespec *request, struct darwin_timespec *remaining) {
+static int quadra_nanosleep(const struct darwin_timespec *request, struct darwin_timespec *remaining) {
     return native_sleep() ? nanosleep(request, remaining) : linux_nanosleep(request, remaining);
 }
-DYLD_INTERPOSE(macoblox_nanosleep, nanosleep)
+DYLD_INTERPOSE(quadra_nanosleep, nanosleep)
 
-static int macoblox_usleep(unsigned int microseconds) {
+static int quadra_usleep(unsigned int microseconds) {
     if (native_sleep())
         return usleep(microseconds);
     struct darwin_timespec request = {microseconds / 1000000, (long)(microseconds % 1000000) * 1000};
     return linux_nanosleep(&request, 0);
 }
-DYLD_INTERPOSE(macoblox_usleep, usleep)
+DYLD_INTERPOSE(quadra_usleep, usleep)
 
 #define DARWIN_EBUSY 16
 #define DARWIN_EINVAL 22
@@ -113,7 +113,7 @@ DYLD_INTERPOSE(macoblox_usleep, usleep)
 static int native_mutex(void) {
     static int native = -1;
     if (native < 0) {
-        const char *value = getenv("MACOBLOX_NATIVE_MUTEX");
+        const char *value = getenv("QUADRA_NATIVE_MUTEX");
         native = value && value[0] && value[0] != '0';
     }
     return native;
@@ -201,7 +201,7 @@ static int mutex_spin(void *mutex, int pauses, int yields) {
 #define MUTEX_YIELDS 64
 #define MUTEX_WAKE_YIELDS 16
 
-static int macoblox_pthread_mutex_lock(void *mutex) {
+static int quadra_pthread_mutex_lock(void *mutex) {
     if (native_mutex())
         return pthread_mutex_lock(mutex);
     int result = pthread_mutex_trylock(mutex);
@@ -216,10 +216,10 @@ static int macoblox_pthread_mutex_lock(void *mutex) {
     linux_monotonic(&start);
     /* Long waits are reported by the watchdog (thread_kick.c), with the
      * place the thread waits from; its kicks only make this loop try again. */
-    int watched = macoblox_wait_begin();
+    int watched = quadra_wait_begin();
     do {
         /* Counted as a waiter before the last try, so an unlock after that
-         * try sees the waiter and wakes it (see macoblox_pthread_mutex_unlock). */
+         * try sees the waiter and wakes it (see quadra_pthread_mutex_unlock). */
         __atomic_add_fetch(&wait->waiters, 1, __ATOMIC_SEQ_CST);
         unsigned int sequence = __atomic_load_n(&wait->sequence, __ATOMIC_SEQ_CST);
         result = pthread_mutex_trylock(mutex);
@@ -250,14 +250,14 @@ static int macoblox_pthread_mutex_lock(void *mutex) {
         result = pthread_mutex_lock(mutex);
         *__error() = saved_errno;
     }
-    macoblox_wait_end(watched);
+    quadra_wait_end(watched);
     return result;
 }
-DYLD_INTERPOSE(macoblox_pthread_mutex_lock, pthread_mutex_lock)
+DYLD_INTERPOSE(quadra_pthread_mutex_lock, pthread_mutex_lock)
 
 extern int pthread_mutex_unlock(void *);
 
-static int macoblox_pthread_mutex_unlock(void *mutex) {
+static int quadra_pthread_mutex_unlock(void *mutex) {
     int result = pthread_mutex_unlock(mutex);
     if (result || native_mutex())
         return result;
@@ -275,7 +275,7 @@ static int macoblox_pthread_mutex_unlock(void *mutex) {
     }
     return result;
 }
-DYLD_INTERPOSE(macoblox_pthread_mutex_unlock, pthread_mutex_unlock)
+DYLD_INTERPOSE(quadra_pthread_mutex_unlock, pthread_mutex_unlock)
 
 /* Thread stacks: Darwin gives a thread 512 KB unless its creator asks for
  * more, Linux 8 MB, and host code that runs on these stacks was built for
@@ -296,15 +296,15 @@ extern int pthread_attr_init(darwin_pthread_attr_t *);
 extern int pthread_attr_destroy(darwin_pthread_attr_t *);
 extern int pthread_create(void **, const darwin_pthread_attr_t *, void *(*)(void *), void *);
 
-static int macoblox_pthread_attr_setstacksize(darwin_pthread_attr_t *attr, unsigned long size) {
+static int quadra_pthread_attr_setstacksize(darwin_pthread_attr_t *attr, unsigned long size) {
     void *address = 0;
     if (size < MIN_THREAD_STACK && pthread_attr_getstackaddr(attr, &address) == 0 && !address)
         size = MIN_THREAD_STACK;
     return pthread_attr_setstacksize(attr, size);
 }
-DYLD_INTERPOSE(macoblox_pthread_attr_setstacksize, pthread_attr_setstacksize)
+DYLD_INTERPOSE(quadra_pthread_attr_setstacksize, pthread_attr_setstacksize)
 
-static int macoblox_pthread_create(void **thread, const darwin_pthread_attr_t *attr,
+static int quadra_pthread_create(void **thread, const darwin_pthread_attr_t *attr,
                                    void *(*start)(void *), void *argument) {
     if (!attr) {
         /* Defaults (joinable, inherited scheduling), with a Linux-sized stack. */
@@ -317,11 +317,11 @@ static int macoblox_pthread_create(void **thread, const darwin_pthread_attr_t *a
         return result;
     }
     darwin_pthread_attr_t larger;
-    if (macoblox_larger_stack_attributes(attr, &larger))
+    if (quadra_larger_stack_attributes(attr, &larger))
         return pthread_create(thread, &larger, start, argument);
     return pthread_create(thread, attr, start, argument);
 }
-DYLD_INTERPOSE(macoblox_pthread_create, pthread_create)
+DYLD_INTERPOSE(quadra_pthread_create, pthread_create)
 
 /* GCD's worker threads do not come from pthread_create: Darling's
  * workq_kernreturn starts them with a fixed 512 KB stack through
@@ -343,7 +343,7 @@ struct darling_elf_calls { /* the start of mldr's struct elf_calls */
 extern void *dlsym(void *, const char *);
 static darling_thread_create_function darling_thread_create_original;
 
-static void *macoblox_darling_thread_create(unsigned long stack_size, unsigned long thread_object_size,
+static void *quadra_darling_thread_create(unsigned long stack_size, unsigned long thread_object_size,
                                             void *entry, unsigned long arg3, unsigned long arg4,
                                             unsigned long arg5, unsigned long arg6,
                                             const void *callbacks, void *thread_structure) {
@@ -353,13 +353,13 @@ static void *macoblox_darling_thread_create(unsigned long stack_size, unsigned l
                                           callbacks, thread_structure);
 }
 
-__attribute__((constructor)) static void macoblox_wrap_darling_thread_create(void) {
+__attribute__((constructor)) static void quadra_wrap_darling_thread_create(void) {
     struct darling_elf_calls **table = dlsym((void *)-2 /* RTLD_DEFAULT */, "_elfcalls");
     if (!table || !*table || !(*table)->darling_thread_create ||
-        (*table)->darling_thread_create == macoblox_darling_thread_create)
+        (*table)->darling_thread_create == quadra_darling_thread_create)
         return;
     darling_thread_create_original = (*table)->darling_thread_create;
-    (*table)->darling_thread_create = macoblox_darling_thread_create;
+    (*table)->darling_thread_create = quadra_darling_thread_create;
 }
 
 /* A GCD worker thread that finishes its work goes back to Darling's
@@ -377,14 +377,14 @@ __attribute__((constructor)) static void macoblox_wrap_darling_thread_create(voi
  * pthread structure sits right above its stack (in XNU and in Darling), so
  * the top is the thread's own pthread_t, the first argument (rdi); nothing
  * that outlives the jump is on that stack (the thread's exit context is on
- * its native Linux stack). MACOBLOX_NATIVE_WORKQUEUE=1 keeps Darling's. */
-__attribute__((visibility("hidden"))) void *macoblox_wqthread_original;
-extern void macoblox_start_wqthread(void);
+ * its native Linux stack). QUADRA_NATIVE_WORKQUEUE=1 keeps Darling's. */
+__attribute__((visibility("hidden"))) void *quadra_wqthread_original;
+extern void quadra_start_wqthread(void);
 __asm__(".text\n"
         ".p2align 4\n"
-        "_macoblox_start_wqthread:\n"
+        "_quadra_start_wqthread:\n"
         "    movq %rdi, %rsp\n"
-        "    jmpq *_macoblox_wqthread_original(%rip)\n");
+        "    jmpq *_quadra_wqthread_original(%rip)\n");
 
 extern unsigned int _dyld_image_count(void);
 extern const char *_dyld_get_image_name(unsigned int);
@@ -392,14 +392,14 @@ extern const void *_dyld_get_image_header(unsigned int);
 extern unsigned char *getsectiondata(const void *, const char *, const char *, unsigned long *);
 extern long write(int, const void *, unsigned long);
 
-static void macoblox_log(const char *text) {
+static void quadra_log(const char *text) {
     unsigned long length = 0;
     while (text[length]) length++;
     write(2, text, length);
 }
 
-__attribute__((constructor)) static void macoblox_reset_workqueue_stacks(void) {
-    const char *keep = getenv("MACOBLOX_NATIVE_WORKQUEUE");
+__attribute__((constructor)) static void quadra_reset_workqueue_stacks(void) {
+    const char *keep = getenv("QUADRA_NATIVE_WORKQUEUE");
     if (keep && keep[0] == '1')
         return;
     void *entry = dlsym((void *)-2 /* RTLD_DEFAULT */, "start_wqthread");
@@ -430,11 +430,11 @@ __attribute__((constructor)) static void macoblox_reset_workqueue_stacks(void) {
                 }
         }
         if (matches == 1) {
-            macoblox_wqthread_original = entry;
-            __atomic_store_n(found, (void *)macoblox_start_wqthread, __ATOMIC_RELEASE);
-            macoblox_log("[Quadra] GCD worker threads restart on a fresh stack\n");
+            quadra_wqthread_original = entry;
+            __atomic_store_n(found, (void *)quadra_start_wqthread, __ATOMIC_RELEASE);
+            quadra_log("[Quadra] GCD worker threads restart on a fresh stack\n");
         } else {
-            macoblox_log("[Quadra] Darling's workqueue entry not found, GCD worker stacks unchanged\n");
+            quadra_log("[Quadra] Darling's workqueue entry not found, GCD worker stacks unchanged\n");
         }
         return;
     }
@@ -488,7 +488,7 @@ extern int pthread_cond_timedwait_nocancel(void *, void *, const struct darwin_t
 static int native_cond(void) {
     static int native = -1;
     if (native < 0) {
-        const char *value = getenv("MACOBLOX_NATIVE_COND");
+        const char *value = getenv("QUADRA_NATIVE_COND");
         native = value && value[0] && value[0] != '0';
     }
     return native;
@@ -570,7 +570,7 @@ static int futex_cond_wait(void *object, void *mutex, const struct darwin_timesp
     cond->tail = &waiter;
     cond_unlock(cond);
 
-    int result = macoblox_pthread_mutex_unlock(mutex);
+    int result = quadra_pthread_mutex_unlock(mutex);
     if (result) { /* not the owner: leave as if never queued */
         cond_lock(cond);
         if (!waiter.signaled) {
@@ -607,13 +607,13 @@ static int futex_cond_wait(void *object, void *mutex, const struct darwin_timesp
     }
     cond_unlock(cond);
 
-    result = macoblox_pthread_mutex_lock(mutex);
+    result = quadra_pthread_mutex_lock(mutex);
     if (result)
         return result;
     return timed_out ? DARWIN_ETIMEDOUT : 0;
 }
 
-static int macoblox_pthread_cond_init(void *cond, const void *attributes) {
+static int quadra_pthread_cond_init(void *cond, const void *attributes) {
     int shared = 0;
     if (native_cond() ||
         (attributes && pthread_condattr_getpshared(attributes, &shared) == 0 && shared == DARWIN_PTHREAD_PROCESS_SHARED))
@@ -626,9 +626,9 @@ static int macoblox_pthread_cond_init(void *cond, const void *attributes) {
     futex->reserved[0] = futex->reserved[1] = 0;
     return 0;
 }
-DYLD_INTERPOSE(macoblox_pthread_cond_init, pthread_cond_init)
+DYLD_INTERPOSE(quadra_pthread_cond_init, pthread_cond_init)
 
-static int macoblox_pthread_cond_destroy(void *cond) {
+static int quadra_pthread_cond_destroy(void *cond) {
     if (darling_cond(cond))
         return pthread_cond_destroy(cond);
     struct futex_cond *futex = cond;
@@ -640,9 +640,9 @@ static int macoblox_pthread_cond_destroy(void *cond) {
     futex->signature = 0;
     return 0;
 }
-DYLD_INTERPOSE(macoblox_pthread_cond_destroy, pthread_cond_destroy)
+DYLD_INTERPOSE(quadra_pthread_cond_destroy, pthread_cond_destroy)
 
-static int macoblox_pthread_cond_signal(void *cond) {
+static int quadra_pthread_cond_signal(void *cond) {
     if (darling_cond(cond))
         return pthread_cond_signal(cond);
     struct futex_cond *futex = cond;
@@ -654,9 +654,9 @@ static int macoblox_pthread_cond_signal(void *cond) {
     cond_unlock(futex);
     return 0;
 }
-DYLD_INTERPOSE(macoblox_pthread_cond_signal, pthread_cond_signal)
+DYLD_INTERPOSE(quadra_pthread_cond_signal, pthread_cond_signal)
 
-static int macoblox_pthread_cond_broadcast(void *cond) {
+static int quadra_pthread_cond_broadcast(void *cond) {
     if (darling_cond(cond))
         return pthread_cond_broadcast(cond);
     struct futex_cond *futex = cond;
@@ -668,45 +668,45 @@ static int macoblox_pthread_cond_broadcast(void *cond) {
     cond_unlock(futex);
     return 0;
 }
-DYLD_INTERPOSE(macoblox_pthread_cond_broadcast, pthread_cond_broadcast)
+DYLD_INTERPOSE(quadra_pthread_cond_broadcast, pthread_cond_broadcast)
 
-static int macoblox_pthread_cond_signal_thread_np(void *cond, void *thread) {
+static int quadra_pthread_cond_signal_thread_np(void *cond, void *thread) {
     if (darling_cond(cond))
         return pthread_cond_signal_thread_np(cond, thread);
     /* Waking one particular thread: wake them all, the others see a
      * spurious wakeup, which the API allows. Roblox does not use it. */
-    return thread ? macoblox_pthread_cond_broadcast(cond) : macoblox_pthread_cond_signal(cond);
+    return thread ? quadra_pthread_cond_broadcast(cond) : quadra_pthread_cond_signal(cond);
 }
-DYLD_INTERPOSE(macoblox_pthread_cond_signal_thread_np, pthread_cond_signal_thread_np)
+DYLD_INTERPOSE(quadra_pthread_cond_signal_thread_np, pthread_cond_signal_thread_np)
 
-static int macoblox_pthread_cond_wait(void *cond, void *mutex) {
+static int quadra_pthread_cond_wait(void *cond, void *mutex) {
     return darling_cond(cond) ? pthread_cond_wait(cond, mutex) : futex_cond_wait(cond, mutex, 0, WAIT_FOREVER);
 }
-DYLD_INTERPOSE(macoblox_pthread_cond_wait, pthread_cond_wait)
+DYLD_INTERPOSE(quadra_pthread_cond_wait, pthread_cond_wait)
 
-static int macoblox_pthread_cond_wait_nocancel(void *cond, void *mutex) {
+static int quadra_pthread_cond_wait_nocancel(void *cond, void *mutex) {
     return darling_cond(cond) ? pthread_cond_wait_nocancel(cond, mutex)
                               : futex_cond_wait(cond, mutex, 0, WAIT_FOREVER);
 }
-DYLD_INTERPOSE(macoblox_pthread_cond_wait_nocancel, pthread_cond_wait_nocancel)
+DYLD_INTERPOSE(quadra_pthread_cond_wait_nocancel, pthread_cond_wait_nocancel)
 
-static int macoblox_pthread_cond_timedwait(void *cond, void *mutex, const struct darwin_timespec *deadline) {
+static int quadra_pthread_cond_timedwait(void *cond, void *mutex, const struct darwin_timespec *deadline) {
     return darling_cond(cond) ? pthread_cond_timedwait(cond, mutex, deadline)
                               : futex_cond_wait(cond, mutex, deadline, WAIT_UNTIL);
 }
-DYLD_INTERPOSE(macoblox_pthread_cond_timedwait, pthread_cond_timedwait)
+DYLD_INTERPOSE(quadra_pthread_cond_timedwait, pthread_cond_timedwait)
 
-static int macoblox_pthread_cond_timedwait_nocancel(void *cond, void *mutex, const struct darwin_timespec *deadline) {
+static int quadra_pthread_cond_timedwait_nocancel(void *cond, void *mutex, const struct darwin_timespec *deadline) {
     return darling_cond(cond) ? pthread_cond_timedwait_nocancel(cond, mutex, deadline)
                               : futex_cond_wait(cond, mutex, deadline, WAIT_UNTIL);
 }
-DYLD_INTERPOSE(macoblox_pthread_cond_timedwait_nocancel, pthread_cond_timedwait_nocancel)
+DYLD_INTERPOSE(quadra_pthread_cond_timedwait_nocancel, pthread_cond_timedwait_nocancel)
 
-static int macoblox_pthread_cond_timedwait_relative_np(void *cond, void *mutex, const struct darwin_timespec *relative) {
+static int quadra_pthread_cond_timedwait_relative_np(void *cond, void *mutex, const struct darwin_timespec *relative) {
     return darling_cond(cond) ? pthread_cond_timedwait_relative_np(cond, mutex, relative)
                               : futex_cond_wait(cond, mutex, relative, WAIT_FOR);
 }
-DYLD_INTERPOSE(macoblox_pthread_cond_timedwait_relative_np, pthread_cond_timedwait_relative_np)
+DYLD_INTERPOSE(quadra_pthread_cond_timedwait_relative_np, pthread_cond_timedwait_relative_np)
 
 /* _availability_version_check (libxpc) backs every `@available(macOS ...)`
  * check. Darling's is a stub that returns false and logs "not implemented"
@@ -716,9 +716,9 @@ DYLD_INTERPOSE(macoblox_pthread_cond_timedwait_relative_np, pthread_cond_timedwa
 typedef struct { unsigned int platform, version; } darwin_build_version_t;
 extern _Bool _availability_version_check(unsigned long, darwin_build_version_t *);
 
-static _Bool macoblox_availability_version_check(unsigned long count, darwin_build_version_t *versions) {
+static _Bool quadra_availability_version_check(unsigned long count, darwin_build_version_t *versions) {
     (void)count;
     (void)versions;
     return 0;
 }
-DYLD_INTERPOSE(macoblox_availability_version_check, _availability_version_check)
+DYLD_INTERPOSE(quadra_availability_version_check, _availability_version_check)

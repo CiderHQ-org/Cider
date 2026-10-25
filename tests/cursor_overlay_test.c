@@ -25,7 +25,7 @@ int main(void) {
     XDefineCursor(d, game, cursor);
     XWarpPointer(d, None, game, 0, 0, 0, 0, 80, 90);
     XSync(d, False);
-    assert(macoblox_cursor_overlay_update(1, game, 1));
+    assert(quadra_cursor_overlay_update(1, game, 1));
     XSync(display, False);
     XWindowAttributes attrs;
     assert(XGetWindowAttributes(d, overlay, &attrs));
@@ -40,43 +40,43 @@ int main(void) {
     XFixesHideCursor(d, game);
     XWarpPointer(d, None, game, 0, 0, 0, 0, 150, 150);
     XSync(d, False);
-    assert(macoblox_cursor_overlay_update(1, game, 1));
+    assert(quadra_cursor_overlay_update(1, game, 1));
     XSync(display, False);
     assert(XGetWindowAttributes(d, overlay, &attrs));
     assert(attrs.map_state == IsViewable && attrs.x == 76 && attrs.y == 86);
-    assert(macoblox_cursor_overlay_update(1, game, 0));
+    assert(quadra_cursor_overlay_update(1, game, 0));
     XSync(display, False);
     assert(XGetWindowAttributes(d, overlay, &attrs) && attrs.map_state == IsUnmapped);
-    assert(macoblox_cursor_overlay_update(1, game, 1));
+    assert(quadra_cursor_overlay_update(1, game, 1));
     XSync(display, False);
     assert(XGetWindowAttributes(d, overlay, &attrs) && attrs.map_state == IsViewable);
-    assert(macoblox_cursor_overlay_update(0, game, 1));
+    assert(quadra_cursor_overlay_update(0, game, 1));
     XSync(display, False);
     assert(XGetWindowAttributes(d, overlay, &attrs) && attrs.map_state == IsUnmapped);
     /* A right drag remains visible even without a theme or selected bitmap. */
-    assert(macoblox_cursor_overlay_update_drag(1,game,0,80,90,2,0,1));
+    assert(quadra_cursor_overlay_update_drag(1,game,0,80,90,2,0,1));
     XSync(display,False);
     assert(XGetWindowAttributes(d,overlay,&attrs) && attrs.map_state==IsViewable);
     /* Preserve the last opaque game cursor across a transparent selection. */
     unsigned int solid[64],transparent[64]={0};
     for(unsigned i=0;i<64;i++)solid[i]=0xff00ff00u;
-    macoblox_cursor_overlay_select_image(123,solid,8,8,4,4);
-    macoblox_cursor_overlay_select_image(124,transparent,8,8,0,0);
-    assert(macoblox_cursor_overlay_update_selected(1,game,1,80,90,3,124));
+    quadra_cursor_overlay_select_image(123,solid,8,8,4,4);
+    quadra_cursor_overlay_select_image(124,transparent,8,8,0,0);
+    assert(quadra_cursor_overlay_update_selected(1,game,1,80,90,3,124));
     XSync(display,False);
     assert(XGetWindowAttributes(d,overlay,&attrs) && attrs.map_state==IsUnmapped);
-    assert(macoblox_cursor_overlay_update_drag(1,game,0,80,90,3,124,1));
+    assert(quadra_cursor_overlay_update_drag(1,game,0,80,90,3,124,1));
     XSync(display,False);
     assert(XGetWindowAttributes(d,overlay,&attrs) && attrs.map_state==IsViewable && attrs.x==76 && attrs.y==86);
     image=XGetImage(d,overlay,0,0,8,8,AllPlanes,ZPixmap);
     assert(image && (XGetPixel(image,4,4)&0xffffff)==0x00ff00);XDestroyImage(image);
-    assert(macoblox_cursor_overlay_update_drag(1,game,0,80,90,3,124,0));
+    assert(quadra_cursor_overlay_update_drag(1,game,0,80,90,3,124,0));
     XSync(display,False);
     assert(XGetWindowAttributes(d,overlay,&attrs) && attrs.map_state==IsUnmapped);
-    assert(macoblox_cursor_overlay_update_drag(0,game,0,80,90,3,124,1));
+    assert(quadra_cursor_overlay_update_drag(0,game,0,80,90,3,124,1));
     /* A closed game window must not let Xlib's default handler exit Roblox. */
     XDestroyWindow(d, game); XSync(d, False);
-    macoblox_cursor_overlay_update(0, 0, 1); XSync(display, False);
+    quadra_cursor_overlay_update(0, 0, 1); XSync(display, False);
     XCloseDisplay(d);
     puts("PASS: visible pixels, frozen hotspot, empty input shape, hide/unhide, unlock, window destruction");
 }
