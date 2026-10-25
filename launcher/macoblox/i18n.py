@@ -1063,6 +1063,8 @@ ZH_CN = {
     "100–400%. Keeps the display resolution. Applies on next launch.": "100–400%。保持显示分辨率。下次启动时生效。",
     "Window backend": "窗口后端",
     "Applies on next launch.": "下次启动时生效。",
+    "Collect hardware report": "收集硬件报告",
+    "Reset Quadra M2VK settings": "重置 Quadra M2VK 设置",
 }
 
 
