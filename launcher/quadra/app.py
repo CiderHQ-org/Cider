@@ -154,6 +154,54 @@ def _error_dialog(window, heading, details):
     dialog.present(window)
 
 
+class ComboRow(Adw.ComboRow):
+    """A combo row whose chosen value stays whole. libadwaita lets a long subtitle take the room, which squeezes
+    the value to an ellipsis (an Accuracy of "Fast" read as "…")."""
+
+    TRIES = 60  # frames to wait for libadwaita to build the value's label
+
+    def __init__(self, **properties):
+        super().__init__(**properties)
+        self.connect("map", self._keep_value_whole)
+        self.connect("notify::selected", self._keep_value_whole)
+
+    def _keep_value_whole(self, *_args):
+        tries = [self.TRIES]
+
+        def fix(_widget, _clock):
+            label = self._value_label()
+            if label is not None:
+                label.set_ellipsize(Pango.EllipsizeMode.NONE)
+                return GLib.SOURCE_REMOVE
+            tries[0] -= 1
+            return GLib.SOURCE_CONTINUE if tries[0] > 0 else GLib.SOURCE_REMOVE
+
+        self.add_tick_callback(fix)
+
+    def _value_label(self):
+        pending = [self]
+        while pending:
+            widget = pending.pop()
+            if isinstance(widget, Gtk.Popover):  # the choices have room of their own
+                continue
+            if isinstance(widget, Gtk.ListView) and widget.has_css_class("inline"):
+                pending = [widget]
+                while pending:
+                    inner = pending.pop()
+                    if isinstance(inner, Gtk.Label):
+                        return inner
+                    child = inner.get_first_child()
+                    while child:
+                        pending.append(child)
+                        child = child.get_next_sibling()
+                return None
+            child = widget.get_first_child()
+            while child:
+                pending.append(child)
+                child = child.get_next_sibling()
+        return None
+
+
 class GameLogsView(Gtk.Box):
     """Live streaming log viewer for Roblox Player with syntax highlighting and search."""
 
@@ -1614,7 +1662,7 @@ class StudioPage(Adw.Bin):
         self.renderer_codes = list(studio.RENDERERS)
         labels = [_("DXVK (recommended)"), _("DXVK-Sarek (older graphics cards)"), _("Wine's Direct3D (OpenGL)"),
                   _("Wine's Direct3D, feature level 10 (OpenGL)"), "Vulkan"]
-        self.renderer_row = Adw.ComboRow(title=_("Renderer"), model=Gtk.StringList.new(labels))
+        self.renderer_row = ComboRow(title=_("Renderer"), model=Gtk.StringList.new(labels))
         current = studio.Options(settings).renderer
         self.renderer_row.set_selected(self.renderer_codes.index(current))
         self.renderer_row.connect("notify::selected", self._renderer_selected)
@@ -1630,7 +1678,7 @@ class StudioPage(Adw.Bin):
 
         performance = Adw.PreferencesGroup(title=_("Performance"))
         self._gpu_codes = [""]
-        self.gpu_row = Adw.ComboRow(
+        self.gpu_row = ComboRow(
             title=_("Graphics card"), subtitle=_("Detecting graphics cards… Applies on next launch."),
             model=Gtk.StringList.new([_("Automatic")]), sensitive=False,
             visible=settings.get("studio_gpu", "") not in ("", "auto"))
@@ -1650,7 +1698,7 @@ class StudioPage(Adw.Bin):
             description=_("Studio runs on Kombucha, the Wine build Vinegar patches for Studio. It is updated "
                           "when you start Studio, unless you choose a release."))
         self.wine_tags = [""]
-        self.release_row = Adw.ComboRow(
+        self.release_row = ComboRow(
             title=_("Kombucha release"), subtitle=_("Recommended: the newest stable one, as Vinegar publishes it."),
             model=Gtk.StringList.new([_("Newest stable")]))
         self._release_handler = self.release_row.connect("notify::selected", self._release_selected)
@@ -1812,7 +1860,7 @@ class SettingsPage(Adw.Bin):
         labels = [self._runtime_labels[variant] if variant in self._runtime_choices or bundled
                   else _("{runtime} (not installed)", runtime=self._runtime_labels[variant])
                   for variant in self._runtime_codes]
-        self.runtime_row = Adw.ComboRow(title=_("Darling runtime"),
+        self.runtime_row = ComboRow(title=_("Darling runtime"),
                                        model=Gtk.StringList.new(labels), sensitive=not bundled, use_subtitle=True)
         active = core.DARLING_RUNTIME["runtime"]
         self.runtime_row.set_selected(self._runtime_codes.index(active))
@@ -1849,14 +1897,14 @@ class SettingsPage(Adw.Bin):
 
         interface = Adw.PreferencesGroup(title=_("Interface"))
         codes = list(i18n.LANGUAGES)
-        language = Adw.ComboRow(title=_("Language"),
+        language = ComboRow(title=_("Language"),
                                 model=Gtk.StringList.new(list(i18n.LANGUAGES.values())))
         language.set_selected(codes.index(i18n.language()))
         language.connect("notify::selected", lambda row, _pspec: window.set_language(
             codes[row.get_selected()]))
         interface.add(language)
         self.appearance_codes = ("grid", "gnome", "monochrome")
-        self.appearance_row = Adw.ComboRow(
+        self.appearance_row = ComboRow(
             title=_("Launcher appearance"),
             subtitle=_("Applies immediately. GNOME follows your system appearance."),
             model=Gtk.StringList.new([_("Grid"), _("GNOME (classic)"), _("Monochrome · aubree.lat")]))
@@ -1880,7 +1928,7 @@ class SettingsPage(Adw.Bin):
         game.add(self.gpu_row)
 
         backend_codes = ["x11", "wayland"]
-        backend = Adw.ComboRow(
+        backend = ComboRow(
             title=_("Window backend"),
             subtitle=_("Applies on next launch."),
             model=Gtk.StringList.new([_("X11 / Xwayland"), _("Wayland")]))
@@ -2062,7 +2110,7 @@ class SettingsPage(Adw.Bin):
             description=_("Only Roblox uses this server, the rest of the system keeps its own DNS. "
                           "Helps when some Roblox images or servers do not load."))
         dns_codes = [code for code, _label in DNS_CHOICES]
-        server = Adw.ComboRow(title=_("DNS server"),
+        server = ComboRow(title=_("DNS server"),
                               model=Gtk.StringList.new([_(label) for _code, label in DNS_CHOICES]))
         current = settings.get("dns", "system")
         server.set_selected(dns_codes.index(current) if current in dns_codes else 0)
@@ -2377,7 +2425,7 @@ class SettingsPage(Adw.Bin):
 
     def _m2vk_combo(self, key, title, subtitle, choices):
         codes = [code for code, _label, _hint in choices]
-        row = Adw.ComboRow(title=_(title), subtitle=_(subtitle),
+        row = ComboRow(title=_(title), subtitle=_(subtitle),
                            model=Gtk.StringList.new([_(label) for _code, label, _hint in choices]))
         current = self.window.settings.get(key, codes[0])
         row.set_selected(codes.index(current) if current in codes else 0)
@@ -2499,7 +2547,7 @@ class SettingsPage(Adw.Bin):
             group.set_sensitive(renderer == "metal")
 
     def _renderer_row(self):
-        row = Adw.ComboRow(
+        row = ComboRow(
             title=_("Renderer"),
             subtitle=_("Applies on next launch. Zink uses Roblox's OpenGL renderer; Quadra M2VK uses its Metal renderer on Vulkan. VR uses OpenGL or Zink."),
             model=Gtk.StringList.new([_("OpenGL"), _("Vulkan (Zink, experimental)"),
@@ -2559,7 +2607,7 @@ class SettingsPage(Adw.Bin):
         self._in_thread(graphics.ensure_vulkan_dependencies, installed)
 
     def _gpu_row(self, always_visible=False):
-        row = Adw.ComboRow(
+        row = ComboRow(
             title=_("Graphics card"),
             subtitle=_("Detecting graphics cards… Applies on next launch."),
             model=Gtk.StringList.new([_("Automatic")]),
@@ -3214,7 +3262,7 @@ class ModsPage(Adw.Bin):
         cur_death = settings.get("mod_death_sound", "default")
         cur_death_idx = self._death_codes.index(cur_death) if cur_death in self._death_codes else 0
 
-        self.death_sound_row = Adw.ComboRow(
+        self.death_sound_row = ComboRow(
             title=_("Death sound"),
             subtitle=_("Choose the sound played when your character resets or dies"),
             model=Gtk.StringList.new([c[1] for c in death_choices]),
@@ -3259,7 +3307,7 @@ class ModsPage(Adw.Bin):
         cur_cursor = settings.get("mod_cursor_type", "default")
         cur_cursor_idx = self._cursor_codes.index(cur_cursor) if cur_cursor in self._cursor_codes else 0
 
-        self.cursor_row = Adw.ComboRow(
+        self.cursor_row = ComboRow(
             title=_("Cursor style"),
             subtitle=_("Replaces in-game mouse cursors"),
             model=Gtk.StringList.new([c[1] for c in cursor_choices]),

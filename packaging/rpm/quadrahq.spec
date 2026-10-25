@@ -1,7 +1,7 @@
 %bcond_with prebuilt_metal
-%global upstream_version 0.37.p1
+%global upstream_version 0.37.p2
 Name:           quadrahq
-Version:        0.37.p1
+Version:        0.37.p2
 Release:        1%{?dist}
 Summary:        Run the macOS Roblox client on Linux through Darling
 License:        GPL-3.0-only AND MIT AND ISC AND OFL-1.1
@@ -101,6 +101,9 @@ python3 -m compileall -q -d "%{_datadir}/quadrahq/launcher" "%{buildroot}%{_data
 %{_datadir}/mime/packages/org.quadrahq.Quadra.xml
 
 %changelog
+* Sun Oct 25 2026 Quadra maintainers <noreply@aubree.wtf> - 0.37.p2-1
+- Fix the Grid and Monochrome looks: a long subtitle no longer squeezes the chosen value of a dropdown to an ellipsis, and disabled buttons are no longer dimmed twice, which left Apply and restart Quadra nearly unreadable.
+
 * Sun Oct 25 2026 Quadra maintainers <noreply@aubree.wtf> - 0.37.p1-1
 - Build the Roblox Studio Vulkan layer into the Arch, Debian and Fedora packages: the 0.37 packages lacked it, so Studio's Vulkan renderer reported that its fix was not built. The package recipes now require the Vulkan headers and the release build checks that the layer is packaged.
 

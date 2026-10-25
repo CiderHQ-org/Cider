@@ -201,7 +201,7 @@ button.link {
   transition: background-color 120ms, color 120ms;
 }
 button.link:hover { background-color: %(raise_)s; color: %(accent)s; }
-button.link:disabled { opacity: 0.45; }
+button.link:disabled { opacity: 0.45; filter: none; }
 button.link.current { background-color: rgba(200, 200, 200, 0.1); }
 button.link.current .link-title { color: %(accent2)s; }
 .link-note { font-family: %(mono)s; font-size: 10.5px; color: %(faint)s; }
@@ -234,13 +234,14 @@ button {
 }
 button:hover { border-color: %(accent)s; color: %(accent)s; background-color: %(raise_)s; }
 button:active, button:checked { background-color: rgba(240, 240, 240, 0.12); color: %(accent)s; }
-button:disabled { opacity: 0.45; }
+button:disabled { opacity: 0.45; filter: none; }
 button.suggested-action {
   background-color: rgba(240, 240, 240, 0.14);
   border-color: rgba(240, 240, 240, 0.4);
   color: %(accent)s;
 }
 button.suggested-action:hover { background-color: rgba(240, 240, 240, 0.22); }
+button.suggested-action:disabled { opacity: 1; filter: none; background-color: transparent; border-color: %(line_lo)s; color: %(faint)s; }
 /* hollow and bright: it takes something away, said by its label */
 button.destructive-action { background-color: transparent; border-color: %(text)s; color: %(text)s; }
 button.destructive-action:hover { background-color: rgba(240, 240, 240, 0.12); }
@@ -347,7 +348,7 @@ switch > image { -gtk-icon-size: 9px; min-width: 0; min-height: 0; margin: 0; pa
 switch:hover { border-color: %(dim)s; }
 switch:checked { background-color: rgba(240, 240, 240, 0.14); border-color: %(accent)s; }
 switch:checked > slider { background-color: %(accent)s; }
-switch:disabled { opacity: 0.45; }
+switch:disabled { opacity: 0.45; filter: none; }
 
 entry, spinbutton, searchbar entry, text.search, row.entry text {
   background-color: rgba(0, 0, 0, 0.45);
@@ -553,6 +554,7 @@ _GRID_CSS = """
 .play-hero { border-top: 2px solid #9cc3ff; }
 button.suggested-action { background-color: #9cc3ff; border-color: #9cc3ff; color: #0c1829; font-weight: 600; }
 button.suggested-action:hover { background-color: #b7d4ff; border-color: #b7d4ff; color: #0c1829; }
+button.suggested-action:disabled { background-color: transparent; border-color: #263343; color: #8493a7; font-weight: 400; }
 .launcher-sidebar .navigation-sidebar row:selected { background-color: rgba(156, 195, 255, 0.10); border-color: #344458; }
 .launcher-sidebar .navigation-sidebar row:selected label,
 .launcher-sidebar .navigation-sidebar row:selected image { color: #b7d4ff; }

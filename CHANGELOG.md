@@ -3,6 +3,16 @@
 ## Unreleased
 
 
+## 0.37.p2 — 2026-10-25
+
+- Fix text that vanished in the Grid look (and in Monochrome). A long subtitle could squeeze the chosen value of a
+  dropdown down to an ellipsis: Settings -> Quadra M2VK -> Accuracy showed "…" instead of "Fast". Every dropdown now
+  keeps its value whole.
+- Dim disabled buttons and switches once, not twice. Newer libadwaita (1.10 checked) already fades them with a filter,
+  and the theme faded them by opacity as well, which left them at about a fifth of their strength. "Apply and restart Quadra"
+  was nearly unreadable while it was disabled. A disabled main button now has a readable style of its own.
+- Nothing else changes from 0.37.p1.
+
 ## 0.37.p1 — 2026-10-25
 
 - Build Studio's Vulkan layer into the Arch, Debian and Fedora packages. The 0.37 packages did not contain it: the build

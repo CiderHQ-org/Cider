@@ -1,17 +1,20 @@
 """Optional UI regression for the Quadra M2VK settings group.
 
-GDK_BACKEND=x11 GSK_RENDERER=cairo xvfb-run -a python3 tests/m2vk_settings_ui.py
+GDK_BACKEND=x11 GSK_RENDERER=cairo xvfb-run -a -s "-screen 0 1280x900x24" python3 tests/m2vk_settings_ui.py
+
+The screen has to be wider than the launcher's window (1100) for the value-label check to bite.
 """
 from pathlib import Path
 import sys
 import threading
+import time
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "launcher"))
 # Suppress unrelated startup update/avatar workers in this UI fixture.
 threading.Thread.start = lambda self: None
 from quadra import app, core, graphics
-from gi.repository import Adw, Gio
+from gi.repository import Adw, Gio, GLib, Gtk
 
 saved, errors = [], []
 application = Adw.Application(application_id="org.quadrahq.Quadra.M2VKSettingsTest",
@@ -100,6 +103,25 @@ with patch.object(core, "load_settings", return_value=dict(core.DEFAULT_SETTINGS
     tab_renderer[0].set_selected(2)
     assert window.settings["renderer"] == "metal" and group.get_sensitive()
     tab_renderer[0].set_selected(0)
+
+    # Shown in Grid, where the squeeze happened, the chosen value stays whole: the long subtitle of Accuracy
+    # may not take its room and leave "Fast" as an ellipsis.
+    window.set_launcher_appearance("grid")
+    window.set_default_size(1100, 780)
+    window.present()
+    window.stack.set_visible_child_name("settings")
+    page.stack.set_visible_child_name("m2vk")
+    for index in (0, 1, 2, 0):
+        accuracy.set_selected(index)
+        end = time.monotonic() + 0.5
+        while time.monotonic() < end:
+            while GLib.MainContext.default().pending():
+                GLib.MainContext.default().iteration(False)
+            time.sleep(0.01)
+        value = accuracy.get_selected_item().get_string()
+        labels = [w for w in walk(accuracy.get_first_child()) if isinstance(w, Gtk.Label) and w.get_mapped()
+                  and w.get_text() == value]
+        assert labels and not any(label.get_layout().is_ellipsized() for label in labels), (value, labels)
     window.destroy()
 
 print("PASS: Quadra M2VK settings group: availability, saving, environment and reset")
