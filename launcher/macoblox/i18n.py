@@ -1026,6 +1026,10 @@ ZH_CN = {
     "Could not open the folder: {error}": "无法打开文件夹：{error}",
     "Show server location": "显示服务器位置",
     "Sends the game server's IP address to RoValra (apis.rovalra.com) while you play": "在您游玩时将游戏服务器的 IP 地址发送给 RoValra (apis.rovalra.com)",
+    "Only Roblox uses this server, the rest of the system keeps its own DNS. Helps when some Roblox images or servers do not load.": "只有 Roblox 使用此服务器，系统其余部分保留自己的 DNS。当某些 Roblox 图片或服务器无法加载时会有帮助。",
+    "Crash diagnostics": "崩溃诊断",
+    "MACOBLOX_ALLOW_DEBUGGER. Lets Collect diagnostics read the game's thread stacks; keeps the crash handler available. Turn on before starting the game.": 
+        "MACOBLOX_ALLOW_DEBUGGER。允许收集诊断信息读取游戏的线程堆栈；保持崩溃处理程序可用。在启动游戏前开启。",
 }
 
 
