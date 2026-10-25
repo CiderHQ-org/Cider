@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+
+## 0.37 — 2026-10-25
+
+- Add a Simplified Chinese translation (zh_CN), contributed by 2112992430 in pull request #40. It covers 446 of the 498
+  strings the launcher translates, including the Studio section; the rest stay English until it is completed.
 - Run Roblox Studio on Kombucha, the Wine build Vinegar patches for Studio, instead of Kron4ek's staging build. Studio
   now follows the newest stable Kombucha release as well as Roblox's newest Studio: each start checks both, and an
   existing install moves to Kombucha in place (prefix, sign-in and the installed Studio are kept; DXVK is installed

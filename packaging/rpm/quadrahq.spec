@@ -1,7 +1,7 @@
 %bcond_with prebuilt_metal
-%global upstream_version 0.36.p1
+%global upstream_version 0.37
 Name:           quadrahq
-Version:        0.36.p1
+Version:        0.37
 Release:        1%{?dist}
 Summary:        Run the macOS Roblox client on Linux through Darling
 License:        GPL-3.0-only AND MIT AND ISC AND OFL-1.1
@@ -100,6 +100,11 @@ python3 -m compileall -q -d "%{_datadir}/quadrahq/launcher" "%{buildroot}%{_data
 %{_datadir}/mime/packages/org.quadrahq.Quadra.xml
 
 %changelog
+* Sun Oct 25 2026 Quadra maintainers <noreply@aubree.wtf> - 0.37-1
+- Give Roblox Studio a section of its own in the launcher, running on Kombucha (Vinegar's Wine build) with Microsoft's WebView2, so Studio's sign-in, Toolbox and Creator Hub pages work again.
+- Choose Studio's renderer (DXVK, DXVK-Sarek, Wine's Direct3D, Vulkan) and graphics card, with GameMode, Discord presence, a sign-in backup, a Studio version or channel to stay on and Studio fast flags.
+- Move to QuadraHQ/Quadra and finish the Quadra rename in the code; add a Simplified Chinese translation.
+
 * Sat Oct 24 2026 Quadra maintainers <noreply@aubree.wtf> - 0.36.p1-1
 - Fix the camera continuing to turn after releasing the right mouse button when the left button was clicked during a right-button drag.
 

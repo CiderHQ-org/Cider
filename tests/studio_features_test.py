@@ -510,15 +510,24 @@ class SupervisorTests(StudioFixture):
         stop = threading.Event()
         follower = threading.Thread(target=studio._follow, args=(log, presence.feed, stop))
         follower.start()
+        def wait_for(count):
+            for _attempt in range(100):  # up to 10 s: the follower looks every 0.3 s
+                if len(lines) >= count:
+                    return
+                threading.Event().wait(0.1)
+            self.fail(f'only {len(lines)} of {count} log lines arrived')
+
         with log.open('ab') as out:
             out.write(b'0024:warn:seh:dispatch_exception "2026,0,1,6 [FLog::CloseDataModel] Setting place ID 5"\n')
             out.write(b'half a line [FLog::Output] not ')
             out.flush()
-            threading.Event().wait(0.5)
+            wait_for(1)
+            self.assertEqual(len(lines), 1, 'a line that is not finished is not passed on')
             out.write(b'finished yet\n')
-        threading.Event().wait(0.5)
+            out.flush()
+            wait_for(2)
         stop.set()
-        follower.join(3)
+        follower.join(5)
         self.assertEqual([line.split('] ')[1] for line in lines], ['Setting place ID 5"', 'not finished yet'])
 
     def test_a_studio_that_is_not_running_is_updated_first_and_one_that_is_running_is_not(self):

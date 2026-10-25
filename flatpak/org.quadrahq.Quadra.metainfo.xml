@@ -68,6 +68,11 @@
     <control>keyboard</control>
   </supports>
   <releases>
+    <release version="0.37" date="2026-10-25">
+      <description>
+        <p>Gives Roblox Studio a section of its own: it runs on Kombucha with Microsoft's WebView2 so its sign-in works, and has a choice of renderer and graphics card, GameMode, Discord presence, a sign-in backup, Studio fast flags and a Studio version or channel to stay on. The project moves to QuadraHQ/Quadra, and a Simplified Chinese translation is added.</p>
+      </description>
+    </release>
     <release version="0.36.p1" date="2026-10-24">
       <description>
         <p>Fixes the camera continuing to turn after the right mouse button is released when the left button was clicked during a right-button drag.</p>

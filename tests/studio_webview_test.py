@@ -5,6 +5,7 @@ import io
 import json
 from pathlib import Path
 import shutil
+import ssl
 import tempfile
 import unittest
 from unittest.mock import Mock
@@ -48,10 +49,12 @@ class RuntimeDownloadTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, '144'):
             webview.runtime_download(VERSION, opener)
 
-    def test_microsofts_root_certificate_is_trusted_next_to_the_systems(self):
+    def test_microsofts_root_certificate_is_trusted_and_certificates_are_still_checked(self):
         context = webview._context()
+        # Only certificates loaded explicitly are listed; the system's may sit in a directory, loaded on use.
         self.assertTrue(any('Microsoft Root Certificate Authority 2011' in str(cert) for cert in context.get_ca_certs()))
-        self.assertGreater(len(context.get_ca_certs()), 1)
+        self.assertEqual(context.verify_mode, ssl.CERT_REQUIRED)
+        self.assertTrue(context.check_hostname)
 
     def test_studios_gpu_process_follows_the_renderer(self):
         self.assertEqual(webview.browser_arguments('dxvk'), '--in-process-gpu --use-angle=vulkan')

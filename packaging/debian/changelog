@@ -1,3 +1,11 @@
+quadrahq (0.37-1) unstable; urgency=medium
+
+  * Give Roblox Studio a section of its own in the launcher, running on Kombucha (Vinegar's Wine build) with Microsoft's WebView2, so Studio's sign-in, Toolbox and Creator Hub pages work again.
+  * Choose Studio's renderer (DXVK, DXVK-Sarek, Wine's Direct3D, Vulkan) and graphics card, with GameMode, Discord presence, a sign-in backup, a Studio version or channel to stay on and Studio fast flags.
+  * Move to QuadraHQ/Quadra and finish the Quadra rename in the code; add a Simplified Chinese translation.
+
+ -- Quadra maintainers <noreply@aubree.wtf>  Sun, 25 Oct 2026 12:30:00 -0500
+
 quadrahq (0.36.p1-1) unstable; urgency=medium
 
   * Fix the camera continuing to turn after releasing the right mouse button when the left button was clicked during a right-button drag.
