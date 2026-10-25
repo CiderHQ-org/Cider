@@ -1060,6 +1060,9 @@ ZH_CN = {
     "Graphics card": "显卡",
     "Applies on next launch. Automatic keeps your desktop or terminal's GPU selection.": "下次启动时生效。“自动”会保持您的桌面或终端的 GPU 选择。",
     "Applies on next launch, and only while the renderer is Quadra M2VK. The defaults suit most computers.": "下次启动时生效，且仅在渲染器为 Quadra M2VK 时适用。默认值适合大多数计算机。",
+    "100–400%. Keeps the display resolution. Applies on next launch.": "100–400%。保持显示分辨率。下次启动时生效。",
+    "Window backend": "窗口后端",
+    "Applies on next launch.": "下次启动时生效。",
 }
 
 
