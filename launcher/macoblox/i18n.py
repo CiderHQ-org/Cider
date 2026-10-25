@@ -1028,8 +1028,38 @@ ZH_CN = {
     "Sends the game server's IP address to RoValra (apis.rovalra.com) while you play": "在您游玩时将游戏服务器的 IP 地址发送给 RoValra (apis.rovalra.com)",
     "Only Roblox uses this server, the rest of the system keeps its own DNS. Helps when some Roblox images or servers do not load.": "只有 Roblox 使用此服务器，系统其余部分保留自己的 DNS。当某些 Roblox 图片或服务器无法加载时会有帮助。",
     "Crash diagnostics": "崩溃诊断",
-    "MACOBLOX_ALLOW_DEBUGGER. Lets Collect diagnostics read the game's thread stacks; keeps the crash handler available. Turn on before starting the game.": 
-        "MACOBLOX_ALLOW_DEBUGGER。允许收集诊断信息读取游戏的线程堆栈；保持崩溃处理程序可用。在启动游戏前开启。",
+    "MACOBLOX_ALLOW_DEBUGGER. Lets Collect diagnostics read the game's thread stacks; keeps the crash handler available. Turn on before starting the game.": "MACOBLOX_ALLOW_DEBUGGER。允许收集诊断信息读取游戏的线程堆栈；保持崩溃处理程序可用。在启动游戏前开启。",
+    "Accuracy": "精确度",
+    "Fast uses the device's own maths and texture decoders. Textures decodes BC textures as Metal does: try it if textures look wrong. Exact is slowest, for diagnosing wrong colors or shapes.":
+        "快速：使用设备自身的数学计算和纹理解码，按 Metal 的方式解码 BC 纹理：如果纹理看起来不对劲，请试试这个。精确：最慢，用于诊断颜色或形状错误。",
+    "Fast": "快速",
+    "Exact": "精确",
+    "Frame presentation": "帧呈现",
+    "How finished frames reach the screen. Try FIFO if the picture stutters or tears.":
+        "完成的帧如何到达屏幕。如果画面卡顿或撕裂，请尝试 FIFO。",
+    "Automatic": "自动",
+    "FIFO": "FIFO (垂直同步)",
+    "Mailbox": "Mailbox (低延迟)",
+    "Keep important graphics memory resident": "保持重要图形内存常驻",
+    "When video memory runs out, let the driver move textures aside before render targets instead of failing. Turn off if a driver misbehaves.":
+        "当显存耗尽时，让驱动将纹理移出，而不是直接失败。如果驱动出现异常，请关闭此选项。",
+    "Graphics memory limit (GiB)": "图形内存限制 (GiB)",
+        "0 uses what the card has free at launch. A limit only lowers it; try 4 on a busy 6 GiB card.":
+        "0 表示使用显卡启动时的空闲显存。设置限制只会降低上限：在繁忙的 6 GiB 显卡上可以尝试设为 4。",
+    "Shader compile threads": "着色器编译线程数",
+    "0 chooses from your processor and free memory. Fewer lowers memory use during compiles.": "0 表示根据处理器和空闲内存自动选择。较少的线程数会降低编译时的内存占用。",
+    "Learned shaders kept ready": "保持就绪的已编译着色器",
+    "Up to this many, within a quarter of free memory. More smooths areas you have visited before.":
+        "在四分之一空闲内存范围内，最多保留此数量。保留更多可使您之前访问过的区域更流畅。",
+    "Fall back to OpenGL if Quadra M2VK cannot start": "如果 Quadra M2VK 无法启动，回退到 OpenGL",
+    "Play with OpenGL this time instead of stopping, when no working GPU driver is found.":
+        "当找不到可用的 GPU 驱动程序时，这次使用 OpenGL 游玩，而不是直接停止。",
+    "Prepare learned shaders before playing. New shaders may still compile during play.": "在游戏前准备已知的着色器。新的着色器仍可能在游戏过程中编译。",
+    "Prepare installed shader libraries before playing, including the first launch.": "在游戏前准备已安装的着色器库，包括首次启动。",
+    "Warm bundled resources before playing. Downloaded world assets still load in game.": "在游戏前预热内置资源。下载的世界资产仍会在游戏中加载。",
+    "Graphics card": "显卡",
+    "Applies on next launch. Automatic keeps your desktop or terminal's GPU selection.": "下次启动时生效。“自动”会保持您的桌面或终端的 GPU 选择。",
+    "Applies on next launch, and only while the renderer is Quadra M2VK. The defaults suit most computers.": "下次启动时生效，且仅在渲染器为 Quadra M2VK 时适用。默认值适合大多数计算机。",
 }
 
 
