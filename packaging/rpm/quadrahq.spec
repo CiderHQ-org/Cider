@@ -1,7 +1,7 @@
 %bcond_with prebuilt_metal
-%global upstream_version 0.37
+%global upstream_version 0.37.p1
 Name:           quadrahq
-Version:        0.37
+Version:        0.37.p1
 Release:        1%{?dist}
 Summary:        Run the macOS Roblox client on Linux through Darling
 License:        GPL-3.0-only AND MIT AND ISC AND OFL-1.1
@@ -22,6 +22,7 @@ BuildRequires:  pkgconfig(sdl2)
 BuildRequires:  pkgconfig(wayland-client)
 BuildRequires:  pkgconfig(wayland-egl)
 BuildRequires:  pkgconfig(wayland-cursor)
+BuildRequires:  pkgconfig(vulkan)
 
 Provides:       macoblox = %{version}-%{release}
 Obsoletes:      macoblox < %{version}
@@ -100,6 +101,9 @@ python3 -m compileall -q -d "%{_datadir}/quadrahq/launcher" "%{buildroot}%{_data
 %{_datadir}/mime/packages/org.quadrahq.Quadra.xml
 
 %changelog
+* Sun Oct 25 2026 Quadra maintainers <noreply@aubree.wtf> - 0.37.p1-1
+- Build the Roblox Studio Vulkan layer into the Arch, Debian and Fedora packages: the 0.37 packages lacked it, so Studio's Vulkan renderer reported that its fix was not built. The package recipes now require the Vulkan headers and the release build checks that the layer is packaged.
+
 * Sun Oct 25 2026 Quadra maintainers <noreply@aubree.wtf> - 0.37-1
 - Give Roblox Studio a section of its own in the launcher, running on Kombucha (Vinegar's Wine build) with Microsoft's WebView2, so Studio's sign-in, Toolbox and Creator Hub pages work again.
 - Choose Studio's renderer (DXVK, DXVK-Sarek, Wine's Direct3D, Vulkan) and graphics card, with GameMode, Discord presence, a sign-in backup, a Studio version or channel to stay on and Studio fast flags.

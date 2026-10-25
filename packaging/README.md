@@ -23,7 +23,7 @@ repositories or the AUR.
 The `noreply@aubree.wtf` maintainer address is a placeholder: set the real
 packaging contact before submitting to a distro.
 
-Quadra 0.37 uses the `quadrahq` package name. The release workflow pins the
+Quadra 0.37.p1 uses the `quadrahq` package name. The release workflow pins the
 source archive checksum and stable AUR recipe after publication. The frozen
 Cider 0.30 AUR recipe remains in `aur/ciderhq/`. Use `--local` to package
 unreleased source changes.
@@ -60,7 +60,7 @@ their hardware Vulkan driver. The default renderer remains OpenGL.
 
 ## Prepare sources
 
-The release workflow attaches `quadrahq-0.37-source.tar.gz` and pins its
+The release workflow attaches `quadrahq-0.37.p1-source.tar.gz` and pins its
 checksum in `release.json`. To package local source edits:
 
 ```bash
@@ -82,7 +82,7 @@ overlay and RPM inputs in a new output directory. It requires `curl`, `tar`
 and `sha256sum`. To use an already downloaded release archive:
 
 ```bash
-./packaging/prepare-source.sh "$PWD/work/native-packages" /path/to/quadrahq-0.37-source.tar.gz
+./packaging/prepare-source.sh "$PWD/work/native-packages" /path/to/quadrahq-0.37.p1-source.tar.gz
 ```
 
 The output directory must not already exist. Arch builds use their own AUR
@@ -98,7 +98,7 @@ Then install the packaging tools and native development dependencies:
 ```bash
 sudo apt install build-essential debhelper dh-python python3 clang lld \
   pkg-config libsdl2-dev libwayland-dev
-cd work/native-packages/Quadra-0.37
+cd work/native-packages/Quadra-0.37.p1
 dpkg-buildpackage -b -us -uc
 ```
 
@@ -107,7 +107,7 @@ one directory above the source directory. Install using `apt`, which resolves
 dependencies from the configured repositories:
 
 ```bash
-sudo apt install ../quadrahq_0.37-1_amd64.deb
+sudo apt install ../quadrahq_0.37.p1-1_amd64.deb
 ```
 
 The recipe uses debhelper for Python bytecode and desktop/icon/MIME cache

@@ -3,6 +3,14 @@
 ## Unreleased
 
 
+## 0.37.p1 — 2026-10-25
+
+- Build Studio's Vulkan layer into the Arch, Debian and Fedora packages. The 0.37 packages did not contain it: the build
+  containers had no Vulkan headers, so the layer was skipped and Settings -> Studio -> Graphics -> Vulkan said the fix was
+  not built. The recipes now require the headers (`libvulkan-dev`, `pkgconfig(vulkan)`, `vulkan-headers`) and the package
+  build fails when the layer is not in the package. The layer compiles in the Ubuntu 24.04, Fedora and Arch images. The
+  Nix package still builds without it. Nothing else changes from 0.37.
+
 ## 0.37 — 2026-10-25
 
 - Add a Simplified Chinese translation (zh_CN), contributed by 2112992430 in pull request #40. It covers 446 of the 498

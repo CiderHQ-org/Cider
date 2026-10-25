@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: Quadra maintainers <noreply@aubree.wtf>
 Build-Depends: debhelper-compat (= 13), dh-python, python3, clang, lld,
  cargo (>= 1.98) <!pkg.quadrahq.prebuilt-metal>, rustc (>= 1.98) <!pkg.quadrahq.prebuilt-metal>,
- pkg-config, libsdl2-dev, libwayland-dev
+ pkg-config, libsdl2-dev, libwayland-dev, libvulkan-dev
 Standards-Version: 4.7.2
 Rules-Requires-Root: no
 Homepage: https://quadrahq.org

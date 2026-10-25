@@ -1,3 +1,9 @@
+quadrahq (0.37.p1-1) unstable; urgency=medium
+
+  * Build the Roblox Studio Vulkan layer into the Arch, Debian and Fedora packages: the 0.37 packages lacked it, so Studio's Vulkan renderer reported that its fix was not built. The package recipes now require the Vulkan headers and the release build checks that the layer is packaged.
+
+ -- Quadra maintainers <noreply@aubree.wtf>  Sun, 25 Oct 2026 12:43:22 -0500
+
 quadrahq (0.37-1) unstable; urgency=medium
 
   * Give Roblox Studio a section of its own in the launcher, running on Kombucha (Vinegar's Wine build) with Microsoft's WebView2, so Studio's sign-in, Toolbox and Creator Hub pages work again.
