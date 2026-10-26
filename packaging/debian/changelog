@@ -1,3 +1,9 @@
+quadrahq (0.37.p3-1) unstable; urgency=medium
+
+  * Fix the middle and extra mouse buttons, which did nothing in game, and keys outside the main block (Insert, Right Alt, Menu, F13 to F20, keypad =, the ISO key), which were sent as the A key on X11 and dropped on native Wayland.
+
+ -- Quadra maintainers <noreply@aubree.wtf>  Sun, 25 Oct 2026 22:20:00 -0500
+
 quadrahq (0.37.p2-1) unstable; urgency=medium
 
   * Fix the Grid and Monochrome looks: a long subtitle no longer squeezes the chosen value of a dropdown to an ellipsis, and disabled buttons are no longer dimmed twice, which left Apply and restart Quadra nearly unreadable.

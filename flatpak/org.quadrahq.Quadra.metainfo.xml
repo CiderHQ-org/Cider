@@ -68,6 +68,11 @@
     <control>keyboard</control>
   </supports>
   <releases>
+    <release version="0.37.p3" date="2026-10-25">
+      <description>
+        <p>Fixes the middle and extra mouse buttons, which did nothing in game, and keys outside the main block such as Insert, Right Alt, Menu and F13 to F20, which Roblox received as the A key on X11 or never received on native Wayland. Nothing else changes from 0.37.p2.</p>
+      </description>
+    </release>
     <release version="0.37.p2" date="2026-10-25">
       <description>
         <p>Fixes the Grid and Monochrome looks: a dropdown's chosen value is no longer squeezed to an ellipsis by a long subtitle, and disabled buttons are no longer dimmed twice. Nothing else changes from 0.37.p1.</p>

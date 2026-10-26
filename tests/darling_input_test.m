@@ -60,6 +60,7 @@ extern void *method_setImplementation(void *, void *);
 + (id)mouseEventWithType:(unsigned long)type location:(Point)location modifierFlags:(unsigned long)flags
                  window:(id)window clickCount:(long)clickCount deltaX:(double)dx deltaY:(double)dy;
 - (unsigned long)type;
+- (unsigned short)keyCode;
 - (long)buttonNumber;
 - (double)deltaX;
 - (double)deltaY;
@@ -77,6 +78,9 @@ static void record(id event) { view_log[view_count++ & 15] = (int)[(NSEvent *)ev
 - (void)rightMouseDown:(id)event { record(event); }
 - (void)rightMouseUp:(id)event { record(event); }
 - (void)rightMouseDragged:(id)event { record(event); }
+- (void)otherMouseDown:(id)event { record(event); }
+- (void)otherMouseUp:(id)event { record(event); }
+- (void)otherMouseDragged:(id)event { record(event); }
 @end
 static void send_button(NSWindow *window, unsigned long type) {
     [window sendEvent:[NSEvent mouseEventWithType:type location:(Point){100,100} modifierFlags:0
@@ -197,6 +201,18 @@ int main(void) {
     CHECK(delivered(clicks, 4));
     view_count = 0;
 
+    /* The middle and side buttons (25 down, 26 up, 27 dragged) were dropped by
+     * Darling's NSWindow; a drag with no button held still reaches nobody. */
+    send_button(window, 25); send_button(window, 27); send_button(window, 26);
+    send_button(window, 27);
+    const int middle[] = {25, 27, 26};
+    CHECK(delivered(middle, 3));
+    view_count = 0;
+    send_button(window, 25); send_button(window, 1); send_button(window, 2); send_button(window, 26);
+    const int middle_with_left[] = {25, 1, 2, 26};
+    CHECK(delivered(middle_with_left, 4));
+    view_count = 0;
+
     NSDisplay *display = [NSDisplay currentDisplay];
     void *connection = [display display];
     unsigned long xid = ((unsigned long (*)(id, SEL))objc_msgSend)([window platformWindow], sel_registerName("windowHandle"));
@@ -258,6 +274,27 @@ int main(void) {
     CHECK(unlocked.x != moved.x || unlocked.y != moved.y);
     CHECK(!CGAssociateMouseAndMouseCursorPosition(0));
     [display processPendingEvents]; [queue removeAllObjects];
+
+    /* Keys Darling's X11 table lacks arrived as key code 0, the A key. */
+    union Event press = {0};
+    press.motion = (struct Motion){.type=2, .display=connection, .window=xid, .same_screen=1};
+    const unsigned int x_keys[] = {118, 108, 94, 135, 195, 24, 38};
+    const unsigned short key_codes[] = {114, 54, 10, 110, 64, 12, 0};  // Insert, Right Alt, ISO, Menu, F17, Q, A
+    for (int index = 0; index < 7; index++)
+        for (int type = 2; type <= 3; type++) {
+            press.motion.type = type;
+            *(unsigned int *)((char *)&press + 84) = x_keys[index];
+            [display postXEvent:&press];
+            if ([queue count] != 1 || [(NSEvent *)[queue objectAtIndex:0] type] != (type == 2 ? 10 : 11) ||
+                [(NSEvent *)[queue objectAtIndex:0] keyCode] != key_codes[index]) {
+                printf("X key %u: %lu events", x_keys[index], [queue count]);
+                if ([queue count]) printf(", type %lu code %u", [(NSEvent *)[queue objectAtIndex:0] type],
+                                          [(NSEvent *)[queue objectAtIndex:0] keyCode]);
+                printf(", wanted code %u\n", key_codes[index]);
+            }
+            CHECK([queue count] == 1 && [(NSEvent *)[queue objectAtIndex:0] keyCode] == key_codes[index]);
+            [queue removeAllObjects];
+        }
 
     const char *focus_only=getenv("QUADRA_TEST_FOCUS_ONLY");
     if(focus_only && focus_only[0]=='1') {

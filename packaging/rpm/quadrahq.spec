@@ -1,7 +1,7 @@
 %bcond_with prebuilt_metal
-%global upstream_version 0.37.p2
+%global upstream_version 0.37.p3
 Name:           quadrahq
-Version:        0.37.p2
+Version:        0.37.p3
 Release:        1%{?dist}
 Summary:        Run the macOS Roblox client on Linux through Darling
 License:        GPL-3.0-only AND MIT AND ISC AND OFL-1.1
@@ -101,6 +101,9 @@ python3 -m compileall -q -d "%{_datadir}/quadrahq/launcher" "%{buildroot}%{_data
 %{_datadir}/mime/packages/org.quadrahq.Quadra.xml
 
 %changelog
+* Sun Oct 25 2026 Quadra maintainers <noreply@aubree.wtf> - 0.37.p3-1
+- Fix the middle and extra mouse buttons, which did nothing in game, and keys outside the main block (Insert, Right Alt, Menu, F13 to F20, keypad =, the ISO key), which were sent as the A key on X11 and dropped on native Wayland.
+
 * Sun Oct 25 2026 Quadra maintainers <noreply@aubree.wtf> - 0.37.p2-1
 - Fix the Grid and Monochrome looks: a long subtitle no longer squeezes the chosen value of a dropdown to an ellipsis, and disabled buttons are no longer dimmed twice, which left Apply and restart Quadra nearly unreadable.
 

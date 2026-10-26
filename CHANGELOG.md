@@ -3,6 +3,16 @@
 ## Unreleased
 
 
+## 0.37.p3 — 2026-10-25
+
+- Fix the middle mouse button and the extra mouse buttons doing nothing in game. Darling's window code has no case for
+  them and dropped every press, drag and release, on X11 and on native Wayland. They now reach Roblox the way the left
+  and right buttons do.
+- Fix keys outside the main block. On X11, Insert, Right Alt/AltGr, Menu, F13 to F20, keypad = and the < > | key beside
+  Left Shift reached Roblox as the A key, because Darling's key table stops at an Apple keyboard. They now arrive as the
+  keys a Mac sends for them (Insert as Help). On native Wayland the same keys were dropped and are now sent.
+- Nothing else changes from 0.37.p2.
+
 ## 0.37.p2 — 2026-10-25
 
 - Fix text that vanished in the Grid look (and in Monochrome). A long subtitle could squeeze the chosen value of a

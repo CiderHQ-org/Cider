@@ -32,8 +32,32 @@ int main() {
     translate(key(id,SDL_SCANCODE_LEFT,SDLK_LEFT,KMOD_NONE));
     assert(poll(&event) && event.key==123 && (event.modifiers&(1u<<21)));
     assert(!std::strcmp(event.text,"\xef\x9c\x82")); // U+F702
+    /* Keys outside the main block used to be dropped (key 0xffff). */
+    translate(key(id,SDL_SCANCODE_INSERT,SDLK_INSERT,KMOD_NONE));
+    assert(poll(&event) && event.key==114 && (event.modifiers&(1u<<21)));
+    assert(!std::strcmp(event.text,"\xef\x9d\x86")); // U+F746, Help
+    translate(key(id,SDL_SCANCODE_F16,SDLK_F16,KMOD_NONE));
+    assert(poll(&event) && event.key==106 && !(event.modifiers&(1u<<21)));
+    translate(key(id,SDL_SCANCODE_F20,SDLK_F20,KMOD_NONE));
+    assert(poll(&event) && event.key==90 && !std::strcmp(event.text,"\xef\x9c\x97")); // U+F717
+    translate(key(id,SDL_SCANCODE_PRINTSCREEN,SDLK_PRINTSCREEN,KMOD_NONE));
+    assert(poll(&event) && event.key==105);
+    translate(key(id,SDL_SCANCODE_NONUSBACKSLASH,SDLK_LESS,KMOD_NONE));
+    assert(poll(&event) && event.key==10);
+    translate(key(id,SDL_SCANCODE_APPLICATION,SDLK_APPLICATION,KMOD_NONE));
+    assert(poll(&event) && event.key==110);
+    translate(key(id,SDL_SCANCODE_KP_EQUALS,SDLK_KP_EQUALS,KMOD_NONE));
+    assert(poll(&event) && event.key==81 && (event.modifiers&(1u<<21)));
     translate(key(id,SDL_SCANCODE_A,SDLK_a,KMOD_LSHIFT,true,true));
     assert(poll(&event) && event.repeat && (event.modifiers&(1u<<17)));
+    /* The middle and side buttons reach AppKit as buttons 2, 8 and 9 (Darling's numbering). */
+    for(auto pair:{std::pair<int,unsigned>{SDL_BUTTON_MIDDLE,2},{SDL_BUTTON_X1,8},{SDL_BUTTON_X2,9}}) {
+        SDL_Event click{};click.type=SDL_MOUSEBUTTONDOWN;click.button.windowID=id;click.button.button=pair.first;
+        translate(click);
+        assert(poll(&event) && event.type==MW_DOWN && event.button==pair.second);
+        click.type=SDL_MOUSEBUTTONUP;translate(click);
+        assert(poll(&event) && event.type==MW_UP && event.button==pair.second);
+    }
     SDL_Event text{};text.type=SDL_TEXTINPUT;text.text.windowID=id;
     std::snprintf(text.text.text,sizeof text.text.text,"%s","é🙂");translate(text);
     assert(poll(&event) && event.type==MW_TEXT && !std::strcmp(event.text,"é🙂"));
@@ -46,5 +70,5 @@ int main() {
         if(event.type==MW_BLUR){assert(!event.modifiers);blurred=true;}
     }
     assert(released_a && released_ctrl && blurred);
-    puts("PASS: Wayland physical modifiers, queued snapshots, Unicode/navigation, repeats and focus releases");
+    puts("PASS: Wayland physical modifiers, queued snapshots, Unicode/navigation, extra keys and buttons, repeats and focus releases");
 }

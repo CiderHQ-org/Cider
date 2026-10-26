@@ -252,6 +252,17 @@ unsigned mac_key(SDL_Scancode key) {
     case SDL_SCANCODE_KP_9:return 92;case SDL_SCANCODE_KP_PERIOD:return 65;
     case SDL_SCANCODE_KP_ENTER:return 76;case SDL_SCANCODE_KP_DIVIDE:return 75;
     case SDL_SCANCODE_KP_MULTIPLY:return 67;case SDL_SCANCODE_KP_MINUS:return 78;case SDL_SCANCODE_KP_PLUS:return 69;
+    /* Keys beyond the 12 function keys and the main block. Apple keyboards
+     * send Help where a PC has Insert, and F13-F15 where it has Print Screen,
+     * Scroll Lock and Pause. Without these the keys were dropped. */
+    case SDL_SCANCODE_INSERT:return 114;case SDL_SCANCODE_APPLICATION:return 110;
+    case SDL_SCANCODE_NONUSBACKSLASH:return 10;
+    case SDL_SCANCODE_NUMLOCKCLEAR:return 71;case SDL_SCANCODE_KP_EQUALS:return 81;
+    case SDL_SCANCODE_F13:case SDL_SCANCODE_PRINTSCREEN:return 105;
+    case SDL_SCANCODE_F14:case SDL_SCANCODE_SCROLLLOCK:return 107;
+    case SDL_SCANCODE_F15:case SDL_SCANCODE_PAUSE:return 113;
+    case SDL_SCANCODE_F16:return 106;case SDL_SCANCODE_F17:return 64;case SDL_SCANCODE_F18:return 79;
+    case SDL_SCANCODE_F19:return 80;case SDL_SCANCODE_F20:return 90;
     default:return 0xffff;
     }
 }
@@ -263,8 +274,10 @@ void key_text(SDL_Keycode symbol,char *text) {
     case SDLK_DELETE:code=0xf728;break;case SDLK_HOME:code=0xf729;break;
     case SDLK_END:code=0xf72b;break;case SDLK_PAGEUP:code=0xf72c;break;
     case SDLK_PAGEDOWN:code=0xf72d;break;case SDLK_KP_ENTER:code='\r';break;
+    case SDLK_INSERT:code=0xf746;break;
     default:
         if(symbol>=SDLK_F1 && symbol<=SDLK_F12)code=0xf704+symbol-SDLK_F1;
+        else if(symbol>=SDLK_F13 && symbol<=SDLK_F20)code=0xf710+symbol-SDLK_F13;
         else if(symbol>0 && !(symbol&SDLK_SCANCODE_MASK))code=(unsigned)symbol;
         break;
     }
@@ -349,8 +362,8 @@ void translate(const SDL_Event &input) {
         window.key_modifiers=event.modifiers;
         event.repeat=input.key.repeat;
         if(event.key<128)window.keys[event.key]=input.type==SDL_KEYDOWN;
-        if((input.key.keysym.scancode>=SDL_SCANCODE_KP_DIVIDE && input.key.keysym.scancode<=SDL_SCANCODE_KP_PERIOD) ||
-           (input.key.keysym.scancode>=SDL_SCANCODE_INSERT && input.key.keysym.scancode<=SDL_SCANCODE_UP))event.modifiers|=1u<<21;
+        if((input.key.keysym.scancode>=SDL_SCANCODE_INSERT && input.key.keysym.scancode<=SDL_SCANCODE_KP_PERIOD) ||
+           input.key.keysym.scancode==SDL_SCANCODE_KP_EQUALS)event.modifiers|=1u<<21;
         key_text(input.key.keysym.sym,event.text);
         break;
     case SDL_TEXTINPUT:event.type=MW_TEXT;std::snprintf(event.text,sizeof event.text,"%s",input.text.text);break;

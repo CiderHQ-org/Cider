@@ -3,6 +3,7 @@
 #include "worker_wake.h"
 #include "graphics_context.h"
 #include "x_modifier_state.h"
+#include "x_key_codes.h"
 #include "dns_concurrency.h"
 #include "cursor_selection.h"
 #include "cursor_pixels.h"
@@ -3161,6 +3162,9 @@ static QuadraPoint quadra_raw_pending_location;
  * event at postEvent:, on the same thread, without changing its X state. */
 static __thread unsigned long quadra_core_motion_type;
 static __thread unsigned int quadra_core_motion_button;
+/* Likewise for a key Darling gave no key code (x_key_codes.h): the code to put
+ * on the key event that postXEvent: is about to queue, or -1. */
+static __thread int quadra_x_key_override = -1;
 static __thread int quadra_x_batch_last;
 
 static int quadra_raw_mouse_enabled(void) {
@@ -4665,6 +4669,57 @@ static void quadra_window_track_button(id self, unsigned long type, id event,
         *location = kept;
 }
 
+// Darling's NSWindow sendEvent: has no case for NSOtherMouseDown/Up/Dragged.
+// It reports an unimplemented method and drops them, so the middle button and
+// the side buttons never reached Roblox. Deliver them as it does the left and
+// right buttons: a press to the view under the pointer, drags and the release
+// to the view the first press landed on, and no drag without a press.
+static unsigned int quadra_other_buttons_down;
+static QuadraPoint quadra_other_mouse_location;
+static void quadra_window_other_mouse(id self, unsigned long type, id event) {
+    static long offset = -2;
+    if (offset == -2) {
+        Ivar ivar = class_getInstanceVariable(objc_getClass("NSWindow"), "_backgroundView");
+        offset = ivar ? ivar_getOffset(ivar) : -1;
+    }
+    long number = ((long (*)(id, SEL))objc_msgSend)(event, sel_registerName("buttonNumber"));
+    unsigned int bit = number >= 0 && number < 32 ? 1u << number : 0;
+    QuadraPoint location = ((QuadraPoint (*)(id, SEL))objc_msgSend)(
+        event, sel_registerName("locationInWindow"));
+    SEL selector;
+    if (type == 25) {
+        selector = sel_registerName("otherMouseDown:");
+        if (!quadra_other_buttons_down)
+            quadra_other_mouse_location = location;
+        else
+            location = quadra_other_mouse_location;
+        quadra_other_buttons_down |= bit;
+    } else {
+        selector = sel_registerName(type == 26 ? "otherMouseUp:" : "otherMouseDragged:");
+        if (quadra_other_buttons_down)
+            location = quadra_other_mouse_location;
+        else if (type == 27)
+            return;
+        if (type == 26)
+            quadra_other_buttons_down &= ~bit;
+    }
+    id root = offset >= 0 ? *(id*)((char*)self + offset) : 0;
+    if (!root) {
+        id content = ((id (*)(id, SEL))objc_msgSend)(self, sel_registerName("contentView"));
+        id superview = content ? ((id (*)(id, SEL))objc_msgSend)(
+            content, sel_registerName("superview")) : 0;
+        root = superview ? superview : content;
+    }
+    id hit = root ? ((id (*)(id, SEL, QuadraPoint))objc_msgSend)(
+        root, sel_registerName("hitTest:"), location) : 0;
+    if (hit && ((signed char (*)(id, SEL, SEL))objc_msgSend)(
+            hit, sel_registerName("respondsToSelector:"), selector)) {
+        ((id (*)(id, SEL))objc_msgSend)(hit, sel_registerName("retain"));
+        ((void (*)(id, SEL, id))objc_msgSend)(hit, selector, event);
+        ((void (*)(id, SEL))objc_msgSend)(hit, sel_registerName("release"));
+    }
+}
+
 // QUADRA_TRACE_EVENTS=1: log mouse events as AppKit dispatches them.
 // Movement is sampled; button, enter/exit and scroll events are all logged.
 static void (*orig_window_send_event)(id, SEL, id) = 0;
@@ -4727,6 +4782,8 @@ static void hooked_window_send_event(id self, SEL cmd, id event) {
         event, sel_registerName("type")) : 0;
     if (type >= 1 && type <= 4)
         quadra_window_track_button(self, type, event, orig_window_send_event, cmd);
+    else if (type == 25 || type == 26 || type == 27)
+        quadra_window_other_mouse(self, type, event);
     else
         orig_window_send_event(self, cmd, event);
 }
@@ -5191,6 +5248,20 @@ static void hooked_display_post_event(id self, SEL cmd, id event, signed char at
         ((void (*)(id, SEL, long))objc_msgSend)(event, sel_registerName("_setButtonNumber:"),
                                               (long)quadra_core_motion_button);
     }
+    if (quadra_x_key_override >= 0) {
+        unsigned long key_type = quadra_event_type(event);
+        static Ivar key_code_ivar;
+        if (!key_code_ivar) {
+            Class keyboard_class = objc_getClass("NSEvent_keyboard");
+            if (keyboard_class)
+                key_code_ivar = class_getInstanceVariable(keyboard_class, "_keyCode");
+        }
+        if ((key_type == 10 || key_type == 11) && key_code_ivar) {
+            unsigned short* key_code = (unsigned short*)((char*)event + ivar_getOffset(key_code_ivar));
+            if (!*key_code)   // Darling's "unmapped": code 0
+                *key_code = (unsigned short)quadra_x_key_override;
+        }
+    }
     quadra_lock_event_queue();
     if (at_start) {
         ((void (*)(id, SEL, id, unsigned long))objc_msgSend)(queue, sel_registerName("insertObject:atIndex:"),
@@ -5449,6 +5520,7 @@ static void hooked_post_x_event_inner(id self, SEL cmd, void* event) {
             quadra_release_mouse_capture(0);
             quadra_raw_buttons = 0;
             quadra_window_buttons_down = 0;
+            quadra_other_buttons_down = 0;
             quadra_x_modifier_flags = 0;
         }
     } else if (type == 9 /* FocusIn */) {
@@ -5470,10 +5542,13 @@ static void hooked_post_x_event_inner(id self, SEL cmd, void* event) {
     }
     if (type == 6 /* MotionNotify */)
         quadra_core_motion_type = quadra_motion_type(quadra_raw_buttons, &quadra_core_motion_button);
+    else if (type == 2 || type == 3)
+        quadra_x_key_override = quadra_x_extra_carbon_key(*(unsigned int*)((char*)event + 84));
     @try {
         orig_post_x_event(self, cmd, event);
     } @finally {
         quadra_core_motion_type = quadra_core_motion_button = 0;
+        quadra_x_key_override = -1;
     }
     if (type == 9 /* FocusIn */ && quadra_game_focus_event(self, event)) {
         /* Darling must activate the Cocoa window before we resolve its lock
