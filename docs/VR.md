@@ -40,7 +40,7 @@ in its error strings.
 | Slot | Method | Quadra |
 |---|---|---|
 | 2 | `update` | no-op (state is written when the frame opens) |
-| 3 | haptics `(hand, amplitude)` | OpenXR vibration, renewed while active |
+| 3 | haptics `(hand, amplitude)` | OpenXR vibration, renewed while active (see Vibration) |
 | 4 | recenter | re-anchors the base space at the head's position and yaw |
 | 5 | `getState` (0x138 bytes) | opens the headset frame on the first render-thread read |
 | 9 | `getEyeFramebuffer(eye)` | the emulator's "VR Eye" targets |
@@ -61,7 +61,9 @@ State (`getState`), as the Quest device fills it:
 | 0x88 | `float` per input slot |
 | 0xf8 | eye positions in the head space, `float[2][3]` |
 | 0x110 | tangents of the half angles up, down, left, right, `float[2][4]` |
+| 0x132 | `u8` the controllers can vibrate (see Vibration) |
 | 0x133 | `u8` active |
+| 0x134 | `u32` session: 0 idle, 1 visible, 2 focused, 3 stopping (`VRService.VRSessionState` minus one) |
 
 Input slots: 0 left stick click, 1/2 left stick x/y, 3 left trigger, 4 left
 grip, 9 right stick click, 10/11 right stick, 12 right trigger, 13 right grip,
@@ -69,6 +71,23 @@ grip, 9 right stick click, 10/11 right stick, 12 right trigger, 13 right grip,
 and above 0.99, as on Quest. RenderView's per-frame VR update
 (`0x1049b69f2` in 0.743.0.7431134) calls `update()`, reads the state and
 turns it into VRService user CFrames and Gamepad1 input.
+
+## Vibration
+
+RenderView's VR update (`0x104aad536` in 0.744.0.7441080) passes
+HapticService's motor strengths to the device's slot 3, one call per hand.
+It declares Gamepad1's LeftHand and RightHand motors as supported, and reads
+the strengths back, only while the state's byte at 0x132 is set. With
+`DFFlagFixRegisterMotors` (on in current flags) it also builds
+HapticService's motor-to-hand list only while the session field at 0x134
+says focused, and drops the list when the session leaves focus. The list
+sends LeftHand to the left controller, RightHand to the right one, and Large
+and Small to both. Large and Small are declared as supported only while
+`FFlagSupportGenericHapticsOnVR` is on.
+
+The emulator the device is cloned from sets neither field, so nothing
+vibrated. Quadra writes 0x134 from the OpenXR session state when the frame
+opens and sets 0x132 once the controllers sync.
 
 ## Frame timing
 

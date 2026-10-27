@@ -79,6 +79,8 @@ extern int mach_timebase_info(unsigned int info[2]);
 #define STATE_INPUTS 0x88        /* float per input slot (VR_XR_INPUTS) */
 #define STATE_EYE_OFFSETS 0xf8   /* float[2][3], eye positions in the head space, meters */
 #define STATE_EYE_TANGENTS 0x110 /* float[2][4], tan of up, down, left, right */
+#define STATE_VIBRATION 0x132    /* u8, the controllers can vibrate (HapticService LeftHand, RightHand) */
+#define STATE_SESSION 0x134      /* u32, 0 idle, 1 visible, 2 focused, 3 stopping (VRService.VRSessionState) */
 /* RBX::Graphics::Framebuffer size, and FramebufferGL's GL framebuffer name
  * (checked against its destructor). */
 #define FRAMEBUFFER_WIDTH 0x70
@@ -526,6 +528,7 @@ static void vr_write_state(void *self, const VrXrViews *views) {
     __builtin_memcpy(state + STATE_CHANGED_INPUTS, &changed, 4);
     if (!views->controllers) return;
     state[STATE_CONTROLLERS] = 1;
+    state[STATE_VIBRATION] = 1;
     for (int slot = 0; slot < VR_XR_INPUTS; ++slot)
         if (changed & (1u << slot)) __builtin_memcpy(state + STATE_INPUTS + slot * 4, &views->input[slot], 4);
     for (int hand = 0; hand < 2; ++hand) {
@@ -551,7 +554,12 @@ static void vr_open_frame(void *self) {
     if (vr_frame_open) return;
     VrXrViews views;
     vr_timing.open_start = vr_now();
-    if (vr_xr_begin_frame()) {
+    int opened = vr_xr_begin_frame();
+    /* RenderView's VR update hands HapticService's motors to the controllers
+     * only while the session is focused. */
+    unsigned int session = (unsigned int)vr_xr_session_state();
+    __builtin_memcpy((unsigned char *)self + vr_state_offset + STATE_SESSION, &session, 4);
+    if (opened) {
         vr_frame_open = 1;
         vr_timing.open_end = vr_timing.draw_start = vr_now();
         if (vr_xr_locate(&views)) vr_write_state(self, &views);

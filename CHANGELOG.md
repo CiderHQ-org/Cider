@@ -3,6 +3,13 @@
 ## Unreleased
 
 
+## 0.37.p4 — 2026-10-26
+
+- Fix VR controllers never vibrating. Roblox only passes vibration to the controllers while the headset reports a
+  focused session that has controllers able to vibrate, and Quadra reported neither. `VRService.VRSessionState` now
+  follows the headset too (Idle, Visible, Focused, Stopping) instead of staying Idle.
+- Nothing else changes from 0.37.p3.
+
 ## 0.37.p3 — 2026-10-25
 
 - Fix the middle mouse button and the extra mouse buttons doing nothing in game. Darling's window code has no case for

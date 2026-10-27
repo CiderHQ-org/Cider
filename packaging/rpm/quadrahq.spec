@@ -1,7 +1,7 @@
 %bcond_with prebuilt_metal
-%global upstream_version 0.37.p3
+%global upstream_version 0.37.p4
 Name:           quadrahq
-Version:        0.37.p3
+Version:        0.37.p4
 Release:        1%{?dist}
 Summary:        Run the macOS Roblox client on Linux through Darling
 License:        GPL-3.0-only AND MIT AND ISC AND OFL-1.1
@@ -101,6 +101,9 @@ python3 -m compileall -q -d "%{_datadir}/quadrahq/launcher" "%{buildroot}%{_data
 %{_datadir}/mime/packages/org.quadrahq.Quadra.xml
 
 %changelog
+* Mon Oct 26 2026 Quadra maintainers <noreply@aubree.wtf> - 0.37.p4-1
+- Fix VR controllers never vibrating: Roblox only passes vibration to the controllers while the headset reports a focused session with controllers able to vibrate, and Quadra reported neither. VRService.VRSessionState now follows the headset.
+
 * Sun Oct 25 2026 Quadra maintainers <noreply@aubree.wtf> - 0.37.p3-1
 - Fix the middle and extra mouse buttons, which did nothing in game, and keys outside the main block (Insert, Right Alt, Menu, F13 to F20, keypad =, the ISO key), which were sent as the A key on X11 and dropped on native Wayland.
 

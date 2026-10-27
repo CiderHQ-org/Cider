@@ -68,6 +68,11 @@
     <control>keyboard</control>
   </supports>
   <releases>
+    <release version="0.37.p4" date="2026-10-26">
+      <description>
+        <p>Fixes VR controllers, which never vibrated: Roblox only sends vibration while the headset reports a focused session with controllers that can vibrate, and Quadra reported neither. VRService.VRSessionState now follows the headset. Nothing else changes from 0.37.p3.</p>
+      </description>
+    </release>
     <release version="0.37.p3" date="2026-10-25">
       <description>
         <p>Fixes the middle and extra mouse buttons, which did nothing in game, and keys outside the main block such as Insert, Right Alt, Menu and F13 to F20, which Roblox received as the A key on X11 or never received on native Wayland. Nothing else changes from 0.37.p2.</p>

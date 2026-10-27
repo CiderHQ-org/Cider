@@ -34,6 +34,7 @@ static XrSwapchain swapchains[2];
 static XrSwapchainImageOpenGLKHR images[2][VR_XR_IMAGES];
 static uint32_t image_counts[2];
 static int eye_width, eye_height, running, frame_begun, views_located;
+static int32_t session_state;
 static float render_scale = 1;
 static XrFrameState frame_state;
 static XrView located[2], submitted[2];
@@ -526,6 +527,17 @@ int vr_xr_running(void) {
     return running;
 }
 
+int vr_xr_session_state(void) {
+    switch (session_state) {
+    case XR_SESSION_STATE_VISIBLE: return 1;
+    case XR_SESSION_STATE_FOCUSED: return 2;
+    case XR_SESSION_STATE_STOPPING:
+    case XR_SESSION_STATE_LOSS_PENDING:
+    case XR_SESSION_STATE_EXITING: return 3;
+    default: return 0;
+    }
+}
+
 static void vr_xr_poll(void) {
     XrEventDataBuffer event;
     for (;;) {
@@ -540,6 +552,7 @@ static void vr_xr_poll(void) {
         snprintf(line, sizeof line, "[Quadra VR] OpenXR session %s\n",
                  changed->state >= 0 && changed->state <= 8 ? names[changed->state] : "state changed");
         vr_host->log(line);
+        session_state = changed->state;
         if (changed->state == XR_SESSION_STATE_READY) {
             XrSessionBeginInfo begin = {XR_TYPE_SESSION_BEGIN_INFO, 0, XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO};
             XrResult result = xrBeginSession_(session, &begin);

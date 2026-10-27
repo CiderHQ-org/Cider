@@ -54,6 +54,9 @@ int vr_xr_locate(VrXrViews *views);
 /* Copies each eye's GL framebuffer into its swapchain and submits. */
 void vr_xr_end_frame(const unsigned int framebuffer[2], int width, int height);
 int vr_xr_running(void);
+/* The session as Roblox numbers it (VRService.VRSessionState minus one):
+ * 0 idle, 1 visible, 2 focused, 3 stopping. */
+int vr_xr_session_state(void);
 /* Any thread: Roblox's device calls. Applied on the render thread. */
 void vr_xr_set_haptic(int hand, float amplitude);  /* 0 left, 1 right; 0 stops */
 void vr_xr_recenter(void);
