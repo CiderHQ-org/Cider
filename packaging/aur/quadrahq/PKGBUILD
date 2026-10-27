@@ -1,8 +1,8 @@
 # Maintainer: aubree.wtf <https://aubree.wtf/>
 pkgname=quadrahq
 # Keep the release tag separate from pacman's package version.
-_tag=0.37.p3
-pkgver=0.37.p3
+_tag=0.37.p4
+pkgver=0.37.p4
 pkgrel=1
 pkgdesc='Run the macOS Roblox client on Linux through Darling'
 arch=('x86_64')
@@ -24,7 +24,7 @@ provides=('ciderhq' 'macoblox')
 conflicts=('quadrahq-git' 'ciderhq' 'ciderhq-git' 'macoblox' 'macoblox-git')
 replaces=('ciderhq' 'macoblox')
 source=("$pkgname-$_tag.tar.gz::$_repo/releases/download/v$_tag/quadrahq-$_tag-source.tar.gz")
-sha256sums=('53f87469261576e44c02e3ee6e064198810c65574c789fd3ac107e4206d0c812')
+sha256sums=('b522dde65d89c204f2e9a97db2f7d3b586ad447164a13af9fac081b1fa0c064a')
 
 build() {
   cd "Quadra-$_tag"
